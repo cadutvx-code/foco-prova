@@ -621,6 +621,15 @@ async function dadosOriginais(m) {
   if (m.b64) return Uint8Array.from(atob(m.b64), ch => ch.charCodeAt(0));
   return null;
 }
+// Descobre o idioma pelo vocabulário mais comum (para escolher o leitor de OCR certo)
+function idiomaDoTexto(t) {
+  const x = " " + t.toLowerCase().replace(/[^\p{L}]+/gu, " ") + " ";
+  const conta = ws => ws.reduce((n, w) => n + x.split(" " + w + " ").length - 1, 0);
+  const es = conta(["el", "los", "las", "del", "una", "con", "es", "y", "su", "sus", "más", "también", "pero", "muy", "hay", "lo"]) + (t.match(/ción|ñ/gi) || []).length * 2;
+  const pt = conta(["o", "os", "da", "do", "das", "dos", "uma", "não", "com", "é", "e", "em", "seu", "mais", "também", "mas", "muito", "há"]) + (t.match(/ção|ões|ã|õ/gi) || []).length * 2;
+  const en = conta(["the", "and", "of", "is", "to", "in", "that", "with", "for", "are", "this", "it"]);
+  return en > pt && en > es ? "eng" : es > pt ? "spa" : "por";
+}
 async function lerComOCR(id) {
   const c = atual(), m = c.materiais.find(x => x.id === id);
   const dados = await dadosOriginais(m);
@@ -635,13 +644,22 @@ async function lerComOCR(id) {
     const celular = matchMedia("(pointer: coarse)").matches;
     const nLeitores = Math.max(1, Math.min(celular ? 2 : 6, (navigator.hardwareConcurrency || 4) - 1));
     scheduler = Tesseract.createScheduler();
-    const primeiro = await Tesseract.createWorker("por", 1, { logger: ev => { if (/loading/.test(ev.status)) progressoIA("Baixando o leitor de texto (só na primeira vez)…", Math.max(ev.progress || 0, 0.05)); } });
-    scheduler.addWorker(primeiro);
-    const extras = Array.from({ length: nLeitores - 1 }, () => Tesseract.createWorker("por", 1).then(w => scheduler.addWorker(w)).catch(() => {}));
+    const logger = ev => { if (/loading/.test(ev.status)) progressoIA("Baixando o leitor de texto (só na primeira vez)…", Math.max(ev.progress || 0, 0.05)); };
     const limpar = t => t.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+    // 1ª página com um leitor trilíngue para descobrir o idioma; o resto com o leitor certo (mais rápido e preciso)
+    const detectar = async alvo => {
+      progressoIA("Identificando o idioma do arquivo…", 0.03);
+      const w = await Tesseract.createWorker("por+spa+eng", 1, { logger });
+      const t = (await w.recognize(alvo)).data.text; await w.terminate();
+      m.idioma = idiomaDoTexto(t);
+      return limpar(t);
+    };
+    const montarLeitores = async () => {
+      await Promise.all(Array.from({ length: nLeitores }, (_, i) => Tesseract.createWorker(m.idioma || "por", 1, i ? {} : { logger }).then(w => scheduler.addWorker(w)).catch(() => {})));
+      if (!scheduler.getNumWorkers()) throw new Error("não consegui iniciar o leitor de texto");
+    };
     if (m.tipo === "imagem") {
-      progressoIA("Lendo a imagem…", 0.5);
-      m.texto = limpar((await scheduler.addJob("recognize", new Blob([dados], { type: m.mime }))).data.text);
+      m.texto = await detectar(new Blob([dados], { type: m.mime }));
     } else {
       const pdf = await abrirPDF(dados);
       if (!m.paginas) { // arquivo antigo: tenta primeiro a leitura rápida de texto (agora com os mapas de fontes)
@@ -661,16 +679,26 @@ async function lerComOCR(id) {
         const seg = (Date.now() - inicio) / 1000, resta = feitas ? Math.round(seg / feitas * (total - feitas) / 60) : null;
         progressoIA(`Lendo páginas escaneadas: ${feitas} de ${total}${resta !== null ? ` · faltam ~${resta < 1 ? "menos de 1" : resta} min` : ""}`, feitas / total);
       };
+      // Página em imagem com ~1500px de largura: legível para o OCR sem desperdiçar tempo em scans enormes
+      const desenhar = async n => {
+        const pg = await pdf.getPage(n), base = pg.getViewport({ scale: 1 });
+        const vp = pg.getViewport({ scale: Math.min(2.2, Math.max(1, 1500 / base.width)) });
+        const cv = Object.assign(document.createElement("canvas"), { width: Math.round(vp.width), height: Math.round(vp.height) });
+        await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+        return cv;
+      };
+      if (fila.length && !m.idioma) {
+        const n = fila.shift(), cv = await desenhar(n);
+        m.paginas[n - 1] = await detectar(cv) || " "; cv.width = cv.height = 0; feitas++;
+      }
       atualizar();
-      await Promise.all(extras);
+      if (fila.length) await montarLeitores();
       // Renderiza no máximo (leitores + 1) páginas à frente, para não estourar a memória
       let proxima = 0;
       const trabalhador = async () => {
         while (proxima < fila.length) {
           const n = fila[proxima++];
-          const pg = await pdf.getPage(n), vp = pg.getViewport({ scale: 1.8 });
-          const cv = Object.assign(document.createElement("canvas"), { width: Math.round(vp.width), height: Math.round(vp.height) });
-          await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+          const cv = await desenhar(n);
           const r = await scheduler.addJob("recognize", cv);
           m.paginas[n - 1] = limpar(r.data.text) || " ";
           cv.width = cv.height = 0;
