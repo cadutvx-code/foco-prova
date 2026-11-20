@@ -376,6 +376,8 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
     </div>
     <div class="stack" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
       <b style="font-size:14px">🔊 Voz do professor (leitura em voz alta)</b>
+      <div class="row"><label class="grow">Voz do Gemini (recomendada — humana, funciona em qualquer navegador)<select id="cfgVozGemini"></select></label><button class="btn small" data-act="testarVozGemini">▶ Testar</button></div>
+      <span class="muted" style="font-size:12px">Se escolher “Voz do navegador”, use as opções abaixo:</span>
       <div class="row"><label class="grow">Português<select id="cfgVozPt"></select></label><button class="btn small" data-act="testarVoz" data-id="pt">▶ Testar</button></div>
       <div class="row"><label class="grow">Español<select id="cfgVozEs"></select></label><button class="btn small" data-act="testarVoz" data-id="es">▶ Probar</button></div>
       <span class="muted" style="font-size:12px">As vozes “Natural” / “Online” (Edge) e “Google” (Chrome) soam bem mais humanas.</span>
@@ -1993,7 +1995,45 @@ function melhorVoz(lang) {
   return vs.sort((a, b) => nota(b) - nota(a))[0] || null;
 }
 try { speechSynthesis.onvoiceschanged = () => {}; speechSynthesis.getVoices(); } catch {}
+// Voz do Gemini (nuvem): soa humana e funciona igual em qualquer navegador (inclusive o Brave, que bloqueia as vozes boas)
+const VOZES_GEMINI = [["Charon", "Charon — masculina, calma (professor)"], ["Kore", "Kore — feminina, firme"], ["Puck", "Puck — masculina, animada"], ["Aoede", "Aoede — feminina, leve"], ["Fenrir", "Fenrir — masculina, forte"], ["Leda", "Leda — feminina, jovem"], ["navegador", "Voz do navegador (sem internet)"]];
+const AUDIO_CACHE = new Map(); let audioAtual = null; S.falaId = 0;
+const vozGemini = () => lsGet("fp-voz-gemini", "Charon");
+const usarVozGemini = () => cfg().provider === "gemini" && GEMINI_OK() && vozGemini() !== "navegador";
+function audioGemini(texto, lang) {
+  const voz = vozGemini(), chave = voz + "|" + texto;
+  if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
+  const pr = (async () => {
+    const { ai, AI } = await motorGemini();
+    const estilo = lang.startsWith("es") ? "Lee en voz alta, con tono de profesor universitario, natural, claro y amable:" : "Leia em voz alta, com tom de professor universitário, natural, claro e gentil:";
+    for (const nome of ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"]) {
+      try {
+        const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } } });
+        const r = await m.generateContent(`${estilo} ${texto}`);
+        const part = r.response.candidates?.[0]?.content?.parts?.find(x => x.inlineData);
+        if (part) return `data:${part.inlineData.mimeType || "audio/wav"};base64,${part.inlineData.data}`;
+      } catch {}
+    }
+    throw new Error("sem áudio");
+  })();
+  AUDIO_CACHE.set(chave, pr); pr.catch(() => AUDIO_CACHE.delete(chave));
+  if (AUDIO_CACHE.size > 40) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value);
+  return pr;
+}
+// Gera o áudio antes (as perguntas do professor tocam na hora)
+function prepararFala(texto, lang) { if (usarVozGemini() && texto) audioGemini(texto, lang || vozIdioma(atual())).catch(() => {}); }
+function pararAudio() { try { audioAtual?.pause(); } catch {} audioAtual = null; try { speechSynthesis.cancel(); } catch {} }
 function falar(texto, lang) {
+  lang ||= vozIdioma(atual());
+  pararAudio(); const vez = ++S.falaId;
+  if (usarVozGemini()) {
+    audioGemini(texto, lang).then(url => { if (vez !== S.falaId) return; audioAtual = new Audio(url); audioAtual.play().catch(() => {}); })
+      .catch(() => { if (vez === S.falaId) falarNavegador(texto, lang); });
+    return;
+  }
+  falarNavegador(texto, lang);
+}
+function falarNavegador(texto, lang) {
   try {
     speechSynthesis.cancel();
     lang ||= vozIdioma(atual());
@@ -2003,7 +2043,7 @@ function falar(texto, lang) {
     speechSynthesis.speak(u);
   } catch {}
 }
-function fecharVoz() { try { REC?.stop(); } catch {} REC = null; try { speechSynthesis.cancel(); } catch {} clearInterval(S.timerOral); }
+function fecharVoz() { try { REC?.stop(); } catch {} REC = null; S.falaId++; pararAudio(); clearInterval(S.timerOral); }
 function gravar() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return toast("Este navegador não reconhece voz. Use o Chrome ou o Edge, ou escreva a resposta.", true);
@@ -2070,6 +2110,7 @@ function iniciarAteneo(c, idx, sorteado) {
   const prep = Math.max(0, Math.min(15, +($("#oral-prep")?.value ?? 3)));
   lsSet("fp-oral-prep", prep);
   const cap = c.capitulos[idx];
+  prepararFala(idiomaCaderno(c) === "es" ? "Muy bien. Explícame todo lo que sabes sobre este capítulo." : "Muito bem. Me explique tudo o que você sabe sobre este capítulo.");
   S.player = { tipo: "oral", cap, etapa: sorteado ? "sorteio" : "preparo", fim: Date.now() + prep * 60000, prep, resp: "", gravando: false, corrigindo: false, exp: null, perguntas: [], k: 0, respostas: [] };
   render();
   if (sorteado) setTimeout(() => { if (S.player?.cap === cap && S.player.etapa === "sorteio") comecarPreparo(c); }, 2200);
@@ -2115,6 +2156,7 @@ Com base no conteúdo desse capítulo nos materiais:
       p.exp = { nota: Math.max(0, Math.min(10, +r.nota || 0)), cobriu: r.cobriu || [], faltou: r.faltou || [], comentario: r.comentario || "", resposta: resp };
       p.perguntas = (r.perguntas || []).filter(Boolean).slice(0, 2);
       if (p.perguntas.length < 2) p.perguntas.push(es ? `¿Qué más puede decir sobre ${p.cap.titulo}?` : `O que mais você pode dizer sobre ${p.cap.titulo}?`);
+      p.perguntas.forEach(q => prepararFala(q));
       p.etapa = "avaliacao";
     } else if (p.etapa === "pergunta") {
       const perg = p.perguntas[p.k];
@@ -2451,6 +2493,8 @@ async function criarCaderno() {
 
 /* ================= config ================= */
 function preencherVozes() {
+  $("#cfgVozGemini").innerHTML = VOZES_GEMINI.map(([v, n]) => `<option value="${v}">${n}</option>`).join("");
+  $("#cfgVozGemini").value = vozGemini();
   const salvas = lsGet("fp-voz", {});
   for (const [id, lang] of [["#cfgVozPt", "pt-BR"], ["#cfgVozEs", "es-ES"]]) {
     const vs = vozesDe(lang), melhor = melhorVoz(lang);
@@ -2561,8 +2605,9 @@ document.addEventListener("click", async e => {
     case "limparChat": if (confirm("Apagar a conversa com o tutor?")) { c.chat = []; await salvar(c); render(); } break;
     case "config": abrirConfig(); break;
     case "fecharCfg": $("#dlgConfig").close(); break;
+    case "testarVozGemini": { lsSet("fp-voz-gemini", $("#cfgVozGemini").value); const es = idiomaCaderno(atual()) === "es"; toast("Gerando a voz…"); falar(es ? "¡Hola! Soy el profesor de tu ateneo. Te tocó el capítulo de los líquidos corporales. Explícame todo lo que sabes." : "Olá! Eu sou o professor do seu ateneo. Você tirou o capítulo de líquidos corporais. Me explique tudo o que você sabe.", es ? "es-ES" : "pt-BR"); break; }
     case "testarVoz": { const v = $(id === "pt" ? "#cfgVozPt" : "#cfgVozEs").value; const salvas = lsGet("fp-voz", {}); lsSet("fp-voz", { ...salvas, [id]: v }); falar(id === "pt" ? "Olá! Eu sou o professor do seu ateneo. Me explique o capítulo de líquidos corporais." : "¡Hola! Soy el profesor de tu ateneo. Explícame el capítulo de los líquidos corporales.", id === "pt" ? "pt-BR" : "es-ES"); break; }
-    case "salvarCfg": lsSet("fp-voz", { ...lsGet("fp-voz", {}), pt: $("#cfgVozPt").value, es: $("#cfgVozEs").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
+    case "salvarCfg": lsSet("fp-voz-gemini", $("#cfgVozGemini").value); lsSet("fp-voz", { ...lsGet("fp-voz", {}), pt: $("#cfgVozPt").value, es: $("#cfgVozEs").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
     case "inicio": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
