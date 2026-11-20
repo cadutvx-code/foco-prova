@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="coi-serviceworker.min.js"></script>
 <title>Foco Prova</title>
 <link rel="icon" href="icone.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -204,6 +203,16 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .steps{counter-reset:s;list-style:none;padding:0;display:grid;gap:10px}
 .steps li{counter-increment:s;display:flex;gap:12px;align-items:flex-start}
 .steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:13px}
+.conta{display:flex;align-items:center;gap:8px;position:relative}
+.avatar{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);cursor:pointer;object-fit:cover;background:var(--panel2);display:grid;place-items:center;font-weight:800;padding:0}
+.sync{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+.conta-menu{position:absolute;top:44px;right:0;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 34px rgba(0,0,0,.2);padding:12px;min-width:250px;display:flex;flex-direction:column;gap:6px}
+.conta-menu button{background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700}
+.conta-menu button:hover{background:var(--panel2)}
+.btn-google{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 14px;font-weight:800;cursor:pointer;font-size:13.5px;white-space:nowrap}
+.btn-google:hover{border-color:var(--accent)}
+.aviso-nuvem{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-radius:14px;background:var(--accent-soft);margin-bottom:18px;font-weight:600;max-width:760px}
+@media (max-width:760px){ .sync{display:none} .btn-google span{display:none} }
 /* ---- materiais em lista ---- */
 .mlist{display:flex;flex-direction:column;gap:6px;max-width:640px}
 .mrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--panel2);border:1px solid transparent}
@@ -244,6 +253,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <button class="brand" data-act="inicio"><span class="logo">✦</span><span>Foco Prova</span></button>
   <div class="sp"></div>
   <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
+  <div class="conta" id="conta"></div>
   <button class="icon-btn" data-act="tema" title="Tema claro/escuro">🌓</button>
 </header>
 <div class="shell">
@@ -397,7 +407,7 @@ const dbDel = id => tx("readwrite", s => s.delete(id));
 const S = { novo: { icone: "📘", arquivos: [] }, colar: false, verMat: null, cadernos: [], atual: null, aba: "materiais", player: null, ocupado: null, form: { qtd: 15, dif: "mista", foco: "" }, verDeck: null, timer: null };
 const atual = () => S.cadernos.find(c => c.id === S.atual);
 const ativos = c => c.materiais.filter(m => m.ativo !== false && m.texto?.trim());
-async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } }
+async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } agendarSync(c); }
 function novoCaderno(nome) {
   return { id: uid(), nome, criado: Date.now(), atualizado: Date.now(), materiais: [], resumos: [], decks: [], quizzes: [], provas: [], chat: [] };
 }
@@ -1176,6 +1186,7 @@ function render() {
     (c ? `<div class="sep"></div>` + ABAS.map(([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}${n}</button>`).join("") : "") +
     `<button class="ri fim" data-act="config">${svg("config")}Ajustes</button>`;
   $("#iaChip span").textContent = nomeIA();
+  desenharConta();
   $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : viewHome();
 }
 
@@ -1817,6 +1828,171 @@ async function perguntar(txt) {
   S.ocupado = null; await salvar(c); render(); window.scrollTo(0, document.body.scrollHeight);
 }
 
+/* ================= conta e nuvem (Firebase) ================= */
+// Configuração pública do projeto Firebase (não é senha: só identifica o projeto)
+const FB_CONFIG = null;
+const FB_VER = "13.3.0";
+const NUVEM = { A: null, F: null, auth: null, db: null, user: null, estado: "", menu: false, pendentes: new Set(), timer: null, ultimaBaixa: 0, ocupada: false };
+const G_ICON = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
+
+function desenharConta() {
+  const el = $("#conta"); if (!el) return;
+  if (!FB_CONFIG) { el.innerHTML = ""; return; }
+  const u = NUVEM.user;
+  if (!u) { el.innerHTML = `<button class="btn-google" data-act="entrar">${G_ICON}<span>Entrar com Google</span></button>`; return; }
+  const ini = (u.displayName || u.email || "?").trim()[0].toUpperCase();
+  el.innerHTML = `<span class="sync" title="Sincronização com a nuvem">${esc(NUVEM.estado || "☁ Sincronizado")}</span>
+    <button class="avatar" data-act="menuConta" title="${esc(u.email || "")}">${u.photoURL ? `<img src="${esc(u.photoURL)}" referrerpolicy="no-referrer" alt="" style="width:100%;height:100%;border-radius:50%">` : ini}</button>
+    ${NUVEM.menu ? `<div class="conta-menu"><b>${esc(u.displayName || "Sua conta")}</b><span class="muted" style="font-size:13px">${esc(u.email || "")}</span>
+      <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos, materiais e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar.</span>
+      <button data-act="syncAgora">🔄 Sincronizar agora</button><button data-act="sairConta">🚪 Sair da conta</button></div>` : ""}`;
+}
+function estadoNuvem(t) { NUVEM.estado = t; desenharConta(); }
+
+async function iniciarNuvem() {
+  if (!FB_CONFIG) return;
+  try {
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const [{ initializeApp }, A, F] = await Promise.all([import(base + "firebase-app.js"), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
+    const app = initializeApp(FB_CONFIG);
+    Object.assign(NUVEM, { A, F, auth: A.getAuth(app), db: F.getFirestore(app) });
+    A.getRedirectResult(NUVEM.auth).catch(() => {});
+    A.onAuthStateChanged(NUVEM.auth, async u => {
+      NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
+      if (u) await sincronizarTudo();
+    });
+    window.addEventListener("focus", () => { if (NUVEM.user && Date.now() - NUVEM.ultimaBaixa > 60000) sincronizarTudo(); });
+  } catch (e) { console.warn("Nuvem indisponível", e); }
+}
+async function entrarGoogle() {
+  if (!NUVEM.auth) return toast("O login ainda está carregando. Tente de novo em instantes.", true);
+  const prov = new NUVEM.A.GoogleAuthProvider();
+  prov.setCustomParameters({ prompt: "select_account" });
+  try { await NUVEM.A.signInWithPopup(NUVEM.auth, prov); }
+  catch (e) {
+    const cod = e?.code || "";
+    if (/popup-blocked|operation-not-supported|web-storage/i.test(cod)) await NUVEM.A.signInWithRedirect(NUVEM.auth, prov);
+    else if (/unauthorized-domain/.test(cod)) toast("Este endereço não está autorizado no Firebase (Authentication → Settings → Authorized domains).", true);
+    else if (!/popup-closed|cancelled-popup/.test(cod)) toast("Não consegui entrar: " + (e?.message || e), true);
+  }
+}
+async function sairConta() {
+  await NUVEM.A.signOut(NUVEM.auth);
+  toast("Você saiu. Os cadernos continuam neste aparelho e na sua conta.");
+}
+
+const caminhoUser = () => `users/${NUVEM.user.uid}`;
+const assinaturaMat = m => `${(m.texto || "").length}|${m.ativo !== false}|${m.nome}|${!!m.poucoTexto}|${m.extra || ""}`;
+// O que vai para a nuvem: o caderno sem os textos (que vão separados) e sem arquivos brutos
+function cadernoLeve(c) {
+  const leve = { ...c, materiais: c.materiais.map(m => m.id) };
+  delete leve._idsSync;
+  let dados = JSON.stringify(leve);
+  if (dados.length > 900000) { leve.chat = (c.chat || []).slice(-20); if (leve.inteligente) leve.inteligente = { ...leve.inteligente, banco: [] }; dados = JSON.stringify(leve); }
+  return dados;
+}
+function agendarSync(c) {
+  if (!NUVEM.user || !c) return;
+  NUVEM.pendentes.add(c.id);
+  clearTimeout(NUVEM.timer);
+  estadoNuvem("☁ Salvando…");
+  NUVEM.timer = setTimeout(enviarPendentes, 2500);
+}
+async function enviarPendentes() {
+  if (!NUVEM.user) return;
+  if (NUVEM.ocupada) { NUVEM.timer = setTimeout(enviarPendentes, 1500); return; }
+  NUVEM.ocupada = true;
+  try {
+    for (const id of [...NUVEM.pendentes]) {
+      NUVEM.pendentes.delete(id);
+      const c = S.cadernos.find(x => x.id === id);
+      if (c) await subirCaderno(c);
+    }
+    estadoNuvem("☁ Sincronizado");
+  } catch (e) { console.warn(e); estadoNuvem(navigator.onLine ? "⚠ Erro ao salvar" : "⚠ Sem internet"); }
+  finally { NUVEM.ocupada = false; }
+}
+async function subirCaderno(c) {
+  const { F, db } = NUVEM, base = caminhoUser();
+  for (const m of c.materiais) {
+    const ass = assinaturaMat(m);
+    if (m._sync === ass) continue;
+    const { texto, arquivo, b64, paginas, _sync, transcrevendo, ...meta } = m;
+    const T = texto || "", partes = [];
+    for (let i = 0; i < T.length; i += 250000) partes.push(T.slice(i, i + 250000));
+    for (let i = 0; i < partes.length; i++) await F.setDoc(F.doc(db, `${base}/materiais/${m.id}/partes/${i}`), { t: partes[i] });
+    await F.setDoc(F.doc(db, `${base}/materiais/${m.id}`), { caderno: c.id, meta: JSON.stringify(meta), partes: partes.length, ass, atualizado: Date.now() });
+    m._sync = ass;
+  }
+  // materiais removidos deste caderno
+  const atuais = c.materiais.map(m => m.id);
+  for (const id of (c._idsSync || []).filter(id => !atuais.includes(id))) await apagarMaterialRemoto(id);
+  c._idsSync = atuais;
+  await F.setDoc(F.doc(db, `${base}/cadernos/${c.id}`), { atualizado: c.atualizado, dados: cadernoLeve(c), apagado: false });
+  try { await dbPut(c); } catch {}
+}
+async function apagarMaterialRemoto(id) {
+  const { F, db } = NUVEM, base = caminhoUser();
+  const ps = await F.getDocs(F.collection(db, `${base}/materiais/${id}/partes`));
+  for (const d of ps.docs) await F.deleteDoc(d.ref);
+  await F.deleteDoc(F.doc(db, `${base}/materiais/${id}`));
+}
+// Apagar um caderno: deixa uma marca "apagado" para os outros aparelhos também apagarem
+async function apagarCadernoRemoto(c) {
+  if (!NUVEM.user) return;
+  try {
+    for (const m of c.materiais) await apagarMaterialRemoto(m.id);
+    await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/cadernos/${c.id}`), { apagado: true, atualizado: Date.now(), dados: "" });
+  } catch (e) { console.warn(e); }
+}
+// Junta o que está na nuvem com o que está neste aparelho (vence a versão mais nova de cada caderno)
+async function sincronizarTudo() {
+  if (!NUVEM.user || NUVEM.ocupada) return;
+  NUVEM.ocupada = true; NUVEM.ultimaBaixa = Date.now();
+  estadoNuvem("☁ Sincronizando…");
+  try {
+    const { F, db } = NUVEM, base = caminhoUser();
+    const [cs, ms] = await Promise.all([F.getDocs(F.collection(db, `${base}/cadernos`)), F.getDocs(F.collection(db, `${base}/materiais`))]);
+    const matsRemotos = new Map(ms.docs.map(d => [d.id, d.data()]));
+    const vistos = new Set();
+    for (const d of cs.docs) {
+      const r = d.data(); vistos.add(d.id);
+      const local = S.cadernos.find(x => x.id === d.id);
+      if (r.apagado) {
+        if (local && (local.atualizado || 0) <= r.atualizado) { S.cadernos = S.cadernos.filter(x => x.id !== d.id); await dbDel(d.id); if (S.atual === d.id) { S.atual = null; S.player = null; } }
+        continue;
+      }
+      if (local && (local.atualizado || 0) >= r.atualizado) { if ((local.atualizado || 0) > r.atualizado) NUVEM.pendentes.add(local.id); continue; }
+      // a versão da nuvem é mais nova: monta o caderno com os materiais
+      const c = JSON.parse(r.dados);
+      const mats = [];
+      for (const id of c.materiais || []) {
+        const md = matsRemotos.get(id); if (!md) continue;
+        const meta = JSON.parse(md.meta || "{}");
+        const lm = local?.materiais.find(x => x.id === id);
+        let texto;
+        if (lm && lm._sync === md.ass) texto = lm.texto;
+        else {
+          const ps = await F.getDocs(F.collection(db, `${base}/materiais/${id}/partes`));
+          texto = ps.docs.sort((a, b) => +a.id - +b.id).map(x => x.data().t).join("");
+        }
+        mats.push({ ...meta, texto, _sync: md.ass });
+      }
+      c.materiais = mats; c._idsSync = mats.map(m => m.id);
+      if (local) Object.keys(local).forEach(k => delete local[k]), Object.assign(local, c); else S.cadernos.push(c);
+      await dbPut(local || c);
+    }
+    // cadernos que só existem neste aparelho sobem para a nuvem
+    for (const c of S.cadernos) if (!vistos.has(c.id)) NUVEM.pendentes.add(c.id);
+    NUVEM.ocupada = false;
+    if (NUVEM.pendentes.size) await enviarPendentes(); else estadoNuvem("☁ Sincronizado");
+    render();
+  } catch (e) {
+    console.warn(e); estadoNuvem(navigator.onLine ? "⚠ Erro ao sincronizar" : "⚠ Sem internet");
+    if (/permission/i.test(e?.message || "")) toast("A nuvem recusou o acesso. Confira as regras do Firestore (Rules).", true);
+  } finally { NUVEM.ocupada = false; }
+}
+
 /* ================= novo caderno ================= */
 function abrirNovo(arquivos = []) {
   S.novo = { icone: ICONES_KIT[Math.floor(Math.random() * 6)], arquivos: [...arquivos] };
@@ -1886,11 +2062,15 @@ document.addEventListener("click", async e => {
   const act = el.dataset.act, id = el.dataset.id, c = atual();
   switch (act) {
     case "novo": abrirNovo(); break;
+    case "entrar": entrarGoogle(); break;
+    case "menuConta": NUVEM.menu = !NUVEM.menu; desenharConta(); break;
+    case "syncAgora": NUVEM.menu = false; sincronizarTudo(); break;
+    case "sairConta": NUVEM.menu = false; sairConta(); break;
     case "menuKit": S.menuKit = S.menuKit === id ? null : id; render(); break;
     case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; k.materiaAuto = false; k.materiaTentada = true; await salvar(k); render(); }); break; }
     case "renomearKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Renomear caderno", k.nome, async v => { if (v) { k.nome = v; await salvar(k); render(); } }); break; }
     case "detectarKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; detectarMateria(k, true); break; }
-    case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(k.id); S.cadernos = S.cadernos.filter(x => x.id !== k.id); } render(); break; }
+    case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { apagarCadernoRemoto(k); await dbDel(k.id); S.cadernos = S.cadernos.filter(x => x.id !== k.id); } render(); break; }
     case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo)) { k.materia = v; await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; lsSet("fp-materias", m); } render(); }); break; }
     case "corMateria": { const m = materiasCfg(), atualCor = corMateria(id); m[id] = { ...(m[id] || {}), cor: CORES_MATERIA[(CORES_MATERIA.indexOf(atualCor) + 1) % CORES_MATERIA.length] }; lsSet("fp-materias", m); render(); break; }
     case "txtCancelar": $("#dlgTexto").close(); break;
@@ -1904,7 +2084,7 @@ document.addEventListener("click", async e => {
     case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; guardarRestantes(c, S.player); S.atual = id; S.player = null; S.verDeck = null; render(); prepararBanco(atual()); break;
     case "aba": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
     case "renomear": pedirTexto("Renomear caderno", c.nome, async v => { if (v) { c.nome = v; await salvar(c); render(); } }); break;
-    case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
+    case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { apagarCadernoRemoto(c); await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
     case "escolher": $("#arquivo").click(); break;
     case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); break; }
     case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = m.ativo === false; await salvar(c); render(); break; }
@@ -2022,6 +2202,12 @@ try { db = await abrirDB(); S.cadernos = (await dbAll()) || []; }
 catch (e) { toast("Armazenamento local indisponível — os dados não serão salvos.", true); }
 render();
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
+iniciarNuvem();
+// Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)
+navigator.serviceWorker?.getRegistrations?.().then(regs => {
+  const velhos = regs.filter(r => /coi-serviceworker/.test(r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || ""));
+  if (velhos.length) Promise.all(velhos.map(r => r.unregister())).then(() => { if (crossOriginIsolated) location.reload(); });
+}).catch(() => {});
 setTimeout(detectarPendentes, 1500);
 // Procura o Ollama algumas vezes (ao abrir o PC ele leva alguns segundos para ligar)
 async function acharOllama(tentativas = 1) {
