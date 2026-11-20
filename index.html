@@ -1,0 +1,1334 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foco Prova</title>
+<link rel="icon" href="icone.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icone.png">
+<meta name="theme-color" content="#6246ea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script src="lib/pdf.min.js"></script>
+<script src="lib/jszip.min.js"></script>
+<script src="lib/marked.min.js"></script>
+<script src="lib/purify.min.js"></script>
+<style>
+:root{
+  --bg:#f6f5fb; --panel:#ffffff; --panel2:#f0eef8; --text:#1d1b29; --muted:#6b6880; --line:#e3e0ef;
+  --accent:#6246ea; --accent-soft:#ece8ff; --ok:#1a9b5c; --ok-soft:#e3f6ec; --bad:#d63c4a; --bad-soft:#fdeaec;
+  --warn:#b7791f; --warn-soft:#fdf3e1; --shadow:0 1px 2px rgba(20,15,50,.06),0 4px 16px rgba(20,15,50,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121119; --panel:#1b1a25; --panel2:#24222f; --text:#ecebf3; --muted:#9b98ad; --line:#302e3d;
+    --accent:#8b75ff; --accent-soft:#2a2547; --ok:#3ccf8a; --ok-soft:#173527; --bad:#ff6b78; --bad-soft:#3a1d22;
+    --warn:#f0b450; --warn-soft:#3a2e16; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121119; --panel:#1b1a25; --panel2:#24222f; --text:#ecebf3; --muted:#9b98ad; --line:#302e3d;
+  --accent:#8b75ff; --accent-soft:#2a2547; --ok:#3ccf8a; --ok-soft:#173527; --bad:#ff6b78; --bad-soft:#3a1d22;
+  --warn:#f0b450; --warn-soft:#3a2e16; --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:270px 1fr;min-height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:12px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;padding:0 6px}
+.brand .logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:17px}
+.nb{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:10px;padding:9px 11px;cursor:pointer}
+.nb:hover{background:var(--panel2)}
+.nb.on{background:var(--accent-soft);border-color:var(--accent)}
+.nb small{color:var(--muted);font-size:12px}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px}
+main{padding:28px clamp(16px,4vw,44px) 60px;max-width:1100px;width:100%}
+h1{font-size:26px;margin:0 0 4px}
+h2{font-size:19px;margin:0 0 12px}
+h3{font-size:16px;margin:0 0 6px}
+.muted{color:var(--muted)}
+.pad{padding:6px}
+.btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.danger:hover{border-color:var(--bad);color:var(--bad)}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.grow{flex:1;min-width:200px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+label.inline{flex-direction:row;align-items:center;gap:6px;color:var(--text);font-size:14px}
+input[type=text],input[type=number],input[type=password],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text);width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+textarea{resize:vertical;min-height:90px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
+.tab{background:none;border:none;padding:10px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:30px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel)}
+.drop.over,.drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+.drop .big{font-size:34px}
+.mat{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel);flex-wrap:wrap}
+.mat .info{flex:1;min-width:180px}
+.badge{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--panel2);color:var(--muted)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.item h3{margin-bottom:2px}
+.item .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.spin{width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.prog{height:6px;background:var(--panel2);border-radius:9px;overflow:hidden}
+.prog>div{height:100%;background:var(--accent);transition:width .3s}
+.flash{min-height:260px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px;cursor:pointer;font-size:19px;user-select:none}
+.flash .back{margin-top:18px;padding-top:18px;border-top:1px dashed var(--line);width:100%;font-size:17px;animation:fade .25s}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}}
+.rate{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.rate .btn{min-width:120px;justify-content:center}
+.alt{display:block;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:pointer;margin-bottom:8px}
+.alt:hover{border-color:var(--accent)}
+.alt.sel{border-color:var(--accent);background:var(--accent-soft)}
+.alt.right{border-color:var(--ok);background:var(--ok-soft)}
+.alt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.alt b{margin-right:8px}
+.expl{padding:12px 14px;border-radius:10px;background:var(--panel2);margin-top:6px}
+.q{padding:16px 0;border-bottom:1px solid var(--line)}
+.q:last-child{border-bottom:none}
+.q .opt{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer;color:var(--text);font-size:15px;flex-direction:row}
+.res-ok{color:var(--ok);font-weight:600}
+.res-bad{color:var(--bad);font-weight:600}
+.score{font-size:46px;font-weight:800;color:var(--accent);line-height:1}
+.chat{display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
+.msg{padding:12px 15px;border-radius:13px;max-width:85%}
+.msg.user{align-self:flex-end;background:var(--accent);color:#fff}
+.msg.assistant{align-self:flex-start;background:var(--panel);border:1px solid var(--line)}
+.md p:first-child{margin-top:0}.md p:last-child{margin-bottom:0}
+.md table{border-collapse:collapse}.md td,.md th{border:1px solid var(--line);padding:4px 8px}
+.md code{background:var(--panel2);padding:1px 5px;border-radius:5px}
+.sticky-bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.timer{font-variant-numeric:tabular-nums;font-weight:700;padding:6px 12px;border-radius:8px;background:var(--panel2)}
+.timer.low{background:var(--bad-soft);color:var(--bad)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;max-width:min(560px,90vw);z-index:50}
+#toast.show{opacity:1}
+#toast.err{background:var(--bad);color:#fff}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--text);padding:22px;width:min(520px,94vw)}
+dialog::backdrop{background:rgba(10,8,25,.5)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.gloss dt{font-weight:700;margin-top:8px}.gloss dd{margin:2px 0 0 0;color:var(--muted)}
+details summary{cursor:pointer;color:var(--accent);font-size:13px}
+pre.prev{white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--bg);padding:10px;border-radius:8px;font-size:12px;border:1px solid var(--line)}
+table.cards{width:100%;border-collapse:collapse;font-size:14px}
+table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}
+.steps{counter-reset:s;list-style:none;padding:0;display:grid;gap:10px}
+.steps li{counter-increment:s;display:flex;gap:12px;align-items:flex-start}
+.steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:13px}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+  #lista{display:flex;gap:6px;overflow-x:auto}
+  #lista .nb{min-width:160px}
+  .side-foot{flex-direction:row;flex-wrap:wrap}
+  .msg{max-width:100%}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><div class="logo">✦</div>Foco Prova</div>
+    <button class="btn primary" data-act="novo">＋ Novo caderno</button>
+    <div class="muted" style="font-size:12px;padding:0 6px;text-transform:uppercase;letter-spacing:.06em">Cadernos</div>
+    <div id="lista" class="stack" style="gap:4px"></div>
+    <div class="side-foot">
+      <button class="btn ghost" data-act="config">⚙️ Configurações</button>
+      <button class="btn ghost" data-act="tema">🌓 Tema</button>
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
+<input type="file" id="arquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp" hidden>
+<input type="file" id="backupIn" accept=".json" hidden>
+<div id="toast"></div>
+<div id="iaProg" style="display:none;position:fixed;top:14px;right:14px;z-index:60;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;width:min(320px,calc(100vw - 28px));box-shadow:var(--shadow)">
+  <span style="font-size:13px"></span><div class="prog" style="margin-top:8px"><div style="width:0"></div></div>
+</div>
+
+<dialog id="dlgConfig">
+  <h2>Configurações</h2>
+  <div class="stack">
+    <label>Qual IA usar
+      <select id="cfgProvider">
+        <option value="anthropic">Claude (nuvem, API da Anthropic) — melhor qualidade</option>
+        <option value="webllm">IA do navegador — grátis, roda no aparelho (celular ou PC)</option>
+        <option value="ollama">IA local (Ollama) — grátis, roda no seu PC</option>
+      </select>
+    </label>
+    <div id="cfgWeb" class="stack">
+      <label>Tamanho da IA<select id="cfgWModel"></select></label>
+      <div class="muted" style="font-size:13px;line-height:1.5">A IA é baixada uma única vez e depois roda no seu aparelho, sem custo e sem conta. Precisa do Chrome ou Edge atualizados. É mais simples que o Claude: para materiais grandes ela lê trechos de cada vez — use o campo “Foco” para direcionar.</div>
+    </div>
+    <div id="cfgOllama" class="stack">
+      <label>Endereço do Ollama<input type="text" id="cfgOUrl" placeholder="http://localhost:11434"></label>
+      <div class="row">
+        <label class="grow">Modelo
+          <select id="cfgOModel"><option value="">(clique em Detectar)</option></select>
+        </label>
+        <button class="btn" data-act="detectar">🔎 Detectar modelos</button>
+      </div>
+      <label>Contexto (tokens) — quanto material a IA consegue ler de uma vez
+        <select id="cfgOCtx">
+          <option value="8192">8 mil (PC fraco)</option>
+          <option value="16384">16 mil (recomendado)</option>
+          <option value="32768">32 mil (mais lento)</option>
+          <option value="65536">64 mil (precisa de bastante RAM/VRAM)</option>
+          <option value="131072">128 mil</option>
+        </select>
+      </label>
+      <div class="muted" style="font-size:13px;line-height:1.5">
+        <b>Como instalar:</b> baixe em <b>ollama.com/download</b>, instale e rode no PowerShell:<br>
+        <code>ollama pull qwen3:8b</code> (recomendado, ~5 GB, 16 GB de RAM)<br>
+        PC mais fraco: <code>ollama pull qwen3:4b</code> · Para ler fotos: <code>ollama pull gemma3:4b</code><br>
+        Depois clique em “Detectar modelos”.
+      </div>
+    </div>
+    <div id="cfgAnth" class="stack">
+    <label>Chave da API da Anthropic
+      <input type="password" id="cfgKey" placeholder="sk-ant-...">
+    </label>
+    <p class="muted" style="margin:-6px 0 0;font-size:13px">A chave fica salva só neste navegador e é enviada apenas para api.anthropic.com. Crie uma em console.anthropic.com → API Keys.</p>
+    <label>Modelo
+      <select id="cfgModel">
+        <option value="claude-opus-5-5">Claude Opus 5.5 — melhor qualidade</option>
+        <option value="claude-sonnet-5-5">Claude Sonnet 5.5 — equilíbrio custo/qualidade</option>
+        <option value="claude-haiku-5-5">Claude Haiku 5.5 — mais barato e rápido</option>
+      </select>
+    </label>
+    <label>Esforço de raciocínio
+      <select id="cfgEffort">
+        <option value="low">Baixo (mais rápido)</option>
+        <option value="medium">Médio</option>
+        <option value="high">Alto (mais cuidadoso)</option>
+      </select>
+    </label>
+    </div>
+    <div class="row">
+      <button class="btn" data-act="exportar">⬇️ Exportar backup</button>
+      <button class="btn" data-act="importar">⬆️ Importar backup</button>
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" data-act="fecharCfg">Cancelar</button>
+      <button class="btn primary" data-act="salvarCfg">Salvar</button>
+    </div>
+  </div>
+</dialog>
+
+<script type="module">
+import Anthropic from "./lib/anthropic-sdk.mjs";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = "lib/pdf.worker.min.js";
+
+/* ================= utilidades ================= */
+const $ = s => document.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const md = s => DOMPurify.sanitize(marked.parse(String(s ?? "")));
+const DIA = 86400000;
+const fmtData = t => new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+const LETRAS = "ABCDEFGH";
+let toastT;
+function toast(msg, err = false) {
+  const t = $("#toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = "", err ? 6000 : 2800);
+}
+function lsGet(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function b64(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+}
+function embaralhar(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
+
+/* ================= banco local (IndexedDB) ================= */
+const STORE = "cadernos";
+let db = null;
+function abrirDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("foco-prova", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: "id" });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+const tx = (mode, fn) => new Promise((res, rej) => {
+  if (!db) return res(null);
+  const req = fn(db.transaction(STORE, mode).objectStore(STORE));
+  req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
+});
+const dbAll = () => tx("readonly", s => s.getAll());
+const dbPut = o => tx("readwrite", s => s.put(o));
+const dbDel = id => tx("readwrite", s => s.delete(id));
+
+/* ================= estado ================= */
+const S = { cadernos: [], atual: null, aba: "materiais", player: null, ocupado: null, form: { qtd: 15, dif: "mista", foco: "" }, verDeck: null, timer: null };
+const atual = () => S.cadernos.find(c => c.id === S.atual);
+const ativos = c => c.materiais.filter(m => m.ativo !== false && m.texto?.trim());
+async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } }
+function novoCaderno(nome) {
+  return { id: uid(), nome, criado: Date.now(), atualizado: Date.now(), materiais: [], resumos: [], decks: [], quizzes: [], provas: [], chat: [] };
+}
+const cfg = () => ({ provider: "anthropic", apiKey: "", model: "claude-opus-5-5", effort: "medium", ollamaUrl: "http://localhost:11434", ollamaModel: "", ollamaCtx: 16384, ...lsGet("fp-config", {}) });
+
+/* ================= Claude ================= */
+const SYS_BASE = `Você é um assistente de estudos que cria materiais de revisão para provas a partir dos documentos do estudante.
+Regras:
+- Use SOMENTE o conteúdo dos materiais fornecidos. Não invente fatos que não estejam neles.
+- Escreva em português do Brasil, de forma clara e didática.
+- Priorize os conceitos mais importantes e com maior chance de cair em prova.
+- Quando útil, indique de onde veio a informação (nome do documento, página ou slide).`;
+
+// Quantos caracteres de material cabem no contexto da IA escolhida (IA local/navegador têm pouco espaço)
+function limiteMateriais() {
+  const s = cfg();
+  if (s.provider === "webllm") return ((MODELOS_WEB[s.webModel]?.ctx || 8192) - 3600) * 3;
+  if (s.provider === "ollama") return (Math.max(+s.ollamaCtx || 16384, 4096) - 3600) * 3;
+  return Infinity;
+}
+// Se o material não cabe, escolhe trechos: os mais ligados ao foco ou, sem foco, uma amostra variada (cada geração vê partes diferentes)
+function blocoMateriais(c, foco = "") {
+  const mats = ativos(c), limite = limiteMateriais();
+  const total = mats.reduce((n, m) => n + m.texto.length, 0);
+  if (total <= limite) {
+    return `<materiais>\n${mats.map(m => `<documento nome="${esc(m.nome)}">\n${m.texto}\n</documento>`).join("\n\n")}\n</materiais>`;
+  }
+  const trechos = [];
+  for (const m of mats) {
+    let buf = "";
+    for (const par of m.texto.split(/\n\s*\n|\n(?=\[(?:Página|Slide) \d+\])/)) {
+      if (buf.length + par.length > 1400 && buf) { trechos.push({ nome: m.nome, texto: buf.trim() }); buf = ""; }
+      buf += par + "\n\n";
+    }
+    if (buf.trim()) trechos.push({ nome: m.nome, texto: buf.trim() });
+  }
+  const norm = t => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const palavras = norm(foco).split(/\W+/).filter(p => p.length > 3);
+  trechos.forEach((t, i) => { t.i = i; t.nota = Math.random() + (palavras.length ? palavras.reduce((n, p) => n + (norm(t.texto).includes(p) ? 3 : 0), 0) : 0); });
+  const escolhidos = []; let usado = 0;
+  for (const t of [...trechos].sort((a, b) => b.nota - a.nota)) {
+    if (usado + t.texto.length > limite) continue;
+    escolhidos.push(t); usado += t.texto.length;
+  }
+  escolhidos.sort((a, b) => a.i - b.i);
+  return `<materiais observacao="trechos selecionados (o material completo é maior)">\n${escolhidos.map(t => `<trecho documento="${esc(t.nome)}">\n${t.texto}\n</trecho>`).join("\n\n")}\n</materiais>`;
+}
+
+/* ---------- IA no navegador (WebLLM) ---------- */
+const MODELOS_WEB = {
+  "Qwen2.5-3B-Instruct-q4f16_1-MLC": { nome: "Completa (recomendada para PC) — ~2 GB", ctx: 8192 },
+  "Qwen2.5-1.5B-Instruct-q4f16_1-MLC": { nome: "Média (celular / notebook) — ~1 GB", ctx: 8192 },
+  "Qwen2.5-0.5B-Instruct-q4f16_1-MLC": { nome: "Leve (aparelho fraco, erra mais) — ~400 MB", ctx: 8192 }
+};
+const WL = { engine: null, modelo: null, carregando: null };
+function progressoIA(txt, pct) {
+  const el = $("#iaProg");
+  if (pct === null) { el.style.display = "none"; return; }
+  el.style.display = "block";
+  el.querySelector("span").textContent = txt;
+  el.querySelector(".prog > div").style.width = Math.round(pct * 100) + "%";
+}
+async function motorWebLLM(modelo) {
+  if (WL.engine && WL.modelo === modelo) return WL.engine;
+  if (!navigator.gpu) throw new Error("Este aparelho/navegador não suporta a IA do navegador (WebGPU). Use o Chrome ou o Edge atualizados (no iPhone: iOS 26+ com Safari).");
+  if (WL.carregando) return WL.carregando;
+  WL.carregando = (async () => {
+    const webllm = await import("https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/+esm");
+    if (WL.engine) { try { await WL.engine.unload(); } catch {} WL.engine = null; }
+    progressoIA("Preparando a IA…", 0);
+    const eng = await webllm.CreateMLCEngine(modelo, {
+      initProgressCallback: r => progressoIA(/fetch|download|cache/i.test(r.text) && r.progress < 1 ? `Baixando a IA (só na primeira vez): ${Math.round(r.progress * 100)}%` : "Carregando a IA na memória…", r.progress)
+    }, { context_window_size: MODELOS_WEB[modelo]?.ctx || 8192 });
+    WL.engine = eng; WL.modelo = modelo;
+    return eng;
+  })();
+  try { return await WL.carregando; }
+  catch (e) { throw new Error("Não consegui carregar a IA do navegador: " + (e?.message || e) + ". Tente o modelo Leve em Configurações."); }
+  finally { WL.carregando = null; progressoIA("", null); }
+}
+async function chamarWebLLM(s, { system, messages, schema }) {
+  const modelo = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+  const eng = await motorWebLLM(modelo);
+  const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
+  for (const m of messages.slice(-7)) {
+    if (typeof m.content !== "string") throw new Error("A IA do navegador só lê texto. Para PDFs escaneados e fotos, cole o texto na aba Materiais.");
+    msgs.push({ role: m.role, content: m.content });
+  }
+  const req = { messages: msgs, temperature: schema ? 0.5 : 0.7, max_tokens: 2800, frequency_penalty: 0.3 };
+  if (schema) req.response_format = { type: "json_object", schema: JSON.stringify(schema) };
+  if (MODELOS_WEB[modelo]?.pensa) req.extra_body = { enable_thinking: false };
+  progressoIA("A IA está escrevendo… (roda no seu aparelho)", 0.5);
+  let r;
+  try { r = await eng.chat.completions.create(req); }
+  catch (e) {
+    if (/context|token|exceed/i.test(e?.message || "")) throw new Error("O conteúdo ficou grande demais para a IA do navegador. Use um foco mais específico ou peça menos itens.");
+    throw e;
+  } finally { progressoIA("", null); }
+  const ch = r.choices[0];
+  if (ch.finish_reason === "length") throw new Error("A resposta da IA do navegador foi cortada. Peça menos itens.");
+  const texto = ch.message.content || "";
+  return schema ? limparJSON(texto) : texto.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+}
+
+/* ---------- IA local (Ollama) ---------- */
+function textoDoSystem(system) { return Array.isArray(system) ? system.map(b => b.text).join("\n\n") : String(system || ""); }
+function limparJSON(t) {
+  t = t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  try { return JSON.parse(t); } catch {}
+  const m = t.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  throw new Error("A IA local devolveu um formato inválido. Tente de novo, peça menos itens ou use um modelo maior.");
+}
+async function chamarOllama(s, { system, messages, schema }) {
+  if (!s.ollamaModel) { abrirConfig(); throw new Error("Escolha um modelo do Ollama em Configurações."); }
+  const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido, sem texto extra." : "") }];
+  for (const m of messages) {
+    if (typeof m.content === "string") { msgs.push({ role: m.role, content: m.content }); continue; }
+    const out = { role: m.role, content: "" }, imgs = [];
+    for (const b of m.content) {
+      if (b.type === "text") out.content += b.text + "\n";
+      else if (b.type === "image") imgs.push(b.source.data);
+      else if (b.type === "document") throw new Error("A IA local não lê PDFs escaneados. Use a API do Claude para transcrever ou envie fotos das páginas (com um modelo de visão, ex.: qwen2.5vl, gemma3).");
+    }
+    if (imgs.length) out.images = imgs;
+    msgs.push(out);
+  }
+  const tokens = Math.round(msgs.reduce((n, m) => n + m.content.length, 0) / 3.5);
+  const ctx = Math.max(+s.ollamaCtx || 32768, 4096);
+  if (tokens > ctx * 0.8) throw new Error(`Os materiais têm ≈${tokens.toLocaleString("pt-BR")} tokens, mais do que o contexto da IA local (${ctx.toLocaleString("pt-BR")}). Desmarque materiais, use um foco menor ou aumente o contexto em Configurações.`);
+  let resp;
+  try {
+    resp = await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: s.ollamaModel, messages: msgs, stream: false, think: false, format: schema || undefined, options: { num_ctx: ctx, temperature: schema ? 0.4 : 0.7 } })
+    });
+  } catch { throw new Error("Não consegui falar com o Ollama. Ele está aberto? (verifique o ícone na bandeja ou rode \"ollama serve\")"); }
+  if (!resp.ok) {
+    const t = await resp.text();
+    if (resp.status === 404) throw new Error(`Modelo "${s.ollamaModel}" não encontrado. Rode: ollama pull ${s.ollamaModel}`);
+    throw new Error("Erro do Ollama: " + t.slice(0, 200));
+  }
+  const data = await resp.json();
+  const texto = data.message?.content || "";
+  return schema ? limparJSON(texto) : texto.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+}
+
+async function chamar(opts) {
+  const s = cfg();
+  if (s.provider === "ollama") return chamarOllama(s, opts);
+  if (s.provider === "webllm") return chamarWebLLM(s, opts);
+  const { system, messages, schema, maxTokens = 32000 } = opts;
+  if (!s.apiKey) { abrirConfig(); throw new Error("Configure sua chave da API da Anthropic primeiro."); }
+  const client = new Anthropic({ apiKey: s.apiKey, dangerouslyAllowBrowser: true });
+  const params = { model: s.model, max_tokens: maxTokens, system, messages, output_config: { effort: s.effort } };
+  if (schema) params.output_config.format = { type: "json_schema", schema };
+  let resp;
+  try {
+    // fallback no servidor: se o modelo recusar por engano, outro modelo continua
+    resp = await client.beta.messages.stream({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }).finalMessage();
+  } catch (e) {
+    if (e?.status === 400) resp = await client.messages.stream(params).finalMessage();
+    else throw e;
+  }
+  if (resp.stop_reason === "refusal") throw new Error("O modelo recusou esta solicitação. Tente reformular o foco.");
+  if (resp.stop_reason === "max_tokens") throw new Error("A resposta ficou longa demais e foi cortada. Peça menos itens.");
+  const texto = resp.content.filter(b => b.type === "text").map(b => b.text).join("");
+  return schema ? JSON.parse(texto) : texto;
+}
+
+function gerarJSON(c, instrucao, schema, foco = "") {
+  return chamar({
+    system: [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content: instrucao }],
+    schema
+  });
+}
+
+function erroMsg(e) {
+  if (e?.status === 401) return "Chave da API inválida. Verifique em Configurações.";
+  if (e?.status === 429) return "Limite de uso atingido. Aguarde um pouco e tente de novo.";
+  if (e?.status === 529 || e?.status >= 500) return "Servidor da Anthropic sobrecarregado. Tente novamente.";
+  if (e?.status === 400 && /credit/i.test(e.message)) return "Sem créditos na conta da API.";
+  return e?.message || String(e);
+}
+
+/* ---------- schemas de saída ---------- */
+const obj = (props) => ({ type: "object", properties: props, required: Object.keys(props), additionalProperties: false });
+const str = { type: "string" }, int = { type: "integer" }, num = { type: "number" };
+const arr = items => ({ type: "array", items });
+const SCH = {
+  resumo: obj({ titulo: str, secoes: arr(obj({ titulo: str, conteudo: str })), conceitos: arr(obj({ termo: str, definicao: str })), perguntas_revisao: arr(str) }),
+  flash: obj({ titulo: str, cards: arr(obj({ frente: str, verso: str, topico: str })) }),
+  quiz: obj({ titulo: str, questoes: arr(obj({ enunciado: str, alternativas: arr(str), correta: int, explicacao: str, topico: str })) }),
+  prova: obj({ titulo: str, questoes: arr(obj({ tipo: { type: "string", enum: ["multipla", "vf", "dissertativa"] }, enunciado: str, alternativas: arr(str), correta: int, resposta_esperada: str, explicacao: str, pontos: num })) }),
+  correcao: obj({ correcoes: arr(obj({ indice: int, nota: num, feedback: str })) })
+};
+
+/* ================= extração de arquivos ================= */
+function xmlTexto(xml, pTag, tTag) {
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  return [...doc.getElementsByTagName(pTag)].map(p => [...p.getElementsByTagName(tTag)].map(t => t.textContent).join("")).filter(s => s.trim()).join("\n");
+}
+async function extrairPDF(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+  const out = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const tc = await (await pdf.getPage(i)).getTextContent();
+    const t = tc.items.map(it => it.str + (it.hasEOL ? "\n" : " ")).join("").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+    out.push(`[Página ${i}]\n${t}`);
+  }
+  const texto = out.join("\n\n");
+  const util = texto.replace(/\[Página \d+\]/g, "").replace(/\s/g, "").length;
+  const pouco = util < pdf.numPages * 60;
+  return { tipo: "pdf", texto: pouco ? "" : texto, extra: `${pdf.numPages} pág.`, poucoTexto: pouco, mime: "application/pdf", arquivo: pouco ? file : undefined };
+}
+async function extrairPPTX(file) {
+  const zip = await JSZip.loadAsync(file);
+  const nums = Object.keys(zip.files).map(n => n.match(/^ppt\/slides\/slide(\d+)\.xml$/)).filter(Boolean).map(m => +m[1]).sort((a, b) => a - b);
+  const out = [];
+  for (const n of nums) {
+    const t = xmlTexto(await zip.file(`ppt/slides/slide${n}.xml`).async("string"), "a:p", "a:t");
+    let notas = "";
+    const rels = zip.file(`ppt/slides/_rels/slide${n}.xml.rels`);
+    if (rels) {
+      const m = (await rels.async("string")).match(/Target="\.\.\/notesSlides\/(notesSlide\d+\.xml)"/);
+      const nf = m && zip.file(`ppt/notesSlides/${m[1]}`);
+      if (nf) notas = xmlTexto(await nf.async("string"), "a:p", "a:t").split("\n").filter(l => !/^\d+$/.test(l.trim())).join("\n").trim();
+    }
+    out.push(`[Slide ${n}]\n${t}${notas ? `\n(Notas do apresentador: ${notas})` : ""}`);
+  }
+  return { tipo: "pptx", texto: out.join("\n\n"), extra: `${nums.length} slides` };
+}
+async function extrairDOCX(file) {
+  const zip = await JSZip.loadAsync(file);
+  const f = zip.file("word/document.xml");
+  if (!f) throw new Error("DOCX inválido");
+  return { tipo: "docx", texto: xmlTexto(await f.async("string"), "w:p", "w:t") };
+}
+async function extrair(file) {
+  const ext = file.name.split(".").pop().toLowerCase();
+  if (ext === "pdf") return extrairPDF(file);
+  if (ext === "pptx") return extrairPPTX(file);
+  if (ext === "docx") return extrairDOCX(file);
+  if (["txt", "md", "csv"].includes(ext)) return { tipo: ext, texto: await file.text() };
+  if (["png", "jpg", "jpeg", "webp"].includes(ext)) {
+    return { tipo: "imagem", texto: "", poucoTexto: true, arquivo: file, mime: ext === "jpg" ? "image/jpeg" : "image/" + ext };
+  }
+  if (ext === "ppt" || ext === "doc") throw new Error("Formato antigo (.ppt/.doc): salve como .pptx/.docx ou PDF");
+  throw new Error("Formato não suportado (." + ext + ")");
+}
+async function adicionarArquivos(files) {
+  const c = atual(); if (!c) return;
+  for (const f of files) {
+    toast("Lendo " + f.name + "…");
+    try {
+      const r = await extrair(f);
+      c.materiais.push({ id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r });
+      await salvar(c); render();
+      if (r.poucoTexto) toast(`${f.name}: pouco texto encontrado (provavelmente escaneado). Use "Transcrever com IA".`);
+    } catch (e) { toast(`${f.name}: ${e.message}`, true); }
+  }
+  toast("Materiais adicionados.");
+}
+/* ---------- OCR grátis no próprio app (Tesseract) ---------- */
+function carregarScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const s = Object.assign(document.createElement("script"), { src, onload: res, onerror: () => rej(new Error("sem internet para baixar o leitor de texto")) });
+    document.head.appendChild(s);
+  });
+}
+async function dadosOriginais(m) {
+  if (m.arquivo) return new Uint8Array(await m.arquivo.arrayBuffer());
+  if (m.b64) return Uint8Array.from(atob(m.b64), ch => ch.charCodeAt(0));
+  return null;
+}
+async function lerComOCR(id) {
+  const c = atual(), m = c.materiais.find(x => x.id === id);
+  const dados = await dadosOriginais(m);
+  if (!dados) return toast("O arquivo original não foi guardado. Remova este material e adicione o arquivo de novo.", true);
+  m.transcrevendo = true; render();
+  let worker;
+  try {
+    progressoIA("Preparando o leitor de texto…", 0.02);
+    await carregarScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
+    worker = await Tesseract.createWorker("por", 1, { logger: ev => { if (/loading/.test(ev.status)) progressoIA("Baixando o leitor de texto (só na primeira vez)…", Math.max(ev.progress || 0, 0.05)); } });
+    const out = [];
+    if (m.tipo === "imagem") {
+      progressoIA("Lendo a imagem…", 0.5);
+      out.push((await worker.recognize(new Blob([dados], { type: m.mime }))).data.text);
+    } else {
+      const pdf = await pdfjsLib.getDocument({ data: dados }).promise;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        progressoIA(`Lendo página ${i} de ${pdf.numPages}…`, (i - 1) / pdf.numPages);
+        const pg = await pdf.getPage(i), vp = pg.getViewport({ scale: 2 });
+        const cv = Object.assign(document.createElement("canvas"), { width: vp.width, height: vp.height });
+        await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+        const t = (await worker.recognize(cv)).data.text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+        out.push(`[Página ${i}]\n${t}`);
+      }
+    }
+    m.texto = out.join("\n\n").trim();
+    if (m.texto.replace(/\[Página \d+\]|\s/g, "").length < 20) throw new Error("não encontrei texto nas imagens");
+    m.poucoTexto = false; delete m.b64; delete m.arquivo;
+    toast("Texto lido com sucesso! Confira em “ver texto extraído”.");
+  } catch (e) { toast("Falha ao ler o texto: " + (e?.message || e), true); }
+  finally { try { await worker?.terminate(); } catch {} progressoIA("", null); }
+  delete m.transcrevendo; await salvar(c); render();
+}
+
+async function transcrever(id) {
+  const c = atual(), m = c.materiais.find(x => x.id === id);
+  if (!m?.b64 && m?.arquivo) m.b64 = await b64(m.arquivo);
+  if (!m?.b64) return toast("Arquivo original não disponível para transcrição.", true);
+  m.transcrevendo = true; render();
+  try {
+    const bloco = m.tipo === "imagem"
+      ? { type: "image", source: { type: "base64", media_type: m.mime, data: m.b64 } }
+      : { type: "document", source: { type: "base64", media_type: "application/pdf", data: m.b64 } };
+    m.texto = await chamar({
+      system: "Você transcreve materiais de estudo com fidelidade.",
+      messages: [{ role: "user", content: [bloco, { type: "text", text: "Transcreva todo o conteúdo textual deste material, fielmente, em Markdown. Descreva brevemente entre colchetes figuras, gráficos e diagramas relevantes. Se houver várias páginas, marque cada uma como [Página N]. Responda apenas com a transcrição." }] }],
+      maxTokens: 64000
+    });
+    m.poucoTexto = false; delete m.b64; delete m.arquivo;
+    toast("Transcrição concluída!");
+  } catch (e) { toast(erroMsg(e), true); }
+  delete m.transcrevendo; await salvar(c); render();
+}
+
+/* ================= geração ================= */
+function lerForm() {
+  if ($("#g-qtd")) S.form.qtd = Math.max(1, Math.min(60, +$("#g-qtd").value || 10));
+  if ($("#g-dif")) S.form.dif = $("#g-dif").value;
+  if ($("#g-foco")) S.form.foco = $("#g-foco").value.trim();
+  if ($("#g-tempo")) S.form.tempo = Math.max(0, +$("#g-tempo").value || 0);
+  if ($("#g-tipos")) S.form.tipos = [...document.querySelectorAll("#g-tipos input:checked")].map(i => i.value);
+}
+// Descarta questões com alternativas vazias, repetidas ou sem gabarito (comum em IAs pequenas)
+function altsValidas(x) {
+  if (!Array.isArray(x.alternativas) || x.tipo === "dissertativa" || x.tipo === "flashcard" || x.tipo === "licao" || x.frente) return true;
+  if (x.tipo === "vf") return true;
+  const alts = x.alternativas.map(a => String(a).replace(/^\s*[A-Ea-e]\)\s*/, "").trim());
+  const letras = alts.map(a => a.replace(/[^\p{L}\p{N}]/gu, ""));
+  if (alts.length < 3 || letras.some(l => l.length < 2)) return false;
+  if (new Set(letras.map(l => l.toLowerCase())).size !== letras.length) return false;
+  if (!(Number.isInteger(x.correta) && x.correta >= 0 && x.correta < alts.length)) return false;
+  x.alternativas = alts;
+  return true;
+}
+// IAs pequenas (navegador/local) erram mais com listas longas: gera em lotes e junta
+async function emLotes(qtd, campo, chave, fn) {
+  const p = cfg().provider, lote = p === "webllm" ? 4 : p === "ollama" ? 8 : qtd;
+  let res = null, tentativas = 0;
+  while (!res || res[campo].length < qtd) {
+    const falta = qtd - (res ? res[campo].length : 0);
+    const ev = res ? `\nNão repita estes itens já criados:\n${res[campo].map(x => "- " + String(x[chave]).slice(0, 100)).join("\n")}` : "";
+    if (lote < qtd) progressoIA(`Gerando… ${res ? res[campo].length : 0} de ${qtd}`, (res ? res[campo].length : 0) / qtd);
+    const r = await fn(Math.min(lote, falta), ev);
+    const chaveN = x => String(x[chave]).toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
+    const vistos = new Set((res ? res[campo] : []).map(chaveN));
+    const novos = (r[campo] || []).filter(x => x?.[chave] && altsValidas(x) && !vistos.has(chaveN(x)) && vistos.add(chaveN(x)));
+    if (!res) res = { ...r, [campo]: novos }; else res[campo].push(...novos);
+    if (!novos.length || ++tentativas >= Math.ceil(qtd / lote) + 2) break;
+  }
+  res[campo] = res[campo].slice(0, qtd);
+  progressoIA("", null);
+  return res;
+}
+
+async function gerar(tipo) {
+  const c = atual();
+  if (!ativos(c).length) return toast("Adicione materiais na aba Materiais primeiro.", true);
+  lerForm();
+  const { qtd, dif, foco } = S.form;
+  const f = foco ? `\nConcentre-se especificamente em: ${foco}.` : "";
+  const d = dif === "mista" ? "Misture níveis de dificuldade (fácil, médio e difícil)." : `Nível de dificuldade: ${dif}.`;
+  S.ocupado = tipo; render();
+  try {
+    if (tipo === "resumo") {
+      const r = await gerarJSON(c, `Crie um resumo de estudo completo e bem estruturado dos materiais, organizado por tópicos (seções com conteúdo em Markdown, usando listas, negrito e tabelas quando ajudar). Inclua um glossário de conceitos-chave e de 5 a 10 perguntas de revisão.${f}`, SCH.resumo);
+      c.resumos.unshift({ id: uid(), criado: Date.now(), foco, ...r });
+    } else if (tipo === "flash") {
+      const r = await emLotes(qtd, "cards", "frente", (n, ev) => gerarJSON(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${d}${f}${ev}`, SCH.flash, foco));
+      c.decks.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, cards: r.cards.map(k => ({ ...k, caixa: 0, proxima: 0 })) });
+    } else if (tipo === "quiz") {
+      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas plausíveis e apenas uma correta ("correta" é o índice 0-3). Na explicação, diga por que a correta está certa e por que as outras estão erradas. ${d}${f}${ev}`, SCH.quiz, foco));
+      r.questoes.forEach(normalizarMultipla);
+      c.quizzes.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, questoes: r.questoes, tentativas: [] });
+    } else if (tipo === "prova") {
+      const tipos = S.form.tipos?.length ? S.form.tipos : ["multipla", "vf", "dissertativa"];
+      const nomes = { multipla: "múltipla escolha (5 alternativas)", vf: "verdadeiro ou falso", dissertativa: "dissertativa (resposta escrita)" };
+      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie uma prova simulada realista com exatamente ${n} questões, como um professor faria, misturando os tipos: ${tipos.map(t => nomes[t]).join(", ")}.
+- multipla: "alternativas" com 5 opções e "correta" = índice da certa.
+- vf: "alternativas" = ["Verdadeiro","Falso"] e "correta" = 0 ou 1.
+- dissertativa: "alternativas" = [] e "correta" = -1; em "resposta_esperada" escreva a resposta modelo com os pontos que precisam aparecer.
+Em "resposta_esperada" das objetivas, repita a alternativa certa. "pontos" = peso da questão (dissertativas valem mais). ${d}${f}${ev}`, SCH.prova, foco));
+      r.questoes = r.questoes.filter(q => q.tipo === "dissertativa" || q.alternativas?.length >= 2);
+      r.questoes.forEach(q => { if (q.tipo === "multipla") normalizarMultipla(q); if (q.tipo === "vf") { q.alternativas = ["Verdadeiro", "Falso"]; q.correta = q.correta === 1 ? 1 : 0; } if (!(q.pontos > 0)) q.pontos = 1; });
+      c.provas.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, tempo: S.form.tempo ?? 0, questoes: r.questoes, tentativas: [] });
+    }
+    await salvar(c);
+    toast("Pronto! ✨");
+  } catch (e) { toast(erroMsg(e), true); }
+  progressoIA("", null);
+  S.ocupado = null; render();
+}
+function normalizarMultipla(q) {
+  if (!Array.isArray(q.alternativas) || q.alternativas.length < 2) return;
+  let c = Number.isInteger(q.correta) && q.correta >= 0 && q.correta < q.alternativas.length ? q.correta : 0;
+  const idx = embaralhar(q.alternativas.map((_, i) => i));
+  q.alternativas = idx.map(i => q.alternativas[i]);
+  q.correta = idx.indexOf(c);
+}
+
+/* ================= views ================= */
+function render() {
+  const lista = [...S.cadernos].sort((a, b) => b.atualizado - a.atualizado);
+  $("#lista").innerHTML = lista.map(c => `<button class="nb ${c.id === S.atual ? "on" : ""}" data-act="abrir" data-id="${c.id}"><span>${esc(c.nome)}</span><small>${c.materiais.length} material(is) · ${c.decks.length + c.quizzes.length + c.provas.length} estudo(s)</small></button>`).join("") || `<p class="muted pad" style="font-size:13px">Nenhum caderno ainda.</p>`;
+  const c = atual();
+  $("#main").innerHTML = c ? viewCaderno(c) : viewHome();
+}
+
+function viewHome() {
+  return `<h1>Estude a partir dos seus próprios materiais</h1>
+  <p class="muted">Envie PDFs, slides e anotações — o Foco Prova cria resumos, flashcards, quizzes e provas simuladas com base no conteúdo deles.</p>
+  <div class="card" style="margin-top:20px">
+    <h2>Como funciona</h2>
+    <ol class="steps">
+      <li><div><b>Escolha a IA</b> em ⚙️ Configurações: Claude (chave da API da Anthropic) ou IA local grátis com Ollama.</div></li>
+      <li><div><b>Crie um caderno</b> para cada matéria ou prova (ex.: "Bioquímica – P2").</div></li>
+      <li><div><b>Adicione materiais:</b> PDF, PowerPoint (.pptx), Word (.docx), texto ou fotos das anotações.</div></li>
+      <li><div><b>Gere e estude:</b> resumo, flashcards com repetição espaçada, quiz, prova simulada com correção e um tutor para tirar dúvidas.</div></li>
+    </ol>
+    <div class="row" style="margin-top:16px">
+      <button class="btn primary" data-act="novo">＋ Criar meu primeiro caderno</button>
+      ${cfg().apiKey || cfg().provider === "ollama" ? `<span class="badge ok">${esc(nomeIA())}</span>` : `<button class="btn" data-act="config">⚙️ Configurar IA</button>`}
+    </div>
+  </div>`;
+}
+
+const ABAS = [["materiais", "📁 Materiais"], ["smart", "🧠 Estudo inteligente"], ["resumo", "📝 Resumo"], ["flash", "🃏 Flashcards"], ["quiz", "❓ Quiz"], ["prova", "📋 Prova simulada"], ["tutor", "💬 Tutor"]];
+function viewCaderno(c) {
+  const corpo = { materiais: viewMateriais, smart: viewSmart, resumo: viewResumo, flash: viewFlash, quiz: viewQuiz, prova: viewProva, tutor: viewTutor }[S.aba](c);
+  return `<div class="head"><div><h1>${esc(c.nome)}</h1><div class="muted" style="font-size:13px">${ativos(c).length} material(is) ativo(s) · ${esc(nomeIA())}</div></div>
+    <div class="row"><button class="btn small" data-act="renomear">✏️ Renomear</button><button class="btn small danger" data-act="excluirCaderno">🗑️ Excluir</button></div></div>
+  <nav class="tabs">${ABAS.map(([k, n]) => `<button class="tab ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${n}</button>`).join("")}</nav>
+  ${corpo}`;
+}
+
+function semMateriais(c) {
+  return ativos(c).length ? "" : `<div class="card empty">Este caderno ainda não tem materiais.<br><br><button class="btn primary" data-act="aba" data-id="materiais">📁 Adicionar materiais</button></div>`;
+}
+
+function formGerar(tipo, label, { qtd = true, extra = "" } = {}) {
+  const busy = S.ocupado === tipo;
+  return `<div class="card stack">
+    <div class="row">
+      ${qtd ? `<label style="width:120px">Quantidade<input type="number" id="g-qtd" min="1" max="60" value="${S.form.qtd}"></label>` : ""}
+      ${qtd ? `<label style="width:150px">Dificuldade<select id="g-dif">${["mista", "fácil", "média", "difícil"].map(d => `<option ${S.form.dif === d ? "selected" : ""}>${d}</option>`).join("")}</select></label>` : ""}
+      <label class="grow">Foco (opcional)<input type="text" id="g-foco" value="${esc(S.form.foco)}" placeholder="ex.: capítulo 3, ciclo de Krebs, só as fórmulas"></label>
+    </div>
+    ${extra}
+    <div><button class="btn primary" data-act="gerar" data-id="${tipo}" ${S.ocupado ? "disabled" : ""}>${busy ? `<span class="spin"></span> Gerando… isso pode levar até alguns minutos` : "✨ Gerar " + label}</button></div>
+  </div>`;
+}
+
+/* ---------- Materiais ---------- */
+function viewMateriais(c) {
+  const totalChars = ativos(c).reduce((s, m) => s + m.texto.length, 0);
+  const tokens = Math.round(totalChars / 4);
+  return `<div class="stack">
+    <div class="drop" id="drop" data-act="escolher">
+      <div class="big">📤</div>
+      <b>Arraste arquivos aqui ou clique para escolher</b>
+      <div class="muted" style="font-size:13px">PDF · PowerPoint (.pptx) · Word (.docx) · TXT/MD · fotos (PNG/JPG)</div>
+    </div>
+    <details class="card"><summary style="font-size:14px">✍️ Colar texto ou anotações</summary>
+      <div class="stack" style="margin-top:12px">
+        <input type="text" id="colarNome" placeholder="Título (ex.: Anotações da aula 5)">
+        <textarea id="colarTexto" rows="6" placeholder="Cole aqui o conteúdo…"></textarea>
+        <div><button class="btn" data-act="colar">Adicionar texto</button></div>
+      </div>
+    </details>
+    ${c.materiais.length ? `<div class="muted" style="font-size:13px">≈ ${tokens.toLocaleString("pt-BR")} tokens de conteúdo ativo${tokens > 700000 ? ` — <b style="color:var(--bad)">muito grande; desmarque alguns materiais</b>` : ""}. Só os materiais marcados são usados nas gerações.</div>` : ""}
+    ${c.materiais.map(m => `<div class="mat">
+      <input type="checkbox" data-act="toggleMat" data-id="${m.id}" ${m.ativo !== false ? "checked" : ""} title="Usar nas gerações">
+      <div class="info"><b>${esc(m.nome)}</b><div class="muted" style="font-size:12px"><span class="badge">${esc(m.tipo)}</span> ${m.extra ? esc(m.extra) + " · " : ""}${m.texto ? m.texto.length.toLocaleString("pt-BR") + " caracteres" : "sem texto"}</div>
+        ${m.texto ? `<details><summary>ver texto extraído</summary><pre class="prev">${esc(m.texto.slice(0, 20000))}${m.texto.length > 20000 ? "\n…" : ""}</pre></details>` : ""}
+      </div>
+      ${m.poucoTexto ? (m.transcrevendo ? `<span class="badge warn"><span class="spin"></span> transcrevendo…</span>` : `<span class="badge warn">sem texto legível (escaneado)</span>${m.b64 || m.arquivo ? `<button class="btn small primary" data-act="ocr" data-id="${m.id}">🔍 Ler texto (grátis)</button>${cfg().provider === "anthropic" && cfg().apiKey ? `<button class="btn small" data-act="transcrever" data-id="${m.id}">✨ Transcrever com Claude</button>` : ""}` : `<span class="muted" style="font-size:12px">remova e adicione o arquivo de novo para ler o texto</span>`}`) : ""}
+      <button class="btn small danger" data-act="excluirMat" data-id="${m.id}">Remover</button>
+    </div>`).join("")}
+  </div>`;
+}
+
+/* ---------- Resumo ---------- */
+function viewResumo(c) {
+  const sem = semMateriais(c); if (sem) return sem;
+  return `<div class="stack">${formGerar("resumo", "resumo", { qtd: false })}
+  ${c.resumos.length ? "" : `<div class="empty">Nenhum resumo gerado ainda.</div>`}
+  ${c.resumos.map(r => `<article class="card">
+    <div class="head" style="margin-bottom:8px"><div><h2 style="margin:0">${esc(r.titulo)}</h2><div class="muted" style="font-size:12px">${fmtData(r.criado)}${r.foco ? " · foco: " + esc(r.foco) : ""}</div></div>
+    <button class="btn small danger" data-act="excluir" data-tipo="resumos" data-id="${r.id}">Excluir</button></div>
+    ${r.secoes.map(s => `<h3 style="margin-top:18px">${esc(s.titulo)}</h3><div class="md">${md(s.conteudo)}</div>`).join("")}
+    ${r.conceitos?.length ? `<h3 style="margin-top:22px">📚 Conceitos-chave</h3><dl class="gloss">${r.conceitos.map(k => `<dt>${esc(k.termo)}</dt><dd>${esc(k.definicao)}</dd>`).join("")}</dl>` : ""}
+    ${r.perguntas_revisao?.length ? `<h3 style="margin-top:22px">🤔 Perguntas de revisão</h3><ol>${r.perguntas_revisao.map(p => `<li>${esc(p)}</li>`).join("")}</ol>` : ""}
+  </article>`).join("")}</div>`;
+}
+
+/* ---------- Flashcards ---------- */
+const INTERVALOS = [1, 2, 4, 7, 15, 30]; // dias por caixa (Leitner)
+const devidos = d => d.cards.filter(k => (k.proxima || 0) <= Date.now()).length;
+function viewFlash(c) {
+  if (S.player?.tipo === "flash") return playerFlash(c);
+  const sem = semMateriais(c); if (sem) return sem;
+  return `<div class="stack">${formGerar("flash", "flashcards")}
+  ${c.decks.length ? "" : `<div class="empty">Nenhum baralho ainda. Gere o primeiro acima!</div>`}
+  <div class="grid">${c.decks.map(d => {
+    const dom = d.cards.filter(k => k.caixa >= 3).length;
+    return `<div class="card item"><h3>${esc(d.titulo)}</h3>
+    <div class="muted" style="font-size:13px">${d.cards.length} cards · ${devidos(d)} para revisar · ${dom} dominados</div>
+    <div class="prog" style="margin-top:10px"><div style="width:${d.cards.length ? dom / d.cards.length * 100 : 0}%;background:var(--ok)"></div></div>
+    <div class="acts">
+      <button class="btn small primary" data-act="estudarDeck" data-id="${d.id}" ${devidos(d) ? "" : "disabled"}>▶ Revisar (${devidos(d)})</button>
+      <button class="btn small" data-act="estudarTudo" data-id="${d.id}">Estudar todos</button>
+      <button class="btn small" data-act="verDeck" data-id="${d.id}">${S.verDeck === d.id ? "Ocultar" : "Ver"} cards</button>
+      <button class="btn small danger" data-act="excluir" data-tipo="decks" data-id="${d.id}">Excluir</button>
+    </div></div>`;
+  }).join("")}</div>
+  ${S.verDeck && c.decks.find(d => d.id === S.verDeck) ? (() => { const d = c.decks.find(d => d.id === S.verDeck); return `<div class="card"><h3>${esc(d.titulo)}</h3><table class="cards"><tr><th>Frente</th><th>Verso</th><th>Tópico</th></tr>${d.cards.map(k => `<tr><td>${esc(k.frente)}</td><td>${esc(k.verso)}</td><td class="muted">${esc(k.topico)}</td></tr>`).join("")}</table></div>`; })() : ""}
+  </div>`;
+}
+function playerFlash(c) {
+  const p = S.player, d = c.decks.find(x => x.id === p.deckId);
+  if (!d) { S.player = null; return ""; }
+  const idx = p.fila[0];
+  const pct = p.total ? p.feitos / p.total * 100 : 100;
+  const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← Voltar</button><b>${esc(d.titulo)}</b><span class="muted">${p.feitos}/${p.total}</span></div><div class="prog" style="margin-bottom:18px"><div style="width:${pct}%"></div></div>`;
+  if (idx === undefined) return topo + `<div class="card empty"><div class="score">🎉</div><h2 style="margin-top:12px">Revisão concluída!</h2><p>Acertos de primeira: ${p.acertos} de ${p.total}.</p><button class="btn primary" data-act="sair">Voltar aos baralhos</button></div>`;
+  const k = d.cards[idx];
+  return topo + `<div class="card flash" data-act="virar">
+      <div class="muted" style="font-size:12px;margin-bottom:10px">${esc(k.topico)}</div>
+      <div class="md">${md(k.frente)}</div>
+      ${p.virado ? `<div class="back md">${md(k.verso)}</div>` : `<div class="muted" style="font-size:13px;margin-top:22px">clique ou aperte espaço para ver a resposta</div>`}
+    </div>
+    ${p.virado ? `<div class="rate">
+      <button class="btn" style="border-color:var(--bad);color:var(--bad)" data-act="avaliar" data-id="0">1 · Errei</button>
+      <button class="btn" style="border-color:var(--warn);color:var(--warn)" data-act="avaliar" data-id="1">2 · Difícil</button>
+      <button class="btn" style="border-color:var(--ok);color:var(--ok)" data-act="avaliar" data-id="2">3 · Acertei</button>
+    </div>` : ""}`;
+}
+function iniciarFlash(deckId, tudo) {
+  const d = atual().decks.find(x => x.id === deckId);
+  let fila = d.cards.map((k, i) => i).filter(i => tudo || (d.cards[i].proxima || 0) <= Date.now());
+  fila = embaralhar(fila);
+  S.player = { tipo: "flash", deckId, fila, virado: false, feitos: 0, total: fila.length, acertos: 0, errados: new Set() };
+  render();
+}
+async function avaliar(nivel) {
+  const c = atual(), p = S.player, d = c.decks.find(x => x.id === p.deckId);
+  const idx = p.fila[0], k = d.cards[idx];
+  if (nivel === 0) { k.caixa = 0; k.proxima = Date.now(); p.errados.add(idx); p.fila.push(p.fila.shift()); }
+  else {
+    if (nivel === 1) { k.proxima = Date.now() + DIA; }
+    else { k.caixa = Math.min((k.caixa || 0) + 1, INTERVALOS.length - 1); k.proxima = Date.now() + INTERVALOS[k.caixa] * DIA; if (!p.errados.has(idx)) p.acertos++; }
+    p.fila.shift(); p.feitos++;
+  }
+  p.virado = false; render(); await salvar(c);
+}
+
+/* ---------- Quiz ---------- */
+function viewQuiz(c) {
+  if (S.player?.tipo === "quiz") return playerQuiz(c);
+  const sem = semMateriais(c); if (sem) return sem;
+  return `<div class="stack">${formGerar("quiz", "quiz")}
+  ${c.quizzes.length ? "" : `<div class="empty">Nenhum quiz ainda.</div>`}
+  <div class="grid">${c.quizzes.map(q => {
+    const best = q.tentativas.length ? Math.max(...q.tentativas.map(t => t.acertos / t.total)) : null;
+    return `<div class="card item"><h3>${esc(q.titulo)}</h3>
+    <div class="muted" style="font-size:13px">${q.questoes.length} questões · ${q.tentativas.length} tentativa(s)${best !== null ? ` · melhor: ${Math.round(best * 100)}%` : ""}</div>
+    <div class="acts"><button class="btn small primary" data-act="fazerQuiz" data-id="${q.id}">▶ Fazer</button>
+    <button class="btn small danger" data-act="excluir" data-tipo="quizzes" data-id="${q.id}">Excluir</button></div></div>`;
+  }).join("")}</div></div>`;
+}
+function playerQuiz(c) {
+  const p = S.player, qz = c.quizzes.find(x => x.id === p.id);
+  if (!qz) { S.player = null; return ""; }
+  const qs = p.ordem.map(i => qz.questoes[i]);
+  const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← Sair</button><b>${esc(qz.titulo)}</b><span class="muted">${Math.min(p.i + 1, qs.length)}/${qs.length}</span></div><div class="prog" style="margin-bottom:18px"><div style="width:${p.i / qs.length * 100}%"></div></div>`;
+  if (p.i >= qs.length) {
+    const pct = Math.round(p.acertos / qs.length * 100);
+    return topo + `<div class="card stack" style="text-align:center"><div class="score">${pct}%</div><div>Você acertou <b>${p.acertos}</b> de ${qs.length}.</div>
+      <div class="row" style="justify-content:center"><button class="btn primary" data-act="fazerQuiz" data-id="${qz.id}">↻ Refazer</button>${p.erros.length ? `<button class="btn" data-act="refazerErros">Refazer só os erros (${p.erros.length})</button>` : ""}<button class="btn" data-act="sair">Voltar</button></div></div>
+      ${p.erros.length ? `<h2 style="margin-top:24px">Revise o que você errou</h2>` + p.erros.map(i => { const q = qz.questoes[i]; return `<div class="card" style="margin-bottom:10px"><div class="md"><b>${md(q.enunciado)}</b></div><p class="res-ok">✔ ${esc(q.alternativas[q.correta])}</p><div class="expl md">${md(q.explicacao)}</div></div>`; }).join("") : ""}`;
+  }
+  const q = qs[p.i];
+  return topo + `<div class="card">
+    <div class="muted" style="font-size:12px">${esc(q.topico)}</div>
+    <div class="md" style="font-size:17px;margin:6px 0 16px">${md(q.enunciado)}</div>
+    ${q.alternativas.map((a, i) => {
+      let cls = "";
+      if (p.confirmado) cls = i === q.correta ? "right" : i === p.escolha ? "wrong" : "";
+      else if (i === p.escolha) cls = "sel";
+      return `<button class="alt ${cls}" data-act="escolher-alt" data-id="${i}" ${p.confirmado ? "disabled" : ""}><b>${LETRAS[i]})</b>${esc(a)}</button>`;
+    }).join("")}
+    ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === q.correta ? "res-ok" : "res-bad"}">${p.escolha === q.correta ? "✔ Correto!" : "✘ Incorreto — resposta: " + LETRAS[q.correta]}</p>${md(q.explicacao)}</div>` : ""}
+    <div class="row" style="justify-content:flex-end;margin-top:14px">
+      ${p.confirmado ? `<button class="btn primary" data-act="proxima">${p.i + 1 < qs.length ? "Próxima →" : "Ver resultado"}</button>` : `<button class="btn primary" data-act="confirmar" ${p.escolha === null ? "disabled" : ""}>Confirmar</button>`}
+    </div></div>`;
+}
+function iniciarQuiz(id, ordem) {
+  const qz = atual().quizzes.find(x => x.id === id);
+  S.player = { tipo: "quiz", id, ordem: ordem || qz.questoes.map((_, i) => i), i: 0, escolha: null, confirmado: false, acertos: 0, erros: [] };
+  render();
+}
+
+/* ---------- Prova ---------- */
+function viewProva(c) {
+  if (S.player?.tipo === "prova") return playerProva(c);
+  const sem = semMateriais(c); if (sem) return sem;
+  const tipos = S.form.tipos || ["multipla", "vf", "dissertativa"];
+  const extra = `<div class="row">
+    <div id="g-tipos" class="row" style="gap:16px">
+      ${[["multipla", "Múltipla escolha"], ["vf", "Verdadeiro/Falso"], ["dissertativa", "Dissertativas"]].map(([v, n]) => `<label class="inline"><input type="checkbox" value="${v}" ${tipos.includes(v) ? "checked" : ""}> ${n}</label>`).join("")}
+    </div>
+    <label style="width:170px">Tempo (min, 0 = livre)<input type="number" id="g-tempo" min="0" value="${S.form.tempo ?? 0}"></label>
+  </div>`;
+  return `<div class="stack">${formGerar("prova", "prova", { extra })}
+  ${c.provas.length ? "" : `<div class="empty">Nenhuma prova ainda.</div>`}
+  <div class="grid">${c.provas.map(pv => {
+    const best = pv.tentativas.length ? Math.max(...pv.tentativas.map(t => t.nota)) : null;
+    return `<div class="card item"><h3>${esc(pv.titulo)}</h3>
+    <div class="muted" style="font-size:13px">${pv.questoes.length} questões${pv.tempo ? ` · ${pv.tempo} min` : ""} · ${pv.tentativas.length} tentativa(s)${best !== null ? ` · melhor nota: ${best.toFixed(1)}` : ""}</div>
+    <div class="acts"><button class="btn small primary" data-act="fazerProva" data-id="${pv.id}">▶ Fazer prova</button>
+    <button class="btn small danger" data-act="excluir" data-tipo="provas" data-id="${pv.id}">Excluir</button></div></div>`;
+  }).join("")}</div></div>`;
+}
+function playerProva(c) {
+  const p = S.player, pv = c.provas.find(x => x.id === p.id);
+  if (!pv) { S.player = null; return ""; }
+  const r = p.resultado;
+  const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← ${r ? "Voltar" : "Desistir"}</button><b>${esc(pv.titulo)}</b>
+    ${r ? `<span class="badge ok">Nota ${r.nota.toFixed(1)}</span>` : `<span class="row" style="gap:8px">${pv.tempo ? `<span class="timer" id="timer">--:--</span>` : ""}<button class="btn primary small" data-act="entregar" ${p.corrigindo ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> Corrigindo…` : "Entregar prova"}</button></span>`}</div>`;
+  const resumoNota = r ? `<div class="card" style="text-align:center;margin-bottom:16px"><div class="score">${r.nota.toFixed(1)}</div><div class="muted">de 10 · ${r.pontos.toFixed(1)} de ${r.max} pontos</div></div>` : "";
+  return topo + resumoNota + `<div class="card">${pv.questoes.map((q, i) => {
+    const resp = p.resp[i];
+    const corr = r?.porQuestao[i];
+    let corpo = "";
+    if (q.tipo === "dissertativa") {
+      corpo = `<textarea data-q="${i}" rows="5" placeholder="Escreva sua resposta…" ${r ? "disabled" : ""}>${esc(resp ?? "")}</textarea>`;
+      if (r) corpo += `<div class="expl md" style="margin-top:10px"><p class="${corr.frac >= .7 ? "res-ok" : corr.frac >= .4 ? "" : "res-bad"}">Nota: ${(corr.frac * q.pontos).toFixed(1)} / ${q.pontos}</p>${md(corr.feedback || "")}<p><b>Resposta esperada:</b></p>${md(q.resposta_esperada)}</div>`;
+    } else {
+      corpo = q.alternativas.map((a, j) => {
+        let style = "";
+        if (r) style = j === q.correta ? "color:var(--ok);font-weight:600" : j === resp ? "color:var(--bad);text-decoration:line-through" : "";
+        return `<label class="opt" style="${style}"><input type="radio" name="q${i}" data-q="${i}" value="${j}" ${resp === j ? "checked" : ""} ${r ? "disabled" : ""}> <span><b>${q.tipo === "vf" ? "" : LETRAS[j] + ")"}</b> ${esc(a)}</span></label>`;
+      }).join("");
+      if (r) corpo += `<div class="expl md"><p class="${corr.frac === 1 ? "res-ok" : "res-bad"}">${corr.frac === 1 ? "✔ Correta" : resp === undefined ? "✘ Em branco" : "✘ Errada"}</p>${md(q.explicacao)}</div>`;
+    }
+    return `<div class="q"><div class="muted" style="font-size:12px">Questão ${i + 1} · ${{ multipla: "Múltipla escolha", vf: "Verdadeiro ou falso", dissertativa: "Dissertativa" }[q.tipo]} · ${q.pontos} pt</div>
+      <div class="md" style="margin:6px 0 10px;font-weight:500">${md(q.enunciado)}</div>${corpo}</div>`;
+  }).join("")}</div>
+  ${r ? "" : `<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-act="entregar" ${p.corrigindo ? "disabled" : ""}>Entregar prova</button></div>`}`;
+}
+function iniciarProva(id) {
+  const pv = atual().provas.find(x => x.id === id);
+  S.player = { tipo: "prova", id, resp: {}, inicio: Date.now(), resultado: null, corrigindo: false };
+  render(); window.scrollTo(0, 0);
+  if (pv.tempo) {
+    clearInterval(S.timer);
+    const fim = Date.now() + pv.tempo * 60000;
+    S.timer = setInterval(() => {
+      const el = $("#timer"), rest = fim - Date.now();
+      if (!S.player || S.player.tipo !== "prova" || S.player.resultado || S.player.corrigindo) { if (!S.player?.corrigindo) clearInterval(S.timer); return; }
+      if (rest <= 0) { clearInterval(S.timer); toast("Tempo esgotado! Entregando…"); entregar(true); return; }
+      if (el) { const m = Math.floor(rest / 60000), s = Math.floor(rest % 60000 / 1000); el.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`; el.classList.toggle("low", rest < 60000); }
+    }, 500);
+  }
+}
+async function entregar(forcado = false) {
+  const c = atual(), p = S.player, pv = c.provas.find(x => x.id === p.id);
+  const brancos = pv.questoes.filter((q, i) => p.resp[i] === undefined || p.resp[i] === "").length;
+  if (!forcado && brancos && !confirm(`Você deixou ${brancos} questão(ões) em branco. Entregar mesmo assim?`)) return;
+  clearInterval(S.timer);
+  p.corrigindo = true; render();
+  const porQuestao = pv.questoes.map((q, i) => q.tipo === "dissertativa" ? { frac: 0, feedback: "Em branco." } : { frac: p.resp[i] === q.correta ? 1 : 0 });
+  const diss = pv.questoes.map((q, i) => ({ q, i })).filter(({ q, i }) => q.tipo === "dissertativa" && String(p.resp[i] ?? "").trim());
+  if (diss.length) {
+    try {
+      const lista = diss.map(({ q, i }) => `<questao indice="${i}" pontos="${q.pontos}">\n<enunciado>${q.enunciado}</enunciado>\n<resposta_esperada>${q.resposta_esperada}</resposta_esperada>\n<resposta_do_aluno>${p.resp[i]}</resposta_do_aluno>\n</questao>`).join("\n");
+      const r = await gerarJSON(c, `Corrija as respostas dissertativas abaixo como um professor justo, com base nos materiais e na resposta esperada. Para cada questão, dê "nota" entre 0 e 1 (fração da pontuação: 1 = completa e correta, 0.5 = parcial etc.) e um "feedback" curto em Markdown dizendo o que acertou, o que faltou e como melhorar.\n\n${lista}`, SCH.correcao);
+      r.correcoes.forEach(k => { if (porQuestao[k.indice]) porQuestao[k.indice] = { frac: Math.max(0, Math.min(1, k.nota)), feedback: k.feedback }; });
+    } catch (e) {
+      toast("Não consegui corrigir as dissertativas: " + erroMsg(e), true);
+      diss.forEach(({ i }) => porQuestao[i] = { frac: 0, feedback: "Correção automática falhou — compare com a resposta esperada abaixo." });
+    }
+  }
+  const max = pv.questoes.reduce((s, q) => s + q.pontos, 0);
+  const pontos = pv.questoes.reduce((s, q, i) => s + q.pontos * porQuestao[i].frac, 0);
+  p.resultado = { nota: max ? pontos / max * 10 : 0, pontos, max, porQuestao };
+  p.corrigindo = false;
+  pv.tentativas.push({ data: Date.now(), nota: p.resultado.nota });
+  await salvar(c); render(); window.scrollTo(0, 0);
+}
+
+/* ---------- Estudo inteligente (adaptativo) ---------- */
+SCH.smart = obj({ topicos: arr(str), itens: arr(obj({ tipo: { type: "string", enum: ["multipla", "vf", "flashcard", "licao"] }, topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str })) });
+function garantirSmart(c) {
+  c.dominio ||= {};
+  c.inteligente ||= { prefs: "", topicos: [], historico: [], xp: 0, respondidas: 0, acertos: 0 };
+}
+const nivelDe = sc => sc < .4 ? 1 : sc < .75 ? 2 : 3;
+function statusTopico(d) {
+  if (!d || !d.tentativas) return ["Não praticado", "var(--muted)"];
+  if (d.score < .4) return ["Aprendendo", "var(--bad)"];
+  if (d.score < .75) return ["Revisando", "var(--warn)"];
+  return ["Dominado", "var(--ok)"];
+}
+async function gerarLoteSmart(c, focoTopico) {
+  garantirSmart(c);
+  const I = c.inteligente;
+  const n = cfg().provider === "webllm" ? 4 : cfg().provider === "ollama" ? 6 : 8;
+  const dom = I.topicos.map(t => { const d = c.dominio[t]; return d?.tentativas ? `- ${t}: domínio ${Math.round(d.score * 100)}% (${d.acertos}/${d.tentativas} acertos) → dificuldade alvo ${nivelDe(d.score)}` : `- ${t}: ainda não praticado`; }).join("\n");
+  const hist = I.historico.slice(-50).map(h => "- " + h).join("\n") || "(nenhuma)";
+  const instr = `Você conduz uma sessão de ESTUDO ADAPTATIVO, como um professor particular. Gere o próximo bloco com exatamente ${n} itens.
+${I.topicos.length ? `Tópicos conhecidos e domínio atual do estudante:\n${dom}` : `Primeira sessão: identifique os principais tópicos dos materiais (de 4 a 12, nomes curtos) e liste-os em "topicos". Comece com um diagnóstico de dificuldade 1 e 2 cobrindo os tópicos mais importantes.`}
+${focoTopico ? `\nO estudante pediu para focar SOMENTE no tópico: "${focoTopico}".` : `
+Regras de adaptação:
+- Cerca de 60% dos itens nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
+- "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
+- Para tópicos com domínio abaixo de 40% (ou não praticados), coloque antes uma "licao": explicação didática curta em Markdown (3 a 8 linhas, com exemplo) e logo depois questões sobre ela.
+- Formatos: "multipla" (4 alternativas, "correta" = índice da certa), "vf" (alternativas ["Verdadeiro","Falso"], correta 0 ou 1), "flashcard" (pergunta de recordação ativa no enunciado, resposta em "explicacao", alternativas [] e correta -1), "licao" (alternativas [] e correta -1). Varie os formatos.
+- Em "explicacao" das questões, explique por que a resposta está certa.
+- Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar tópicos novos se encontrar).
+- Não repita estas perguntas já feitas:
+${hist}
+${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}`;
+  const r = await gerarJSON(c, instr, SCH.smart, focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" "));
+  for (const t of r.topicos || []) if (t && !I.topicos.includes(t)) I.topicos.push(t);
+  return (r.itens || []).filter(it => it.enunciado && altsValidas(it)).map(it => {
+    if (!I.topicos.includes(it.topico)) I.topicos.push(it.topico);
+    if (it.tipo === "multipla") normalizarMultipla(it);
+    if (it.tipo === "vf") { it.alternativas = ["Verdadeiro", "Falso"]; it.correta = it.correta === 1 ? 1 : 0; }
+    it.dificuldade = Math.min(3, Math.max(1, it.dificuldade || 1));
+    return it;
+  });
+}
+function viewSmart(c) {
+  if (S.player?.tipo === "smart") return playerSmart(c);
+  const sem = semMateriais(c); if (sem) return sem;
+  garantirSmart(c);
+  const I = c.inteligente;
+  const scores = I.topicos.map(t => c.dominio[t]?.score || 0);
+  const geral = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 100) : 0;
+  return `<div class="stack">
+    <div class="card">
+      <div class="head" style="margin-bottom:10px"><div><h2 style="margin:0">🧠 Estudo inteligente</h2>
+        <div class="muted" style="font-size:13px">A IA acompanha o que você domina, foca nos seus pontos fracos e aumenta a dificuldade conforme você evolui — misturando mini-lições, questões e flashcards.</div></div></div>
+      <div class="row" style="gap:28px;margin:8px 0 16px">
+        <div><div class="score">${geral}%</div><div class="muted" style="font-size:13px">domínio geral</div></div>
+        <div><b style="font-size:22px">${I.respondidas}</b><div class="muted" style="font-size:13px">respondidas</div></div>
+        <div><b style="font-size:22px">${I.respondidas ? Math.round(I.acertos / I.respondidas * 100) : 0}%</b><div class="muted" style="font-size:13px">de acerto</div></div>
+        <div><b style="font-size:22px">${I.xp}</b><div class="muted" style="font-size:13px">XP</div></div>
+      </div>
+      <label>⚙️ Preferências (direcionam a IA) <textarea id="smartPrefs" rows="2" placeholder="ex.: questões no estilo da minha professora, mais cálculos, foco no capítulo 4, questões mais difíceis…">${esc(I.prefs)}</textarea></label>
+      <div class="row" style="margin-top:12px"><button class="btn primary" data-act="smartIniciar">▶ ${I.respondidas ? "Continuar estudando" : "Começar estudo inteligente"}</button>
+      ${I.topicos.length ? `<button class="btn small ghost" data-act="zerarSmart">Zerar progresso</button>` : ""}</div>
+    </div>
+    ${I.topicos.length ? `<div class="card"><h3>Domínio por tópico</h3><p class="muted" style="font-size:13px;margin-top:0">Clique em um tópico para estudar só ele.</p>
+      ${I.topicos.map(t => { const d = c.dominio[t], [st, cor] = statusTopico(d), pct = Math.round((d?.score || 0) * 100);
+        return `<button class="alt" data-act="smartTopico" data-id="${esc(t)}" style="display:flex;gap:12px;align-items:center">
+          <span style="flex:1;min-width:0">${esc(t)}<div class="prog" style="margin-top:6px"><div style="width:${pct}%;background:${cor}"></div></div></span>
+          <span style="font-size:12px;color:${cor};font-weight:600;width:100px;text-align:right">${st}${d?.tentativas ? " · " + pct + "%" : ""}</span></button>`; }).join("")}
+    </div>` : `<div class="empty">Na primeira sessão a IA identifica os tópicos dos seus materiais e faz um diagnóstico.</div>`}
+  </div>`;
+}
+function playerSmart(c) {
+  const p = S.player, it = p.fila[p.i], ses = p.sessao;
+  const topo = `<div class="sticky-bar"><button class="btn small" data-act="smartEncerrar">■ Encerrar sessão</button>
+    <span class="row" style="gap:14px;font-size:14px"><span>✔ ${ses.acertos}/${ses.total}</span>${ses.combo >= 2 ? `<span style="color:var(--warn);font-weight:700">🔥 ${ses.combo} seguidas</span>` : ""}<span class="badge ok">+${ses.xp} XP</span></span></div>
+    <div class="row" style="margin-bottom:14px;gap:8px"><input type="text" id="smartAjuste" class="grow" style="flex:1" placeholder="Ajustar em tempo real: ex. mais difícil, mais questões de fórmulas…"><button class="btn small" data-act="smartAjustar">Ajustar</button></div>`;
+  if (p.fim) {
+    const melhorou = Object.entries(p.inicioDominio).map(([t, s0]) => [t, (c.dominio[t]?.score || 0) - s0]).filter(([, d]) => d > 0.01).sort((a, b) => b[1] - a[1]);
+    return `<div class="card stack" style="text-align:center"><div class="score">${ses.total ? Math.round(ses.acertos / ses.total * 100) : 0}%</div>
+      <div>Sessão encerrada: <b>${ses.acertos}</b> acertos em ${ses.total} questões · <b>+${ses.xp} XP</b></div>
+      ${melhorou.length ? `<div class="muted">Você evoluiu em: ${melhorou.map(([t, d]) => `<b>${esc(t)}</b> (+${Math.round(d * 100)}%)`).join(", ")}</div>` : ""}
+      ${ses.erros ? `<div class="muted" style="font-size:13px">As questões que você errou foram salvas no baralho “🧠 Revisão de erros” (aba Flashcards).</div>` : ""}
+      <div class="row" style="justify-content:center"><button class="btn primary" data-act="smartIniciar">Nova sessão</button><button class="btn" data-act="sair">Ver progresso</button></div></div>`;
+  }
+  if (!it) return topo + `<div class="card empty"><span class="spin"></span><p>A IA está montando seu próximo bloco com base no seu desempenho…</p><p class="muted" style="font-size:13px">${esc(nomeIA())}</p></div>`;
+  const dots = "●".repeat(it.dificuldade) + "○".repeat(3 - it.dificuldade);
+  const cab = `<div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="badge">${esc(it.topico)}</span><span class="muted" style="font-size:12px" title="dificuldade">${it.tipo === "licao" ? "📖 mini-lição" : it.tipo === "flashcard" ? "🃏 recordação ativa" : "dificuldade " + dots}</span></div>`;
+  let corpo;
+  if (it.tipo === "licao") {
+    corpo = `<div class="md">${md(it.enunciado)}</div>${it.explicacao ? `<div class="expl md">${md(it.explicacao)}</div>` : ""}
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-act="sProx">Entendi, continuar →</button></div>`;
+  } else if (it.tipo === "flashcard") {
+    corpo = `<div class="md" style="font-size:18px;text-align:center;padding:20px 0">${md(it.enunciado)}</div>
+      ${p.virado ? `<div class="expl md">${md(it.explicacao)}</div>
+        ${p.confirmado ? `<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-act="sProx">Próxima →</button></div>` :
+        `<div class="rate"><button class="btn" style="border-color:var(--bad);color:var(--bad)" data-act="sAuto" data-id="0">Não sabia</button><button class="btn" style="border-color:var(--ok);color:var(--ok)" data-act="sAuto" data-id="1">Sabia!</button></div>`}`
+      : `<div class="row" style="justify-content:center"><button class="btn primary" data-act="sVirar">Pensei na resposta — mostrar</button></div>`}`;
+  } else {
+    corpo = `<div class="md" style="font-size:17px;margin-bottom:14px">${md(it.enunciado)}</div>
+      ${it.alternativas.map((a, i) => { let cls = ""; if (p.confirmado) cls = i === it.correta ? "right" : i === p.escolha ? "wrong" : ""; else if (i === p.escolha) cls = "sel";
+        return `<button class="alt ${cls}" data-act="sAlt" data-id="${i}" ${p.confirmado ? "disabled" : ""}><b>${it.tipo === "vf" ? "" : LETRAS[i] + ")"}</b>${esc(a)}</button>`; }).join("")}
+      ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === it.correta ? "res-ok" : "res-bad"}">${p.escolha === it.correta ? "✔ Correto!" : "✘ Não foi dessa vez"}</p>${md(it.explicacao)}</div>` : ""}
+      <div class="row" style="justify-content:flex-end;margin-top:14px">${p.confirmado ? `<button class="btn primary" data-act="sProx">Próxima →</button>` : `<button class="btn primary" data-act="sConfirmar" ${p.escolha === null ? "disabled" : ""}>Confirmar</button>`}</div>`;
+  }
+  return topo + `<div class="card">${cab}${corpo}</div>`;
+}
+async function smartCarregar(c) {
+  const p = S.player;
+  try {
+    const itens = await (p.proximo || gerarLoteSmart(c, p.focoTopico));
+    p.proximo = null;
+    if (S.player !== p) return;
+    if (!itens.length) throw new Error("A IA não devolveu itens. Tente novamente.");
+    p.fila.push(...itens);
+    await salvar(c);
+  } catch (e) {
+    p.proximo = null;
+    if (S.player === p) { toast(erroMsg(e), true); if (p.i >= p.fila.length) { S.player = null; } }
+  }
+  render();
+}
+function smartPrefetch(c) {
+  const p = S.player;
+  if (!p.proximo && p.fila.length - p.i <= 2 && p.sessao.total > 0) { p.proximo = gerarLoteSmart(c, p.focoTopico); p.proximo.catch(() => { if (S.player === p) p.proximo = null; }); }
+}
+function smartIniciar(c, focoTopico = null) {
+  garantirSmart(c);
+  const inicioDominio = {}; for (const t of c.inteligente.topicos) inicioDominio[t] = c.dominio[t]?.score || 0;
+  S.player = { tipo: "smart", fila: [], i: 0, escolha: null, confirmado: false, virado: false, focoTopico, proximo: null, inicioDominio, sessao: { acertos: 0, total: 0, xp: 0, combo: 0, erros: 0 } };
+  render(); smartCarregar(c);
+}
+async function smartResponder(c, acertou) {
+  const p = S.player, it = p.fila[p.i], I = c.inteligente;
+  const d = c.dominio[it.topico] ||= { score: 0, tentativas: 0, acertos: 0 };
+  if (!(it.topico in p.inicioDominio)) p.inicioDominio[it.topico] = d.score;
+  d.tentativas++; d.ultima = Date.now();
+  if (acertou) { d.acertos++; d.score = d.score + (1 - d.score) * (0.12 + 0.08 * it.dificuldade); }
+  else d.score = d.score * 0.65;
+  p.sessao.total++; I.respondidas++;
+  if (acertou) { p.sessao.acertos++; p.sessao.combo++; I.acertos++; const ganho = 5 * it.dificuldade + Math.min(p.sessao.combo, 5) * 2; p.sessao.xp += ganho; I.xp += ganho; }
+  else {
+    p.sessao.combo = 0; p.sessao.erros++;
+    let deck = c.decks.find(x => x.erros);
+    if (!deck) { deck = { id: uid(), criado: Date.now(), titulo: "🧠 Revisão de erros", erros: true, cards: [] }; c.decks.push(deck); }
+    const resp = it.tipo === "flashcard" ? it.explicacao : `**${it.alternativas[it.correta]}**\n\n${it.explicacao}`;
+    deck.cards.push({ frente: it.enunciado, verso: resp, topico: it.topico, caixa: 0, proxima: 0 });
+  }
+  I.historico.push(it.enunciado.slice(0, 140)); if (I.historico.length > 80) I.historico.splice(0, I.historico.length - 80);
+  p.confirmado = true; render(); await salvar(c);
+}
+function smartProx(c) {
+  const p = S.player, it = p.fila[p.i];
+  if (it?.tipo === "licao") { c.inteligente.historico.push("[lição] " + it.enunciado.slice(0, 80)); }
+  p.i++; p.escolha = null; p.confirmado = false; p.virado = false;
+  if (p.i >= p.fila.length) { render(); smartCarregar(c); return; }
+  smartPrefetch(c); render(); window.scrollTo(0, 0);
+}
+
+/* ---------- Tutor ---------- */
+function viewTutor(c) {
+  const sem = semMateriais(c); if (sem) return sem;
+  const sugestoes = ["Explique o tema principal de forma simples", "O que tem mais chance de cair na prova?", "Monte um plano de estudos de 5 dias", "Quais conceitos as pessoas mais confundem aqui?"];
+  return `<div class="chat">
+    ${c.chat.length ? c.chat.map(m => `<div class="msg ${m.role} ${m.role === "assistant" ? "md" : ""}">${m.role === "assistant" ? md(m.content) : esc(m.content)}</div>`).join("") : `<div class="card"><h3>Tutor dos seus materiais</h3><p class="muted">Pergunte qualquer coisa sobre o conteúdo. As respostas usam seus arquivos como base.</p><div class="chips">${sugestoes.map(s => `<button class="chip" data-act="sugestao">${esc(s)}</button>`).join("")}</div></div>`}
+    ${S.ocupado === "tutor" ? `<div class="msg assistant"><span class="spin"></span> pensando…</div>` : ""}
+  </div>
+  <div class="card stack">
+    <textarea id="pergunta" rows="3" placeholder="Faça uma pergunta sobre o conteúdo… (Ctrl+Enter envia)"></textarea>
+    <div class="row" style="justify-content:space-between">
+      <button class="btn small ghost" data-act="limparChat" ${c.chat.length ? "" : "disabled"}>🧹 Limpar conversa</button>
+      <button class="btn primary" data-act="enviar" ${S.ocupado ? "disabled" : ""}>Enviar</button>
+    </div>
+  </div>`;
+}
+async function perguntar(txt) {
+  const c = atual(); txt = txt.trim(); if (!txt || S.ocupado) return;
+  c.chat.push({ role: "user", content: txt });
+  S.ocupado = "tutor"; render(); window.scrollTo(0, document.body.scrollHeight);
+  try {
+    const resposta = await chamar({
+      system: [{ type: "text", text: SYS_BASE + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
+      messages: c.chat.map(m => ({ role: m.role, content: m.content })),
+      maxTokens: 16000
+    });
+    c.chat.push({ role: "assistant", content: resposta });
+  } catch (e) { c.chat.pop(); toast(erroMsg(e), true); }
+  S.ocupado = null; await salvar(c); render(); window.scrollTo(0, document.body.scrollHeight);
+}
+
+/* ================= config ================= */
+function abrirConfig() {
+  const s = cfg();
+  $("#cfgKey").value = s.apiKey; $("#cfgModel").value = s.model; $("#cfgEffort").value = s.effort;
+  $("#cfgProvider").value = s.provider; $("#cfgOUrl").value = s.ollamaUrl; $("#cfgOCtx").value = String(s.ollamaCtx);
+  $("#cfgWModel").innerHTML = Object.entries(MODELOS_WEB).map(([k, v]) => `<option value="${k}">${v.nome}</option>`).join("");
+  $("#cfgWModel").value = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+  const sel = $("#cfgOModel");
+  if (s.ollamaModel && ![...sel.options].some(o => o.value === s.ollamaModel)) sel.add(new Option(s.ollamaModel, s.ollamaModel));
+  sel.value = s.ollamaModel;
+  mostrarProvedor();
+  $("#dlgConfig").showModal();
+}
+function mostrarProvedor() {
+  const v = $("#cfgProvider").value;
+  $("#cfgOllama").style.display = v === "ollama" ? "" : "none";
+  $("#cfgAnth").style.display = v === "anthropic" ? "" : "none";
+  $("#cfgWeb").style.display = v === "webllm" ? "" : "none";
+}
+async function detectarModelos() {
+  const url = ($("#cfgOUrl").value.trim() || "http://localhost:11434").replace(/\/$/, "");
+  try {
+    const r = await fetch(url + "/api/tags");
+    const { models = [] } = await r.json();
+    const sel = $("#cfgOModel"), atualSel = sel.value;
+    sel.innerHTML = models.length ? models.map(m => `<option value="${esc(m.name)}">${esc(m.name)} (${(m.size / 1e9).toFixed(1)} GB)</option>`).join("") : `<option value="">Nenhum modelo — rode "ollama pull qwen3:8b"</option>`;
+    if (models.some(m => m.name === atualSel)) sel.value = atualSel;
+    toast(models.length ? `${models.length} modelo(s) encontrado(s).` : "Ollama está rodando, mas sem modelos baixados.");
+  } catch { toast("Não encontrei o Ollama nesse endereço. Ele está instalado e aberto?", true); }
+}
+const nomeIA = () => { const s = cfg(); return s.provider === "ollama" ? `IA local: ${s.ollamaModel || "sem modelo"}` : s.provider === "webllm" ? `IA do navegador: ${(MODELOS_WEB[s.webModel]?.nome || "").split(" ")[0] || "Completa"}` : `Claude: ${s.model.replace("claude-", "")}`; };
+function aplicarTema() {
+  const t = lsGet("fp-tema", null);
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+}
+
+/* ================= eventos ================= */
+document.addEventListener("click", async e => {
+  const el = e.target.closest("[data-act]"); if (!el || el.disabled) return;
+  const act = el.dataset.act, id = el.dataset.id, c = atual();
+  switch (act) {
+    case "novo": { const n = prompt("Nome do caderno (ex.: Bioquímica – P2):"); if (!n?.trim()) return; const nc = novoCaderno(n.trim()); S.cadernos.push(nc); S.atual = nc.id; S.aba = "materiais"; S.player = null; await salvar(nc); render(); break; }
+    case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; S.atual = id; S.player = null; S.verDeck = null; render(); break;
+    case "aba": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
+    case "renomear": { const n = prompt("Novo nome:", c.nome); if (n?.trim()) { c.nome = n.trim(); await salvar(c); render(); } break; }
+    case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
+    case "escolher": $("#arquivo").click(); break;
+    case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); await salvar(c); render(); toast("Texto adicionado."); break; }
+    case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = el.checked; await salvar(c); render(); break; }
+    case "excluirMat": { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); await salvar(c); render(); } break; }
+    case "transcrever": transcrever(id); break;
+    case "ocr": lerComOCR(id); break;
+    case "gerar": gerar(id); break;
+    case "excluir": if (confirm("Excluir este item?")) { c[el.dataset.tipo] = c[el.dataset.tipo].filter(x => x.id !== id); await salvar(c); render(); } break;
+    case "sair": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); S.player = null; render(); break;
+    case "estudarDeck": iniciarFlash(id, false); break;
+    case "estudarTudo": iniciarFlash(id, true); break;
+    case "verDeck": S.verDeck = S.verDeck === id ? null : id; render(); break;
+    case "virar": if (!S.player.virado) { S.player.virado = true; render(); } break;
+    case "avaliar": avaliar(+id); break;
+    case "fazerQuiz": iniciarQuiz(id); break;
+    case "refazerErros": iniciarQuiz(S.player.id, [...S.player.erros]); break;
+    case "escolher-alt": S.player.escolha = +id; render(); break;
+    case "confirmar": { const p = S.player, q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]]; p.confirmado = true; if (p.escolha === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]); render(); break; }
+    case "proxima": { const p = S.player; p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
+    case "fazerProva": iniciarProva(id); break;
+    case "entregar": entregar(); break;
+    case "sugestao": perguntar(el.textContent); break;
+    case "enviar": perguntar($("#pergunta").value); break;
+    case "limparChat": if (confirm("Apagar a conversa com o tutor?")) { c.chat = []; await salvar(c); render(); } break;
+    case "config": abrirConfig(); break;
+    case "fecharCfg": $("#dlgConfig").close(); break;
+    case "salvarCfg": lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
+    case "detectar": detectarModelos(); break;
+    case "smartIniciar": if (!ativos(c).length) return toast("Adicione materiais primeiro.", true); smartIniciar(c); break;
+    case "smartTopico": smartIniciar(c, id); break;
+    case "sAlt": S.player.escolha = +id; render(); break;
+    case "sConfirmar": { const it = S.player.fila[S.player.i]; smartResponder(c, S.player.escolha === it.correta); break; }
+    case "sVirar": S.player.virado = true; render(); break;
+    case "sAuto": smartResponder(c, id === "1"); break;
+    case "sProx": smartProx(c); break;
+    case "smartAjustar": { const t = $("#smartAjuste").value.trim(); if (!t) return; garantirSmart(c); c.inteligente.prefs = (c.inteligente.prefs ? c.inteligente.prefs + "\n" : "") + t; S.player.proximo = null; S.player.fila.length = Math.min(S.player.fila.length, S.player.i + 1); await salvar(c); toast("Ajuste aplicado — as próximas questões vão seguir isso."); smartPrefetch(c); render(); break; }
+    case "smartEncerrar": if (S.player.sessao.total) { S.player.fim = true; S.player.proximo = null; render(); } else { S.player = null; render(); } break;
+    case "zerarSmart": if (confirm("Zerar todo o progresso do estudo inteligente deste caderno?")) { c.dominio = {}; c.inteligente = null; garantirSmart(c); await salvar(c); render(); } break;
+    case "tema": { const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); lsSet("fp-tema", cur === "dark" ? "light" : "dark"); aplicarTema(); break; }
+    case "exportar": {
+      const blob = new Blob([JSON.stringify({ app: "foco-prova", versao: 1, cadernos: S.cadernos }, null, 1)], { type: "application/json" });
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `foco-prova-backup-${new Date().toISOString().slice(0, 10)}.json` });
+      a.click(); URL.revokeObjectURL(a.href); break;
+    }
+    case "importar": $("#backupIn").click(); break;
+  }
+});
+document.addEventListener("input", e => {
+  const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
+  S.player.resp[q] = e.target.type === "radio" ? +e.target.value : e.target.value;
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "smartPrefs") { const c = atual(); garantirSmart(c); c.inteligente.prefs = e.target.value.trim(); salvar(c); toast("Preferências salvas."); return; }
+  const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
+  if (e.target.type === "radio") S.player.resp[q] = +e.target.value;
+});
+document.addEventListener("keydown", e => {
+  if (e.target.id === "pergunta" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); perguntar(e.target.value); return; }
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+  if (S.player?.tipo === "flash") {
+    if (e.code === "Space") { e.preventDefault(); if (!S.player.virado && S.player.fila.length) { S.player.virado = true; render(); } }
+    else if (S.player.virado && ["1", "2", "3"].includes(e.key)) avaliar(+e.key - 1);
+  }
+});
+$("#cfgProvider").addEventListener("change", mostrarProvedor);
+$("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });
+$("#backupIn").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data.cadernos)) throw new Error("arquivo inválido");
+    for (const c of data.cadernos) { await dbPut(c); const i = S.cadernos.findIndex(x => x.id === c.id); if (i >= 0) S.cadernos[i] = c; else S.cadernos.push(c); }
+    $("#dlgConfig").close(); render(); toast(`${data.cadernos.length} caderno(s) importado(s).`);
+  } catch (err) { toast("Falha ao importar: " + err.message, true); }
+});
+document.addEventListener("dragover", e => { const d = e.target.closest?.("#drop"); if (d) { e.preventDefault(); d.classList.add("over"); } });
+document.addEventListener("dragleave", e => { e.target.closest?.("#drop")?.classList.remove("over"); });
+document.addEventListener("drop", e => { const d = e.target.closest?.("#drop"); if (d) { e.preventDefault(); d.classList.remove("over"); adicionarArquivos([...e.dataTransfer.files]); } });
+
+/* ================= início ================= */
+aplicarTema();
+try { db = await abrirDB(); S.cadernos = (await dbAll()) || []; }
+catch (e) { toast("Armazenamento local indisponível — os dados não serão salvos.", true); }
+render();
+// Detecta a IA local automaticamente quando não há chave do Claude configurada
+(async () => {
+  const s = cfg();
+  if (s.apiKey || (s.provider === "ollama" && s.ollamaModel) || s.provider === "webllm") return;
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 2500);
+    const { models = [] } = await (await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/tags", { signal: ctl.signal })).json();
+    if (!models.length) throw 0;
+    const nomes = models.map(m => m.name);
+    const escolhido = ["qwen3:4b", "qwen3:8b"].find(n => nomes.includes(n)) || nomes[0];
+    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: escolhido, ollamaCtx: s.ollamaCtx || 16384 });
+    render(); toast(`IA local detectada e ativada: ${escolhido}`);
+  } catch {
+    // Sem Ollama: usa a IA grátis que roda no próprio navegador (celular ou PC)
+    if (navigator.gpu) {
+      const celular = matchMedia("(pointer: coarse)").matches || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+      const fraco = navigator.deviceMemory && navigator.deviceMemory <= 3;
+      const modelo = fraco ? "Qwen2.5-0.5B-Instruct-q4f16_1-MLC" : celular ? "Qwen2.5-1.5B-Instruct-q4f16_1-MLC" : "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+      lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: modelo });
+      render(); toast("Usando a IA grátis do navegador. Na primeira geração ela é baixada uma vez.");
+    } else toast("Este navegador não roda a IA grátis (WebGPU). Use o Chrome ou o Edge atualizados, ou configure outra IA em ⚙️.", true);
+  }
+})();
+</script>
+</body>
+</html>
