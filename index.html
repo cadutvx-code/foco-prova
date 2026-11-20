@@ -375,6 +375,14 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
     </label>
     </div>
     <div class="stack" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
+      <b style="font-size:14px">🌐 Idioma</b>
+      <div class="row">
+        <label class="grow">Idioma do site (botões e textos)<select id="cfgUi"><option value="pt">Português</option><option value="es">Español</option></select></label>
+        <label class="grow">Idioma das perguntas (padrão)<select id="cfgIdiomaPadrao"><option value="auto">Automático (igual ao material)</option><option value="pt">Português</option><option value="es">Español</option></select></label>
+      </div>
+      <span class="muted" style="font-size:12px">Cada caderno também tem o seu seletor 🌐 ao lado de “Começar a estudar”. O professor fala no mesmo idioma das perguntas.</span>
+    </div>
+    <div class="stack" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
       <b style="font-size:14px">🔊 Voz do professor (leitura em voz alta)</b>
       <div class="row"><label class="grow">Voz do Gemini (recomendada — humana, funciona em qualquer navegador)<select id="cfgVozGemini"></select></label><button class="btn small" data-act="testarVozGemini">▶ Testar</button></div>
       <span class="muted" style="font-size:12px">Se escolher “Voz do navegador”, use as opções abaixo:</span>
@@ -451,6 +459,8 @@ const cfg = () => ({ provider: "anthropic", apiKey: "", model: "claude-opus-5-5"
 // Idioma do conteúdo gerado: escolhido no caderno; se não escolhido, o mesmo do material
 function idiomaCaderno(c) {
   if (c?.idioma) return c.idioma;
+  const padrao = lsGet("fp-idioma-padrao", "auto");
+  if (padrao === "pt" || padrao === "es") return padrao;
   const t = (c ? ativos(c) : []).map(m => m.texto.slice(0, 2500)).join(" ");
   return t && idiomaDoTexto(t) === "spa" ? "es" : "pt";
 }
@@ -2005,11 +2015,10 @@ function audioGemini(texto, lang) {
   if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
   const pr = (async () => {
     const { ai, AI } = await motorGemini();
-    const estilo = lang.startsWith("es") ? "Lee en voz alta, con tono de profesor universitario, natural, claro y amable:" : "Leia em voz alta, com tom de professor universitário, natural, claro e gentil:";
     for (const nome of ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"]) {
       try {
         const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } } });
-        const r = await m.generateContent(`${estilo} ${texto}`);
+        const r = await m.generateContent(texto);
         const part = r.response.candidates?.[0]?.content?.parts?.find(x => x.inlineData);
         if (part) return `data:${part.inlineData.mimeType || "audio/wav"};base64,${part.inlineData.data}`;
       } catch {}
@@ -2493,6 +2502,8 @@ async function criarCaderno() {
 
 /* ================= config ================= */
 function preencherVozes() {
+  $("#cfgUi").value = lsGet("fp-ui", "pt");
+  $("#cfgIdiomaPadrao").value = lsGet("fp-idioma-padrao", "auto");
   $("#cfgVozGemini").innerHTML = VOZES_GEMINI.map(([v, n]) => `<option value="${v}">${n}</option>`).join("");
   $("#cfgVozGemini").value = vozGemini();
   const salvas = lsGet("fp-voz", {});
@@ -2607,7 +2618,12 @@ document.addEventListener("click", async e => {
     case "fecharCfg": $("#dlgConfig").close(); break;
     case "testarVozGemini": { lsSet("fp-voz-gemini", $("#cfgVozGemini").value); const es = idiomaCaderno(atual()) === "es"; toast("Gerando a voz…"); falar(es ? "¡Hola! Soy el profesor de tu ateneo. Te tocó el capítulo de los líquidos corporales. Explícame todo lo que sabes." : "Olá! Eu sou o professor do seu ateneo. Você tirou o capítulo de líquidos corporais. Me explique tudo o que você sabe.", es ? "es-ES" : "pt-BR"); break; }
     case "testarVoz": { const v = $(id === "pt" ? "#cfgVozPt" : "#cfgVozEs").value; const salvas = lsGet("fp-voz", {}); lsSet("fp-voz", { ...salvas, [id]: v }); falar(id === "pt" ? "Olá! Eu sou o professor do seu ateneo. Me explique o capítulo de líquidos corporais." : "¡Hola! Soy el profesor de tu ateneo. Explícame el capítulo de los líquidos corporales.", id === "pt" ? "pt-BR" : "es-ES"); break; }
-    case "salvarCfg": lsSet("fp-voz-gemini", $("#cfgVozGemini").value); lsSet("fp-voz", { ...lsGet("fp-voz", {}), pt: $("#cfgVozPt").value, es: $("#cfgVozEs").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
+    case "salvarCfg": {
+      const uiAntes = lsGet("fp-ui", "pt"), uiNovo = $("#cfgUi").value;
+      lsSet("fp-ui", uiNovo); lsSet("fp-idioma-padrao", $("#cfgIdiomaPadrao").value);
+      if (uiAntes !== uiNovo) setTimeout(() => location.reload(), 300); // recarrega para trocar todos os textos
+    }
+      lsSet("fp-voz-gemini", $("#cfgVozGemini").value); lsSet("fp-voz", { ...lsGet("fp-voz", {}), pt: $("#cfgVozPt").value, es: $("#cfgVozEs").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
     case "inicio": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
@@ -2697,6 +2713,86 @@ document.addEventListener("drop", e => {
   if (S.aba !== "materiais") { S.aba = "materiais"; render(); }
   adicionarArquivos(files);
 });
+
+/* ================= interface em espanhol ================= */
+const UI_ES = {
+  "Início": "Inicio", "Materiais": "Materiales", "Material": "Material", "Estudo inteligente": "Estudio inteligente", "Guia de estudo": "Guía de estudio",
+  "Teste": "Examen", "Ajustes": "Ajustes", "Entrar com Google": "Iniciar sesión con Google", "Gemini (nuvem)": "Gemini (nube)",
+  "Criar um caderno de estudo": "Crear un cuaderno de estudio", "Criar caderno": "Crear cuaderno", "Outros": "Otros", "Como funciona": "Cómo funciona",
+  "Comece sua sequência hoje!": "¡Empieza tu racha hoy!", "Meta de hoje:": "Meta de hoy:", "perguntas": "preguntas", "mudar meta": "cambiar meta",
+  "▶ Começar a estudar": "▶ Empezar a estudiar", "📂 Mudar de matéria": "📂 Cambiar de materia", "✏️ Renomear": "✏️ Renombrar",
+  "✨ Identificar matéria com IA": "✨ Identificar materia con IA", "🗑 Excluir": "🗑 Eliminar", "Excluir": "Eliminar", "🗑️ Excluir": "🗑️ Eliminar",
+  "＋ Adicionar": "＋ Agregar", "✍️ Colar texto": "✍️ Pegar texto", "Adicionar texto": "Agregar texto", "Cancelar": "Cancelar",
+  "📎 Arraste PDFs, slides (.pptx), Word, textos ou fotos para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos o fotos aquí",
+  "🔍 Ler texto": "🔍 Leer texto", "reenvie o arquivo": "vuelve a subir el archivo", "sem texto": "sin texto", "não usado no estudo": "no se usa en el estudio",
+  "domínio geral": "dominio general", "respondidas": "respondidas", "de acerto": "de aciertos", "Domínio por tópico": "Dominio por tema",
+  "Clique em um tópico para estudar só ele.": "Haz clic en un tema para estudiar solo ese.", "▶ Continuar estudando": "▶ Seguir estudiando",
+  "▶ Começar estudo inteligente": "▶ Empezar estudio inteligente", "Zerar progresso": "Reiniciar progreso", "⚙️ Preferências (direcionam a IA)": "⚙️ Preferencias (guían a la IA)",
+  "Aprendendo": "Aprendiendo", "Revisando": "Repasando", "Não praticado": "Sin practicar",
+  "Mostrar resposta": "Mostrar respuesta", "Pular": "Saltar", "Próxima pergunta →": "Siguiente pregunta →", "Continuar →": "Continuar →",
+  "Preparando a primeira pergunta…": "Preparando la primera pregunta…", "Preparando a próxima pergunta…": "Preparando la siguiente pregunta…",
+  "Atalhos: 1–4 responde · Enter continua": "Atajos: 1–4 responde · Enter continúa", "Ver resultado": "Ver resultado", "Ver progresso": "Ver progreso", "▶ Nova sessão": "▶ Nueva sesión",
+  "Quantidade": "Cantidad", "Dificuldade": "Dificultad", "Foco (opcional)": "Enfoque (opcional)",
+  "✨ Gerar resumo": "✨ Generar resumen", "✨ Gerar flashcards": "✨ Generar flashcards", "✨ Gerar quiz": "✨ Generar quiz", "✨ Gerar prova": "✨ Generar examen",
+  "Nenhum resumo gerado ainda.": "Aún no hay resúmenes.", "Nenhum baralho ainda. Gere o primeiro acima!": "Aún no hay mazos. ¡Genera el primero arriba!",
+  "Nenhum quiz ainda.": "Aún no hay quizzes.", "Nenhuma prova ainda.": "Aún no hay exámenes.", "▶ Fazer": "▶ Hacer", "▶ Fazer prova": "▶ Hacer examen",
+  "Estudar todos": "Estudiar todos", "Ver cards": "Ver tarjetas", "Ocultar cards": "Ocultar tarjetas", "Múltipla escolha": "Opción múltiple", "Verdadeiro/Falso": "Verdadero/Falso",
+  "Dissertativas": "Preguntas abiertas", "Tempo (min, 0 = livre)": "Tiempo (min, 0 = libre)", "Entregar prova": "Entregar examen", "← Voltar": "← Volver", "← Sair": "← Salir",
+  "Tutor dos seus materiais": "Tutor de tus materiales", "Pergunte qualquer coisa sobre o conteúdo. As respostas usam seus arquivos como base.": "Pregunta lo que quieras sobre el contenido. Las respuestas se basan en tus archivos.",
+  "Enviar": "Enviar", "🧹 Limpar conversa": "🧹 Borrar conversación",
+  "Tempo para pensar (min)": "Tiempo para pensar (min)", "Professor fala em voz alta": "El profesor habla en voz alta",
+  "🎲 Tirar um papel (sortear capítulo)": "🎲 Sacar un papel (sortear capítulo)", "Ou escolha o capítulo": "O elige el capítulo", "↻ Reidentificar": "↻ Volver a identificar",
+  "Ateneos anteriores": "Ateneos anteriores", "🎙️ Falar": "🎙️ Hablar", "⏹ Parar": "⏹ Detener", "Terminei de explicar": "Terminé de explicar", "Enviar resposta": "Enviar respuesta",
+  "Pergunta 1": "Pregunta 1", "Pergunta 2": "Pregunta 2", "Nenhum capítulo identificado ainda.": "Aún no se identificaron capítulos.",
+  "Configurações": "Ajustes", "Qual IA usar": "Qué IA usar", "Salvar": "Guardar", "⬇️ Exportar backup": "⬇️ Exportar copia", "⬆️ Importar backup": "⬆️ Importar copia",
+  "🌐 Idioma": "🌐 Idioma", "Idioma do site (botões e textos)": "Idioma del sitio (botones y textos)", "Idioma das perguntas (padrão)": "Idioma de las preguntas (predeterminado)",
+  "🔊 Voz do professor (leitura em voz alta)": "🔊 Voz del profesor (lectura en voz alta)", "▶ Testar": "▶ Probar",
+  "Novo caderno": "Nuevo cuaderno", "Nome": "Nombre", "Ícone": "Ícono", "📎 Adicionar arquivos agora (opcional) — clique ou arraste aqui": "📎 Agregar archivos ahora (opcional) — haz clic o arrastra aquí",
+  "Renomear caderno": "Renombrar cuaderno", "Mudar de matéria": "Cambiar de materia", "Renomear matéria": "Renombrar materia", "Meta diária (perguntas por dia)": "Meta diaria (preguntas por día)",
+  "Escolher a IA": "Elegir la IA", "Tema claro/escuro": "Tema claro/oscuro", "Trocar ícone": "Cambiar ícono", "Opções": "Opciones",
+  "Ouvir de novo": "Escuchar de nuevo", "Sair": "Salir", "Boa questão": "Buena pregunta", "Questão ruim — evitar parecidas": "Pregunta mala — evitar parecidas",
+  "Ajustar o estudo": "Ajustar el estudio", "Encerrar sessão": "Terminar sesión", "Configurações salvas.": "Ajustes guardados.", "Materiais adicionados.": "Materiales agregados.",
+  "Pronto! ✨": "¡Listo! ✨", "Texto adicionado.": "Texto agregado.", "Valeu! 👍": "¡Gracias! 👍",
+  "Gemini (nuvem do Google) — grátis, rápido, recomendado": "Gemini (nube de Google) — gratis, rápido, recomendado",
+  "IA do navegador — grátis, roda no aparelho, sem internet": "IA del navegador — gratis, funciona en el dispositivo, sin internet",
+  "Claude (nuvem) — precisa de chave própria da Anthropic": "Claude (nube) — necesita clave propia de Anthropic",
+  "Automático (igual ao material)": "Automático (igual al material)",
+  "Cada caderno também tem o seu seletor 🌐 ao lado de “Começar a estudar”. O professor fala no mesmo idioma das perguntas.": "Cada cuaderno también tiene su selector 🌐 junto a “Empezar a estudiar”. El profesor habla en el mismo idioma de las preguntas.",
+  "Voz do Gemini (recomendada — humana, funciona em qualquer navegador)": "Voz de Gemini (recomendada — humana, funciona en cualquier navegador)",
+  "Charon — masculina, calma (professor)": "Charon — masculina, calmada (profesor)", "Kore — feminina, firme": "Kore — femenina, firme",
+  "Aoede — feminina, leve": "Aoede — femenina, suave", "Fenrir — masculina, forte": "Fenrir — masculina, fuerte", "Leda — feminina, jovem": "Leda — femenina, joven",
+  "Voz do navegador (sem internet)": "Voz del navegador (sin internet)",
+  "Se escolher “Voz do navegador”, use as opções abaixo:": "Si eliges “Voz del navegador”, usa las opciones de abajo:",
+  "As vozes “Natural” / “Online” (Edge) e “Google” (Chrome) soam bem mais humanas.": "Las voces “Natural” / “Online” (Edge) y “Google” (Chrome) suenan mucho más humanas.",
+  "Matéria": "Materia", "Meus cadernos": "Mis cuadernos"
+};
+const UI_RE = [
+  [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"]
+];
+const IGNORAR_TRAD = "textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
+function traduzirNo(raiz) {
+  if (lsGet("fp-ui", "pt") !== "es" || !raiz) return;
+  if (raiz.nodeType === 3) raiz = raiz.parentElement; if (!raiz) return;
+  const w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT), nos = [];
+  while (w.nextNode()) nos.push(w.currentNode);
+  for (const n of nos) {
+    const el = n.parentElement; if (!el || el.closest(IGNORAR_TRAD)) continue;
+    if (el.tagName === "OPTION" && !el.hasAttribute("value")) continue; // o texto é o próprio valor
+    const t = n.nodeValue.trim(); if (!t) continue;
+    let novo = UI_ES[t];
+    if (!novo) for (const [re, rep] of UI_RE) if (re.test(t)) { novo = t.replace(re, rep); break; }
+    if (novo && novo !== t) n.nodeValue = n.nodeValue.replace(t, novo);
+  }
+  (raiz.querySelectorAll ? [raiz, ...raiz.querySelectorAll("[placeholder],[title]")] : []).forEach(el => {
+    for (const a of ["placeholder", "title"]) { const v = el.getAttribute?.(a); if (v && UI_ES[v]) el.setAttribute(a, UI_ES[v]); }
+  });
+}
+if (lsGet("fp-ui", "pt") === "es") {
+  document.documentElement.lang = "es";
+  new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) traduzirNo(n); }).observe(document.body, { childList: true, subtree: true });
+  traduzirNo(document.body);
+}
 
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
