@@ -213,6 +213,19 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .btn-google:hover{border-color:var(--accent)}
 .aviso-nuvem{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-radius:14px;background:var(--accent-soft);margin-bottom:18px;font-weight:600;max-width:760px}
 @media (max-width:760px){ .sync{display:none} .btn-google span{display:none} }
+.meta-dia{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 18px;border-radius:16px;background:var(--panel);border:1px solid var(--line);margin-bottom:22px;max-width:760px;box-shadow:var(--shadow)}
+.meta-dia .fogo{font-size:30px;line-height:1}
+.meta-dia .info{flex:1;min-width:200px}
+.meta-dia .dias{display:flex;gap:5px;margin-top:8px}
+.meta-dia .dias span{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--panel2);color:var(--muted)}
+.meta-dia .dias span.ok{background:linear-gradient(135deg,#ff9f1c,#ff5e3a);color:#fff}
+.meta-dia .dias span.hoje{outline:2px solid var(--accent)}
+.oral-q{font-size:21px;font-weight:800;line-height:1.4;margin:6px 0 16px}
+.mic{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:999px;padding:11px 20px;font-weight:800;cursor:pointer;color:#fff;background:linear-gradient(135deg,#ff5e7a,#ff8a3d)}
+.mic.on{animation:pulso 1.2s infinite}
+@keyframes pulso{0%{box-shadow:0 0 0 0 rgba(255,94,122,.6)}70%{box-shadow:0 0 0 14px rgba(255,94,122,0)}100%{box-shadow:0 0 0 0 rgba(255,94,122,0)}}
+.nota-oral{font-size:44px;font-weight:900;line-height:1}
+.oral-lista li{margin:3px 0}
 /* ---- materiais em lista ---- */
 .mlist{display:flex;flex-direction:column;gap:6px;max-width:640px}
 .mrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--panel2);border:1px solid transparent}
@@ -254,6 +267,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <div class="sp"></div>
   <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
   <div class="conta" id="conta"></div>
+  <button class="ia-chip" id="seqChip" data-act="metaDia" title="Dias seguidos estudando — clique para mudar a meta diária">🔥 0</button>
   <button class="icon-btn" data-act="tema" title="Tema claro/escuro">🌓</button>
 </header>
 <div class="shell">
@@ -406,7 +420,6 @@ const dbDel = id => tx("readwrite", s => s.delete(id));
 /* ================= estado ================= */
 const S = { novo: { icone: "📘", arquivos: [] }, colar: false, verMat: null, cadernos: [], atual: null, aba: "materiais", player: null, ocupado: null, form: { qtd: 15, dif: "mista", foco: "" }, verDeck: null, timer: null };
 const atual = () => S.cadernos.find(c => c.id === S.atual);
-window.__estadoFoco = S; // ajuda a investigar problemas pelo console
 const ativos = c => c.materiais.filter(m => m.ativo !== false && m.texto?.trim());
 async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } agendarSync(c); }
 function novoCaderno(nome) {
@@ -474,7 +487,6 @@ const MODELOS_WEB = {
   "Qwen2.5-0.5B-Instruct-q4f16_1-MLC": { nome: "Leve (aparelho fraco, erra mais) — ~400 MB", ctx: 8192 }
 };
 const WL = { engine: null, modelo: null, carregando: null };
-window.__WL = WL;
 function progressoIA(txt, pct) {
   const el = $("#iaProg");
   if (pct === null) { el.style.display = "none"; return; }
@@ -585,7 +597,7 @@ async function chamarCPU(s, { system, messages, schema, maxTokens, rotulo, aoPar
     const partes = await w.createChatCompletion(req);
     for await (const p of partes) {
       const d = p.choices?.[0]?.delta?.content;
-      if (d) { texto += d; prog(texto); aoParcial?.(texto); window.__ultimaRespostaIA = texto; }
+      if (d) { texto += d; prog(texto); aoParcial?.(texto); }
     }
   } finally { if (!fundo) progressoIA("", null); }
   if (sinal?.aborted) throw new Error("interrompido");
@@ -659,10 +671,8 @@ async function proximoIA() {
   if (rodandoIA) return;
   const job = filaIA.shift(); if (!job) return;
   rodandoIA = job; job.preemptado = false; job.ctl = new AbortController();
-  const t0 = Date.now(); (window.__logIA ||= []).push(`início ${job.urgente ? "urgente" : job.fundo ? "fundo" : "normal"} (fila ${filaIA.length})`);
-  try { job.res(await job.fn(job.ctl.signal)); window.__logIA.push(`fim ${Math.round((Date.now() - t0) / 1000)}s`); }
+  try { job.res(await job.fn(job.ctl.signal)); }
   catch (e) {
-    window.__logIA?.push(`${job.preemptado ? "interrompido" : "erro: " + String(e?.message || e).slice(0, 80)} ${Math.round((Date.now() - t0) / 1000)}s`);
     if (job.preemptado) { const i = filaIA.findIndex(j => j.fundo); i < 0 ? filaIA.push(job) : filaIA.splice(i, 0, job); } // volta para a fila, depois dos pedidos seus
     else job.rej(e);
   } finally { rodandoIA = null; proximoIA(); }
@@ -1234,6 +1244,37 @@ async function completarExplicacao(c, q, escolha) {
   } catch (e) { toast("Não consegui gerar a explicação: " + erroMsg(e), true); }
   delete q._explicando; render(); salvar(c);
 }
+/* ================= sequência de dias e meta diária ================= */
+const hojeStr = (d = new Date()) => d.toLocaleDateString("sv-SE"); // AAAA-MM-DD no horário local
+function sequencia() { return { dias: {}, meta: 20, ...lsGet("fp-sequencia", {}) }; }
+function diasSeguidos() {
+  const q = sequencia(), d = new Date(); let n = 0;
+  if (!q.dias[hojeStr(d)]) d.setDate(d.getDate() - 1); // hoje ainda não estudou: conta até ontem
+  while (q.dias[hojeStr(d)]) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+// Cada pergunta respondida (estudo inteligente, quiz, teste, ateneo) conta para a meta do dia
+function contarResposta(qtd = 1) {
+  const q = sequencia(), h = hojeStr(), antes = q.dias[h] || 0;
+  q.dias[h] = antes + qtd;
+  const limite = new Date(); limite.setDate(limite.getDate() - 120);
+  for (const k of Object.keys(q.dias)) if (k < hojeStr(limite)) delete q.dias[k];
+  lsSet("fp-sequencia", q);
+  if (antes < q.meta && antes + qtd >= q.meta) toast(`🎉 Meta do dia batida: ${q.meta} perguntas! Sequência: ${diasSeguidos()} dia(s) 🔥`);
+  const chip = $("#seqChip"); if (chip) chip.textContent = `🔥 ${diasSeguidos()}`;
+}
+function cartaoMeta() {
+  const q = sequencia(), feitas = q.dias[hojeStr()] || 0, pct = Math.min(100, Math.round(feitas / q.meta * 100)), seq = diasSeguidos();
+  const ult = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
+  const letra = d => d.toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 1).toUpperCase();
+  return `<div class="meta-dia"><span class="fogo">🔥</span>
+    <div class="info"><b>${seq ? `${seq} dia${seq > 1 ? "s" : ""} seguido${seq > 1 ? "s" : ""}` : "Comece sua sequência hoje!"}</b>
+      <div class="muted" style="font-size:13px;margin:2px 0 6px">Meta de hoje: <b>${feitas}/${q.meta}</b> perguntas ${feitas >= q.meta ? "✅" : ""} · <a href="#" data-act="metaDia" style="color:var(--accent)">mudar meta</a></div>
+      <div class="prog"><div style="width:${pct}%"></div></div>
+      <div class="dias">${ult.map(d => `<span class="${q.dias[hojeStr(d)] ? "ok" : ""} ${hojeStr(d) === hojeStr() ? "hoje" : ""}" title="${d.toLocaleDateString("pt-BR")}: ${q.dias[hojeStr(d)] || 0} perguntas">${letra(d)}</span>`).join("")}</div>
+    </div></div>`;
+}
+
 /* ================= views ================= */
 const IC = {
   inicio: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
@@ -1244,10 +1285,11 @@ const IC = {
   quiz: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14"/><path d="M12 17h.01"/>',
   prova: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 11l2 2 4-4M8.5 16h7"/>',
   tutor: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
+  oral: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/>',
   config: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'
 };
 const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
-const ABAS = [["materiais", "Materiais"], ["smart", "Estudo inteligente"], ["resumo", "Guia de estudo"], ["flash", "Flashcards"], ["quiz", "Quiz"], ["prova", "Teste"], ["tutor", "Tutor"]];
+const ABAS = [["materiais", "Materiais"], ["smart", "Estudo inteligente"], ["oral", "Ateneo oral"], ["resumo", "Guia de estudo"], ["flash", "Flashcards"], ["quiz", "Quiz"], ["prova", "Teste"], ["tutor", "Tutor"]];
 const ICONES_KIT = ["📘", "🧬", "📐", "🏛️", "⚗️", "🌎", "📖", "💡", "🧠", "⚖️", "🩺", "💻", "🎨", "📊"];
 
 // Nível = XP do estudo inteligente; estrelas = domínio geral dos tópicos
@@ -1273,8 +1315,11 @@ function render() {
     (c ? `<div class="sep"></div>` + ABAS.map(([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}${n}</button>`).join("") : "") +
     `<button class="ri fim" data-act="config">${svg("config")}Ajustes</button>`;
   $("#iaChip span").textContent = nomeIA();
+  $("#seqChip").textContent = `🔥 ${diasSeguidos()}`;
   desenharConta();
   $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : viewHome();
+  const po = S.player;
+  if (po?.tipo === "oral" && S.oralVoz && po.i < po.itens.length && !po.lidas[po.i] && !po.notas[po.i]) { po.lidas[po.i] = true; falar(po.itens[po.i].pergunta); }
 }
 
 const CORES_MATERIA = ["#f2a900", "#1d6ff2", "#12a36b", "#e0475e", "#7c4dff", "#f26b1d", "#0b9fa8", "#d6338a"];
@@ -1309,7 +1354,7 @@ function viewHome() {
         <button data-act="excluirKit" data-id="${c.id}" style="color:var(--bad)">🗑 Excluir</button></div>` : ""}
     </div>`;
   };
-  return `<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  return `${cartaoMeta()}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}
@@ -1358,7 +1403,7 @@ function pedirTexto(titulo, valor, aoSalvar) {
 }
 
 function viewCaderno(c, emEstudo) {
-  const corpo = { materiais: viewMateriais, smart: viewSmart, resumo: viewResumo, flash: viewFlash, quiz: viewQuiz, prova: viewProva, tutor: viewTutor }[S.aba](c);
+  const corpo = { materiais: viewMateriais, smart: viewSmart, oral: viewOral, resumo: viewResumo, flash: viewFlash, quiz: viewQuiz, prova: viewProva, tutor: viewTutor }[S.aba](c);
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
@@ -1536,7 +1581,7 @@ function quizResponder(c, i) {
   const q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]];
   p.escolha = i; p.confirmado = true;
   if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
-  render(); completarExplicacao(c, q, i);
+  contarResposta(); render(); completarExplicacao(c, q, i);
 }
 function iniciarQuiz(id, ordem) {
   const qz = atual().quizzes.find(x => x.id === id);
@@ -1630,6 +1675,7 @@ async function entregar(forcado = false) {
   p.resultado = { nota: max ? pontos / max * 10 : 0, pontos, max, porQuestao };
   p.corrigindo = false;
   pv.tentativas.push({ data: Date.now(), nota: p.resultado.nota });
+  contarResposta(pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
   await salvar(c); render(); window.scrollTo(0, 0);
 }
 
@@ -1889,7 +1935,7 @@ async function smartResponder(c, acertou) {
   d.tentativas++; d.ultima = Date.now();
   if (acertou) { d.acertos++; d.score = d.score + (1 - d.score) * (0.12 + 0.08 * it.dificuldade); }
   else d.score = d.score * 0.65;
-  p.sessao.total++; I.respondidas++;
+  p.sessao.total++; I.respondidas++; contarResposta();
   if (acertou) { p.sessao.acertos++; p.sessao.combo++; I.acertos++; const ganho = 5 * it.dificuldade + Math.min(p.sessao.combo, 5) * 2; p.sessao.xp += ganho; I.xp += ganho; }
   else {
     p.sessao.combo = 0; p.sessao.erros++;
@@ -1907,6 +1953,135 @@ function smartProx(c) {
   p.i++; p.escolha = null; p.confirmado = false; p.virado = false;
   if (p.i >= p.fila.length) { render(); smartCarregar(c); return; }
   smartPrefetch(c); render(); window.scrollTo(0, 0);
+}
+
+/* ---------- Ateneo oral: a IA pergunta, você responde falando, a IA corrige ---------- */
+SCH.oral = obj({ perguntas: arr(obj({ pergunta: str, topico: str, pontos_chave: arr(str), resposta_modelo: str })) });
+SCH.oralNota = obj({ nota: num, acertou: arr(str), faltou: arr(str), comentario: str });
+S.oralVoz = lsGet("fp-oral-voz", true);
+let REC = null;
+const vozIdioma = c => idiomaCaderno(c) === "es" ? "es-ES" : "pt-BR";
+function falar(texto) {
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = vozIdioma(atual()); u.rate = 1; speechSynthesis.speak(u); } catch {}
+}
+function fecharVoz() { try { REC?.stop(); } catch {} REC = null; try { speechSynthesis.cancel(); } catch {} }
+function gravar() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast("Este navegador não reconhece voz. Use o Chrome ou o Edge, ou escreva a resposta.", true);
+  const c = atual(), p = S.player;
+  try { speechSynthesis.cancel(); } catch {}
+  REC = new SR(); REC.lang = vozIdioma(c); REC.continuous = true; REC.interimResults = true;
+  const base = p.resp ? p.resp.trim() + " " : "";
+  REC.onresult = ev => {
+    let fim = "", parcial = "";
+    for (let i = 0; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) fim += r[0].transcript; else parcial += r[0].transcript; }
+    p.resp = (base + fim).trim();
+    const ta = $("#oralResp"); if (ta) ta.value = p.resp + (parcial ? " " + parcial : "");
+  };
+  REC.onerror = e => { if (/not-allowed|service-not-allowed/.test(e.error)) toast("Permita o uso do microfone para responder falando.", true); else if (e.error === "no-speech") toast("Não ouvi nada. Tente de novo, mais perto do microfone."); };
+  REC.onend = () => { if (S.player === p) { p.gravando = false; render(); } };
+  REC.start(); p.gravando = true; render();
+}
+function viewOral(c) {
+  if (S.player?.tipo === "oral") return playerOral(c);
+  const sem = semMateriais(c); if (sem) return sem;
+  c.ateneos ||= [];
+  const busy = S.ocupado === "oral";
+  return `<div class="stack">
+    <div class="card stack">
+      <div><h2 style="margin:0">🎤 Ateneo oral</h2>
+        <div class="muted" style="font-size:13.5px;margin-top:4px">Simule a prova oral: a IA faz perguntas abertas sobre definição, localização e função (como o professor), você responde <b>falando</b> ou escrevendo e recebe <b>nota de 0 a 10</b>, com o que acertou e o que faltou.</div></div>
+      <div class="row">
+        <label style="width:130px">Perguntas<input type="number" id="oral-qtd" min="1" max="15" value="${S.form.oralQtd || 5}"></label>
+        <label class="grow">Foco (opcional)<input type="text" id="oral-foco" value="${esc(S.form.oralFoco || "")}" placeholder="ex.: equilíbrio ácido-básico, capítulo 25"></label>
+      </div>
+      <label class="inline"><input type="checkbox" id="oral-voz" ${S.oralVoz ? "checked" : ""}> Ler as perguntas em voz alta</label>
+      <div><button class="pill" data-act="oralIniciar" ${S.ocupado ? "disabled" : ""}>${busy ? `<span class="spin"></span> Preparando o ateneo…` : "▶ Começar ateneo"}</button></div>
+    </div>
+    ${c.ateneos.length ? `<div class="card"><h3>Ateneos anteriores</h3>${c.ateneos.slice(0, 10).map(a => `<div class="mrow" style="margin-top:6px"><span class="fi">🎤</span><span class="nm">${fmtData(a.data)}<small>${a.itens.length} pergunta(s)</small></span><b style="font-size:18px;color:${a.media >= 7 ? "var(--ok)" : a.media >= 5 ? "var(--warn)" : "var(--bad)"}">${a.media.toFixed(1)}</b></div>`).join("")}</div>` : ""}
+  </div>`;
+}
+function playerOral(c) {
+  const p = S.player, n = p.itens.length;
+  const es = idiomaCaderno(c) === "es";
+  if (p.i >= n) {
+    const notas = p.notas.filter(Boolean).map(x => x.nota), media = notas.length ? notas.reduce((a, b) => a + b, 0) / notas.length : 0;
+    return `<div class="study"><div class="card stack" style="text-align:center"><div class="muted">Média do ateneo</div>
+      <div class="nota-oral" style="color:${media >= 7 ? "var(--ok)" : media >= 5 ? "var(--warn)" : "var(--bad)"}">${media.toFixed(1)}</div>
+      <div class="stack" style="text-align:left">${p.itens.map((it, i) => `<div class="mrow"><span class="nm" style="white-space:normal">${esc(it.pergunta)}</span><b>${p.notas[i] ? p.notas[i].nota.toFixed(1) : "—"}</b></div>`).join("")}</div>
+      <div class="row" style="justify-content:center"><button class="pill" data-act="oralNovo">🎤 Novo ateneo</button><button class="btn" data-act="sair">Voltar</button></div></div></div>`;
+  }
+  const it = p.itens[p.i], nt = p.notas[p.i];
+  const corpo = nt ? `<div class="expl md">
+      <div class="row" style="align-items:center;gap:14px"><span class="nota-oral" style="color:${nt.nota >= 7 ? "var(--ok)" : nt.nota >= 5 ? "var(--warn)" : "var(--bad)"}">${nt.nota.toFixed(1)}</span><span>${md(nt.comentario)}</span></div>
+      ${nt.acertou.length ? `<p class="res-ok" style="margin-bottom:4px">✔ ${es ? "Acertaste" : "Você acertou"}:</p><ul class="oral-lista">${nt.acertou.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+      ${nt.faltou.length ? `<p class="res-bad" style="margin-bottom:4px">✘ ${es ? "Faltó o estuvo mal" : "Faltou ou ficou errado"}:</p><ul class="oral-lista">${nt.faltou.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+      <details><summary>${es ? "Ver respuesta modelo" : "Ver resposta modelo"}</summary>${md(it.resposta_modelo)}</details>
+      <details><summary>${es ? "Tu respuesta" : "Sua resposta"}</summary><p>${esc(nt.resposta)}</p></details>
+    </div>
+    <div class="study-foot"><span class="l"></span><button class="pill" data-act="oralProx">${p.i + 1 < n ? "Próxima pergunta →" : "Ver resultado"}</button><span class="r"></span></div>`
+  : `<textarea id="oralResp" rows="6" placeholder="Toque em 🎙️ e responda falando, ou escreva aqui…" ${p.corrigindo ? "disabled" : ""}>${esc(p.resp || "")}</textarea>
+    <div class="study-foot">
+      <button class="mic l ${p.gravando ? "on" : ""}" data-act="${p.gravando ? "oralParar" : "oralGravar"}" ${p.corrigindo ? "disabled" : ""}>${p.gravando ? "⏹ Parar" : "🎙️ Responder falando"}</button>
+      <button class="pill" data-act="oralEnviar" ${p.corrigindo ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> Corrigindo…` : "Enviar resposta"}</button>
+      <span class="r"></span></div>
+    ${p.gravando ? `<p class="muted" style="text-align:center;margin-top:10px">🔴 Ouvindo… fale sua resposta e toque em “Parar” quando terminar.</p>` : ""}`;
+  return `<div class="study"><div class="study-top"><button class="icon-btn" data-act="sair" title="Sair">✕</button>
+      <div class="lvl"><div class="lvl-bar"><div style="width:${Math.round(p.i / n * 100)}%"></div><span>Ateneo · ${p.i + 1} de ${n}</span></div></div>
+      <button class="icon-btn" data-act="oralOuvir" title="Ouvir a pergunta">🔊</button></div>
+    <div class="card" style="padding:22px"><div class="q-meta"><span>${esc(it.topico)}</span><span>🎤 ${es ? "Pregunta oral" : "Pergunta oral"}</span></div>
+      <div class="oral-q">${esc(it.pergunta)}</div>${corpo}</div></div>`;
+}
+async function iniciarOral(c) {
+  const n = Math.max(1, Math.min(15, +($("#oral-qtd")?.value || 5)));
+  const foco = ($("#oral-foco")?.value || "").trim();
+  S.form.oralQtd = n; S.form.oralFoco = foco;
+  S.oralVoz = !!$("#oral-voz")?.checked; lsSet("fp-oral-voz", S.oralVoz);
+  S.ocupado = "oral"; render();
+  try {
+    const r = await gerarJSON(c, `Você é o professor de um ATENEO (exame oral universitário). Crie exatamente ${n} perguntas ABERTAS, como seriam faladas pelo professor, sobre definição, localização e função de mecanismos, órgãos, estruturas, hormônios e processos presentes no material. Varie os tópicos.${foco ? ` Concentre-se em: ${foco}.` : ""}
+Para cada pergunta: "pergunta" (curta e direta, 1 frase), "topico" (nome curto do assunto), "pontos_chave" (3 a 5 itens que uma resposta completa precisa mencionar) e "resposta_modelo" (a resposta ideal, em 3 a 5 frases).`,
+      SCH.oral, foco, { maxTokens: cfg().provider === "anthropic" ? 16000 : 3500, rotulo: "Preparando o ateneo" });
+    const itens = (r.perguntas || []).filter(x => x?.pergunta).slice(0, n).map(x => ({ ...x, topico: topicoValido(x.topico) ? x.topico : "Geral", pontos_chave: x.pontos_chave || [] }));
+    if (!itens.length) throw new Error("a IA não criou perguntas; tente de novo");
+    S.player = { tipo: "oral", itens, i: 0, resp: "", notas: [], gravando: false, corrigindo: false, lidas: {} };
+  } catch (e) { toast(erroMsg(e), true); }
+  S.ocupado = null; render();
+}
+async function corrigirOral(c) {
+  const p = S.player, it = p.itens[p.i];
+  const ta = $("#oralResp"); if (ta) p.resp = ta.value;
+  const resp = (p.resp || "").trim();
+  if (!resp) return toast("Responda falando ou escrevendo primeiro.", true);
+  fecharVoz(); p.gravando = false; p.corrigindo = true; render();
+  try {
+    const r = await gerarJSON(c, `Você é o professor avaliando uma resposta de ATENEO (exame oral).
+Pergunta: ${it.pergunta}
+Pontos-chave esperados: ${it.pontos_chave.join("; ")}
+Resposta modelo: ${it.resposta_modelo}
+Resposta do estudante (transcrita da fala; ignore pequenos erros de reconhecimento de voz e de gramática): ${resp}
+
+Avalie como um professor justo de ateneo. "nota": de 0 a 10. "acertou": os pontos que o estudante disse corretamente. "faltou": pontos importantes que faltaram ou estão errados (diga o certo). "comentario": 2 a 3 frases de feedback direto, falando com o estudante.`,
+      SCH.oralNota, it.topico, { maxTokens: cfg().provider === "anthropic" ? 6000 : 900, rotulo: "Corrigindo sua resposta", urgente: true });
+    const nota = Math.max(0, Math.min(10, +r.nota || 0));
+    p.notas[p.i] = { nota, acertou: r.acertou || [], faltou: r.faltou || [], comentario: r.comentario || "", resposta: resp };
+    // o resultado alimenta o domínio por tópico e o XP do estudo inteligente
+    garantirSmart(c);
+    const d = c.dominio[it.topico] ||= { score: 0, tentativas: 0, acertos: 0 };
+    d.tentativas++; d.score = d.score * 0.7 + (nota / 10) * 0.3; if (nota >= 6) d.acertos++;
+    if (!c.inteligente.topicos.includes(it.topico)) c.inteligente.topicos.push(it.topico);
+    c.inteligente.xp += Math.round(nota * 2);
+    contarResposta();
+  } catch (e) { toast(erroMsg(e), true); }
+  p.corrigindo = false; await salvar(c); render();
+}
+function proxOral(c) {
+  const p = S.player; p.i++; p.resp = ""; p.gravando = false; fecharVoz();
+  if (p.i >= p.itens.length) {
+    const notas = p.notas.filter(Boolean).map(x => x.nota);
+    if (notas.length) { c.ateneos ||= []; c.ateneos.unshift({ id: uid(), data: Date.now(), media: notas.reduce((a, b) => a + b, 0) / notas.length, itens: p.itens.map((it, i) => ({ pergunta: it.pergunta, nota: p.notas[i]?.nota ?? null })) }); salvar(c); }
+  }
+  render(); window.scrollTo(0, 0);
 }
 
 /* ---------- Tutor ---------- */
@@ -2196,6 +2371,14 @@ document.addEventListener("click", async e => {
   const act = el.dataset.act, id = el.dataset.id, c = atual();
   switch (act) {
     case "novo": abrirNovo(); break;
+    case "metaDia": e.preventDefault(); { const q = sequencia(); pedirTexto("Meta diária (perguntas por dia)", String(q.meta), v => { const n = Math.max(1, Math.min(500, parseInt(v) || q.meta)); lsSet("fp-sequencia", { ...sequencia(), meta: n }); render(); toast(`Meta diária: ${n} perguntas.`); }); break; }
+    case "oralIniciar": iniciarOral(c); break;
+    case "oralNovo": S.player = null; render(); break;
+    case "oralGravar": gravar(); break;
+    case "oralParar": try { REC?.stop(); } catch {} break;
+    case "oralEnviar": corrigirOral(c); break;
+    case "oralProx": proxOral(c); break;
+    case "oralOuvir": falar(S.player.itens[S.player.i].pergunta); break;
     case "entrar": entrarGoogle(); break;
     case "menuConta": NUVEM.menu = !NUVEM.menu; desenharConta(); break;
     case "syncAgora": NUVEM.menu = false; sincronizarTudo(); break;
@@ -2216,7 +2399,7 @@ document.addEventListener("click", async e => {
     case "mostrarColar": S.colar = !S.colar; render(); if (S.colar) $("#colarTexto")?.focus(); break;
     case "verMat": S.verMat = S.verMat === id ? null : id; render(); break;
     case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; guardarRestantes(c, S.player); S.atual = id; S.player = null; S.verDeck = null; render(); prepararBanco(atual()); break;
-    case "aba": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
+    case "aba": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
     case "renomear": pedirTexto("Renomear caderno", c.nome, async v => { if (v) { c.nome = v; await salvar(c); render(); } }); break;
     case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { apagarCadernoRemoto(c); await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
     case "escolher": $("#arquivo").click(); break;
@@ -2227,7 +2410,7 @@ document.addEventListener("click", async e => {
     case "ocr": lerComOCR(id); break;
     case "gerar": gerar(id); break;
     case "excluir": if (confirm("Excluir este item?")) { c[el.dataset.tipo] = c[el.dataset.tipo].filter(x => x.id !== id); await salvar(c); render(); } break;
-    case "sair": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
+    case "sair": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
     case "estudarDeck": iniciarFlash(id, false); break;
     case "estudarTudo": iniciarFlash(id, true); break;
     case "verDeck": S.verDeck = S.verDeck === id ? null : id; render(); break;
@@ -2248,7 +2431,7 @@ document.addEventListener("click", async e => {
     case "salvarCfg": lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
-    case "inicio": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
+    case "inicio": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
     case "trocarIcone": { const i = ICONES_KIT.indexOf(c.icone || "📘"); c.icone = ICONES_KIT[(i + 1) % ICONES_KIT.length]; await salvar(c); render(); break; }
     case "smartGear": S.player.gear = !S.player.gear; render(); if (S.player.gear) $("#smartAjuste")?.focus(); break;
     case "sMostrar": S.player.escolha = null; smartResponder(c, false); break;
@@ -2273,6 +2456,7 @@ document.addEventListener("click", async e => {
   }
 });
 document.addEventListener("input", e => {
+  if (e.target.id === "oralResp" && S.player?.tipo === "oral") { S.player.resp = e.target.value; return; }
   const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
   S.player.resp[q] = e.target.type === "radio" ? +e.target.value : e.target.value;
 });
