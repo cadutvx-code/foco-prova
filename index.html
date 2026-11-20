@@ -179,6 +179,24 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .steps{counter-reset:s;list-style:none;padding:0;display:grid;gap:10px}
 .steps li{counter-increment:s;display:flex;gap:12px;align-items:flex-start}
 .steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:13px}
+/* ---- materiais em lista ---- */
+.mlist{display:flex;flex-direction:column;gap:6px;max-width:640px}
+.mrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--panel2);border:1px solid transparent}
+.mrow:hover{border-color:var(--line)}
+.mrow.off{opacity:.55}
+.mrow .fi{font-size:18px;flex:none}
+.mrow .nm{flex:1;min-width:0;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow .nm small{display:block;font-weight:600;color:var(--muted);font-size:12px}
+.mrow .acts{display:flex;gap:4px;align-items:center;flex:none}
+.mini{border:none;background:none;cursor:pointer;width:30px;height:30px;border-radius:8px;color:var(--muted);font-size:15px}
+.mini:hover{background:var(--panel);color:var(--text)}
+.mdet{max-width:640px;margin:-2px 0 4px}
+.dropzone-hint{max-width:640px;border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
+.dropzone-hint:hover,.arrastando .dropzone-hint{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.icons-pick{display:flex;flex-wrap:wrap;gap:6px}
+.icons-pick button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);font-size:19px;cursor:pointer}
+.icons-pick button.on{border-color:var(--accent);background:var(--accent-soft)}
+.nfiles{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;max-height:120px;overflow:auto}
 /* ---- celular: trilho vira barra inferior ---- */
 @media (max-width:760px){
   .shell{grid-template-columns:1fr}
@@ -214,6 +232,20 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <span style="font-size:13px"></span><div class="prog" style="margin-top:8px"><div style="width:0"></div></div>
 </div>
 
+<dialog id="dlgNovo">
+  <h2 style="margin-bottom:14px">Novo caderno</h2>
+  <div class="stack">
+    <label>Nome<input type="text" id="novoNome" placeholder="ex.: Fisiologia – Ateneo" maxlength="80"></label>
+    <div><div class="muted" style="font-size:13px;font-weight:600;margin-bottom:6px">Ícone</div><div class="icons-pick" id="novoIcones"></div></div>
+    <div class="dropzone-hint" id="novoDrop" data-act="novoArquivos">📎 Adicionar arquivos agora (opcional) — clique ou arraste aqui</div>
+    <div class="nfiles" id="novoLista"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" data-act="fecharNovo">Cancelar</button>
+      <button class="pill" data-act="criarCaderno">Criar caderno</button>
+    </div>
+  </div>
+</dialog>
+<input type="file" id="novoArquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp" hidden>
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
@@ -328,7 +360,7 @@ const dbPut = o => tx("readwrite", s => s.put(o));
 const dbDel = id => tx("readwrite", s => s.delete(id));
 
 /* ================= estado ================= */
-const S = { cadernos: [], atual: null, aba: "materiais", player: null, ocupado: null, form: { qtd: 15, dif: "mista", foco: "" }, verDeck: null, timer: null };
+const S = { novo: { icone: "📘", arquivos: [] }, colar: false, verMat: null, cadernos: [], atual: null, aba: "materiais", player: null, ocupado: null, form: { qtd: 15, dif: "mista", foco: "" }, verDeck: null, timer: null };
 const atual = () => S.cadernos.find(c => c.id === S.atual);
 const ativos = c => c.materiais.filter(m => m.ativo !== false && m.texto?.trim());
 async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } }
@@ -1005,33 +1037,40 @@ function formGerar(tipo, label, { qtd = true, extra = "" } = {}) {
 }
 
 /* ---------- Materiais ---------- */
+function iconeMat(m) { return { pdf: "📕", pptx: "📙", docx: "📘", imagem: "🖼️", texto: "📝", txt: "📝", md: "📝", csv: "📊" }[m.tipo] || "📄"; }
 function viewMateriais(c) {
   const totalChars = ativos(c).reduce((s, m) => s + m.texto.length, 0);
   const tokens = Math.round(totalChars / 4);
-  return `<div class="sec-tabs"><button class="on">${c.materiais.length} ${c.materiais.length === 1 ? "Material" : "Materiais"}</button></div>
-  <div class="stack">
-    <div class="row" style="align-items:center"><button class="btn" data-act="escolher">＋ Adicionar</button><span class="muted" style="font-size:13px">ou arraste os arquivos para a área abaixo</span></div>
-    <div class="drop" id="drop" data-act="escolher">
-      <div class="big">📤</div>
-      <b>Arraste arquivos aqui ou clique para escolher</b>
-      <div class="muted" style="font-size:13px">PDF · PowerPoint (.pptx) · Word (.docx) · TXT/MD · fotos (PNG/JPG)</div>
+  const n = c.materiais.length;
+  return `<div class="sec-tabs"><button class="on">${n} ${n === 1 ? "Material" : "Materiais"} <span title="Os materiais marcados como ativos são usados para criar o estudo" style="opacity:.6">ⓘ</span></button></div>
+  <div class="stack" style="gap:12px">
+    <div class="row" style="align-items:center;gap:8px">
+      <button class="btn" data-act="escolher">＋ Adicionar</button>
+      <button class="btn ghost small" data-act="mostrarColar">✍️ Colar texto</button>
     </div>
-    <details class="card"><summary style="font-size:14px">✍️ Colar texto ou anotações</summary>
-      <div class="stack" style="margin-top:12px">
+    ${S.colar ? `<div class="card stack" style="max-width:640px;padding:14px">
         <input type="text" id="colarNome" placeholder="Título (ex.: Anotações da aula 5)">
         <textarea id="colarTexto" rows="6" placeholder="Cole aqui o conteúdo…"></textarea>
-        <div><button class="btn" data-act="colar">Adicionar texto</button></div>
-      </div>
-    </details>
-    ${c.materiais.length ? `<div class="muted" style="font-size:13px">≈ ${tokens.toLocaleString("pt-BR")} tokens de conteúdo ativo${tokens > 700000 ? ` — <b style="color:var(--bad)">muito grande; desmarque alguns materiais</b>` : ""}. Só os materiais marcados são usados nas gerações.</div>` : ""}
-    ${c.materiais.map(m => `<div class="mat">
-      <input type="checkbox" data-act="toggleMat" data-id="${m.id}" ${m.ativo !== false ? "checked" : ""} title="Usar nas gerações">
-      <div class="info"><b>${esc(m.nome)}</b><div class="muted" style="font-size:12px"><span class="badge">${esc(m.tipo)}</span> ${m.extra ? esc(m.extra) + " · " : ""}${m.texto ? m.texto.length.toLocaleString("pt-BR") + " caracteres" : "sem texto"}</div>
-        ${m.texto ? `<details><summary>ver texto extraído</summary><pre class="prev">${esc(m.texto.slice(0, 20000))}${m.texto.length > 20000 ? "\n…" : ""}</pre></details>` : ""}
-      </div>
-      ${m.poucoTexto ? (m.transcrevendo ? `<span class="badge warn"><span class="spin"></span> transcrevendo…</span>` : `<span class="badge warn">sem texto legível (escaneado)</span>${m.b64 || m.arquivo ? `<button class="btn small primary" data-act="ocr" data-id="${m.id}">🔍 Ler texto (grátis)</button>${cfg().provider === "anthropic" && cfg().apiKey ? `<button class="btn small" data-act="transcrever" data-id="${m.id}">✨ Transcrever com Claude</button>` : ""}` : `<span class="muted" style="font-size:12px">remova e adicione o arquivo de novo para ler o texto</span>`}`) : ""}
-      <button class="btn small danger" data-act="excluirMat" data-id="${m.id}">Remover</button>
-    </div>`).join("")}
+        <div class="row"><button class="btn primary small" data-act="colar">Adicionar texto</button><button class="btn small ghost" data-act="mostrarColar">Cancelar</button></div>
+      </div>` : ""}
+    <div class="mlist">
+      ${c.materiais.map(m => {
+        const off = m.ativo === false;
+        const meta = [m.extra, m.texto ? m.texto.length.toLocaleString("pt-BR") + " caracteres" : "sem texto", off ? "não usado no estudo" : ""].filter(Boolean).join(" · ");
+        const escaneado = m.poucoTexto ? (m.transcrevendo ? `<span class="badge warn"><span class="spin"></span> lendo…</span>`
+          : (m.b64 || m.arquivo) ? `<button class="btn small primary" data-act="ocr" data-id="${m.id}">🔍 Ler texto</button>${cfg().provider === "anthropic" && cfg().apiKey ? `<button class="mini" data-act="transcrever" data-id="${m.id}" title="Transcrever com Claude">✨</button>` : ""}`
+          : `<span class="badge warn" title="Remova e adicione o arquivo de novo">reenvie o arquivo</span>`) : "";
+        return `<div class="mrow ${off ? "off" : ""}"><span class="fi">${iconeMat(m)}</span>
+          <span class="nm">${esc(m.nome)}<small>${esc(meta)}</small></span>
+          <span class="acts">${escaneado}
+            ${m.texto ? `<button class="mini" data-act="verMat" data-id="${m.id}" title="Ver texto extraído">👁</button>` : ""}
+            <button class="mini" data-act="toggleMat" data-id="${m.id}" title="${off ? "Usar no estudo" : "Não usar no estudo"}">${off ? "○" : "●"}</button>
+            <button class="mini" data-act="excluirMat" data-id="${m.id}" title="Remover">🗑</button></span></div>
+          ${S.verMat === m.id && m.texto ? `<div class="mdet"><pre class="prev">${esc(m.texto.slice(0, 20000))}${m.texto.length > 20000 ? "\n…" : ""}</pre></div>` : ""}`;
+      }).join("")}
+    </div>
+    <div class="dropzone-hint" id="drop" data-act="escolher">📎 Arraste PDFs, slides (.pptx), Word, textos ou fotos para cá</div>
+    ${n ? `<div class="muted" style="font-size:12px">≈ ${tokens.toLocaleString("pt-BR")} tokens de conteúdo ativo${tokens > 700000 ? ` — <b style="color:var(--bad)">muito grande; desative alguns materiais</b>` : ""}.</div>` : ""}
   </div>`;
 }
 
@@ -1446,6 +1485,29 @@ async function perguntar(txt) {
   S.ocupado = null; await salvar(c); render(); window.scrollTo(0, document.body.scrollHeight);
 }
 
+/* ================= novo caderno ================= */
+function abrirNovo(arquivos = []) {
+  S.novo = { icone: ICONES_KIT[Math.floor(Math.random() * 6)], arquivos: [...arquivos] };
+  $("#novoNome").value = arquivos[0] ? arquivos[0].name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").slice(0, 80) : "";
+  desenharNovo();
+  $("#dlgNovo").showModal();
+  setTimeout(() => $("#novoNome").focus(), 50);
+}
+function desenharNovo() {
+  $("#novoIcones").innerHTML = ICONES_KIT.map(i => `<button type="button" class="${i === S.novo.icone ? "on" : ""}" data-act="novoIcone" data-id="${i}">${i}</button>`).join("");
+  $("#novoLista").innerHTML = S.novo.arquivos.map(f => `<span>📄 ${esc(f.name)}</span>`).join("");
+}
+// Cria e salva o caderno na hora; os arquivos são lidos logo em seguida
+async function criarCaderno() {
+  const nome = $("#novoNome").value.trim() || (S.novo.arquivos[0]?.name.replace(/\.[^.]+$/, "")) || `Caderno ${S.cadernos.length + 1}`;
+  const nc = novoCaderno(nome); nc.icone = S.novo.icone;
+  S.cadernos.push(nc); S.atual = nc.id; S.aba = "materiais"; S.player = null;
+  await salvar(nc);
+  $("#dlgNovo").close(); render();
+  toast(`Caderno “${nome}” criado e salvo.`);
+  if (S.novo.arquivos.length) await adicionarArquivos(S.novo.arquivos);
+}
+
 /* ================= config ================= */
 function abrirConfig() {
   const s = cfg();
@@ -1487,14 +1549,20 @@ document.addEventListener("click", async e => {
   const el = e.target.closest("[data-act]"); if (!el || el.disabled) return;
   const act = el.dataset.act, id = el.dataset.id, c = atual();
   switch (act) {
-    case "novo": { const n = prompt("Nome do caderno (ex.: Bioquímica – P2):"); if (!n?.trim()) return; const nc = novoCaderno(n.trim()); S.cadernos.push(nc); S.atual = nc.id; S.aba = "materiais"; S.player = null; await salvar(nc); render(); break; }
+    case "novo": abrirNovo(); break;
+    case "novoArquivos": $("#novoArquivo").click(); break;
+    case "novoIcone": S.novo.icone = el.dataset.id; desenharNovo(); break;
+    case "fecharNovo": $("#dlgNovo").close(); break;
+    case "criarCaderno": criarCaderno(); break;
+    case "mostrarColar": S.colar = !S.colar; render(); if (S.colar) $("#colarTexto")?.focus(); break;
+    case "verMat": S.verMat = S.verMat === id ? null : id; render(); break;
     case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; S.atual = id; S.player = null; S.verDeck = null; render(); break;
     case "aba": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
     case "renomear": { const n = prompt("Novo nome:", c.nome); if (n?.trim()) { c.nome = n.trim(); await salvar(c); render(); } break; }
     case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
     case "escolher": $("#arquivo").click(); break;
-    case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); await salvar(c); render(); toast("Texto adicionado."); break; }
-    case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = el.checked; await salvar(c); render(); break; }
+    case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); break; }
+    case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = m.ativo === false; await salvar(c); render(); break; }
     case "excluirMat": { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); await salvar(c); render(); } break; }
     case "transcrever": transcrever(id); break;
     case "ocr": lerComOCR(id); break;
@@ -1575,6 +1643,8 @@ document.addEventListener("keydown", e => {
   }
 });
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
+$("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
+$("#novoNome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); criarCaderno(); } });
 $("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });
 $("#backupIn").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -1585,9 +1655,19 @@ $("#backupIn").addEventListener("change", async e => {
     $("#dlgConfig").close(); render(); toast(`${data.cadernos.length} caderno(s) importado(s).`);
   } catch (err) { toast("Falha ao importar: " + err.message, true); }
 });
-document.addEventListener("dragover", e => { const d = e.target.closest?.("#drop"); if (d) { e.preventDefault(); d.classList.add("over"); } });
-document.addEventListener("dragleave", e => { e.target.closest?.("#drop")?.classList.remove("over"); });
-document.addEventListener("drop", e => { const d = e.target.closest?.("#drop"); if (d) { e.preventDefault(); d.classList.remove("over"); adicionarArquivos([...e.dataTransfer.files]); } });
+const temArquivos = e => [...(e.dataTransfer?.types || [])].includes("Files");
+document.addEventListener("dragover", e => { if (!temArquivos(e)) return; e.preventDefault(); document.body.classList.add("arrastando"); });
+document.addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("arrastando"); });
+document.addEventListener("drop", e => {
+  if (!temArquivos(e)) return;
+  e.preventDefault(); document.body.classList.remove("arrastando");
+  const files = [...e.dataTransfer.files]; if (!files.length) return;
+  if ($("#dlgNovo").open) { S.novo.arquivos.push(...files); desenharNovo(); return; }
+  if (!atual()) { abrirNovo(files); return; }                 // no início: já cria um caderno com esses arquivos
+  if (S.player) return toast("Saia do estudo para adicionar materiais.");
+  if (S.aba !== "materiais") { S.aba = "materiais"; render(); }
+  adicionarArquivos(files);
+});
 
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
