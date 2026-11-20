@@ -491,7 +491,7 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo }) 
   try {
     resp = await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/chat", {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal,
-      body: JSON.stringify({ model: s.ollamaModel, messages: msgs, stream: true, think: false, format: schema || undefined, options: { num_ctx: ctx, num_predict: limite, temperature: schema ? 0.4 : 0.7 } })
+      body: JSON.stringify({ model: s.ollamaModel, messages: msgs, stream: true, think: false, keep_alive: "30m", format: schema || undefined, options: { num_ctx: ctx, num_predict: limite, temperature: schema ? 0.4 : 0.7 } })
     });
   } catch { throw new Error("Não consegui falar com o Ollama. Ele está aberto? (verifique o ícone na bandeja ou rode \"ollama serve\")"); }
   if (!resp.ok) {
@@ -571,7 +571,7 @@ const arr = items => ({ type: "array", items });
 const SCH = {
   resumo: obj({ titulo: str, secoes: arr(obj({ titulo: str, conteudo: str })), conceitos: arr(obj({ termo: str, definicao: str })), perguntas_revisao: arr(str) }),
   flash: obj({ titulo: str, cards: arr(obj({ frente: str, verso: str, topico: str })) }),
-  quiz: obj({ titulo: str, questoes: arr(obj({ enunciado: str, alternativas: arr(str), correta: int, explicacao: str, topico: str })) }),
+  quiz: obj({ titulo: str, questoes: arr(obj({ enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str), topico: str })) }),
   prova: obj({ titulo: str, questoes: arr(obj({ tipo: { type: "string", enum: ["multipla", "vf", "dissertativa"] }, enunciado: str, alternativas: arr(str), correta: int, resposta_esperada: str, explicacao: str, pontos: num })) }),
   correcao: obj({ correcoes: arr(obj({ indice: int, nota: num, feedback: str })) })
 };
@@ -796,7 +796,7 @@ function lerForm() {
 function altsValidas(x) {
   if (!Array.isArray(x.alternativas) || x.tipo === "dissertativa" || x.tipo === "flashcard" || x.tipo === "licao" || x.frente) return true;
   if (x.tipo === "vf") return true;
-  const alts = x.alternativas.map(a => String(a).replace(/^\s*[A-Ea-e]\)\s*/, "").trim());
+  const alts = x.alternativas.map(a => String(a).replace(/^\s*(?:[A-Ea-e]|[1-5])\s*[).:\-–]\s+/, "").trim());
   const letras = alts.map(a => a.replace(/[^\p{L}\p{N}]/gu, ""));
   if (alts.length < 3 || letras.some(l => l.length < 2)) return false;
   if (new Set(letras.map(l => l.toLowerCase())).size !== letras.length) return false;
@@ -875,7 +875,7 @@ async function gerar(tipo) {
       const r = await emLotes(qtd, "cards", "frente", (n, ev) => gerarJSON(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${d}${f}${ev}`, SCH.flash, foco));
       c.decks.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, cards: r.cards.map(k => ({ ...k, caixa: 0, proxima: 0 })) });
     } else if (tipo === "quiz") {
-      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas plausíveis e apenas uma correta ("correta" é o índice 0-3). Na explicação, diga por que a correta está certa e por que as outras estão erradas. ${d}${f}${ev}`, SCH.quiz, foco));
+      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas plausíveis e apenas uma correta ("correta" é o índice 0-3). Em "explicacao", diga por que a correta está certa. Em "explicacoes", dê 4 textos curtos, um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada. ${d}${f}${ev}`, SCH.quiz, foco));
       r.questoes.forEach(normalizarMultipla);
       c.quizzes.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, questoes: r.questoes, tentativas: [] });
     } else if (tipo === "prova") {
@@ -901,7 +901,17 @@ function normalizarMultipla(q) {
   let c = Number.isInteger(q.correta) && q.correta >= 0 && q.correta < q.alternativas.length ? q.correta : 0;
   const idx = embaralhar(q.alternativas.map((_, i) => i));
   q.alternativas = idx.map(i => q.alternativas[i]);
+  if (Array.isArray(q.explicacoes) && q.explicacoes.length === idx.length) q.explicacoes = idx.map(i => q.explicacoes[i]); else delete q.explicacoes;
   q.correta = idx.indexOf(c);
+}
+// Explicação depois de responder: por que a certa está certa e por que a marcada (errada) está errada
+function explicacaoHTML(q, escolha) {
+  const acertou = escolha === q.correta;
+  const porQue = i => (q.explicacoes?.[i] || "").trim();
+  let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? "✔ Correto!" : escolha === null ? `A resposta certa é a ${q.correta + 1}.` : `✘ Errado — a certa é a ${q.correta + 1}.`}</p>`;
+  if (!acertou && escolha !== null && escolha >= 0) h += `<p><b>Por que a ${escolha + 1} está errada:</b> ${porQue(escolha) ? esc(porQue(escolha)) : "ela não corresponde ao que o material diz sobre o tema."}</p>`;
+  h += `<p><b>Por que a ${q.correta + 1} está certa:</b></p>${md(q.explicacao || porQue(q.correta))}`;
+  return `<div class="expl md">${h}</div>`;
 }
 
 /* ================= views ================= */
@@ -1130,8 +1140,8 @@ function playerQuiz(c) {
     <div class="muted" style="font-size:12px">${esc(q.topico)}</div>
     <div class="q-text md">${md(q.enunciado)}</div>
     ${altsHTML(q, p, "escolher-alt")}
-    ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === q.correta ? "res-ok" : "res-bad"}">${p.escolha === q.correta ? "✔ Correto!" : "✘ Incorreto — resposta: " + (q.correta + 1)}</p>${md(q.explicacao)}</div>` : ""}
-    <div class="study-foot"><span class="l"></span>${p.confirmado ? `<button class="pill" data-act="proxima">${p.i + 1 < qs.length ? "Continuar →" : "Ver resultado"}</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
+    ${p.confirmado ? explicacaoHTML(q, p.escolha) : ""}
+    <div class="study-foot"><span class="l"></span>${p.confirmado ? `<button class="pill" data-act="proxima">${p.i + 1 < qs.length ? "Próxima pergunta →" : "Ver resultado"}</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
 }
 function quizResponder(c, i) {
   const p = S.player; if (p.confirmado) return;
@@ -1236,7 +1246,7 @@ async function entregar(forcado = false) {
 }
 
 /* ---------- Estudo inteligente (adaptativo) ---------- */
-SCH.smart = obj({ topicos: arr(str), itens: arr(obj({ tipo: { type: "string", enum: ["multipla", "vf", "flashcard", "licao"] }, topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str })) });
+SCH.smart = obj({ topicos: arr(str), itens: arr(obj({ topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str) })) });
 function garantirSmart(c) {
   c.dominio ||= {};
   c.inteligente ||= { prefs: "", topicos: [], historico: [], xp: 0, respondidas: 0, acertos: 0 };
@@ -1251,7 +1261,9 @@ function statusTopico(d) {
 async function gerarLoteSmart(c, focoTopico) {
   garantirSmart(c);
   const I = c.inteligente;
-  const n = cfg().provider === "webllm" ? 4 : cfg().provider === "ollama" ? 6 : 8;
+  // IAs locais: bloco inicial pequeno (a 1ª pergunta aparece logo); os próximos vêm enquanto você responde
+  const local = cfg().provider !== "anthropic", primeiro = !(S.player?.fila?.length);
+  const n = local ? (primeiro ? 3 : 4) : 8;
   const dom = I.topicos.map(t => { const d = c.dominio[t]; return d?.tentativas ? `- ${t}: domínio ${Math.round(d.score * 100)}% (${d.acertos}/${d.tentativas} acertos) → dificuldade alvo ${nivelDe(d.score)}` : `- ${t}: ainda não praticado`; }).join("\n");
   const hist = I.historico.slice(-50).map(h => "- " + h).join("\n") || "(nenhuma)";
   const instr = `Você conduz uma sessão de ESTUDO ADAPTATIVO, como um professor particular. Gere o próximo bloco com exatamente ${n} itens.
@@ -1260,16 +1272,16 @@ ${focoTopico ? `\nO estudante pediu para focar SOMENTE no tópico: "${focoTopico
 Regras de adaptação:
 - Cerca de 60% dos itens nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
-- Para tópicos com domínio abaixo de 40% (ou não praticados), coloque antes uma "licao": explicação didática curta em Markdown (3 a 8 linhas, com exemplo) e logo depois questões sobre ela.
-- Formatos: "multipla" (4 alternativas, "correta" = índice da certa), "vf" (alternativas ["Verdadeiro","Falso"], correta 0 ou 1), "flashcard" (pergunta de recordação ativa no enunciado, resposta em "explicacao", alternativas [] e correta -1), "licao" (alternativas [] e correta -1). Varie os formatos.
-- Em "explicacao" das questões, explique por que a resposta está certa.
+- TODOS os itens são perguntas de múltipla escolha com EXATAMENTE 4 alternativas plausíveis e só uma correta ("correta" = índice 0 a 3 da certa). Varie a posição da certa.
+- "explicacao": por que a alternativa correta está certa (2 a 4 frases, citando o conteúdo do material).
+- "explicacoes": lista com 4 textos curtos, um para cada alternativa NA MESMA ORDEM, dizendo por que aquela alternativa está certa ou errada.
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar tópicos novos se encontrar).
 - Não repita estas perguntas já feitas:
 ${hist}
 ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
   const r = await gerarJSON(c, instr, SCH.smart, focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" "), { rotulo: "Preparando suas questões" });
   for (const t of r.topicos || []) if (t && !I.topicos.includes(t)) I.topicos.push(t);
-  return (r.itens || []).filter(it => it.enunciado && altsValidas(it)).map(it => {
+  return (r.itens || []).map(it => ({ ...it, tipo: "multipla" })).filter(it => it.enunciado && altsValidas(it)).map(it => {
     if (!I.topicos.includes(it.topico)) I.topicos.push(it.topico);
     if (it.tipo === "multipla") normalizarMultipla(it);
     if (it.tipo === "vf") { it.alternativas = ["Verdadeiro", "Falso"]; it.correta = it.correta === 1 ? 1 : 0; }
@@ -1343,8 +1355,8 @@ function playerSmart(c) {
       : `<div class="study-foot"><button class="pill-dark l" data-act="sVirar">Mostrar resposta</button><button class="btn" data-act="sPular">Pular</button>${avaliar}</div>`;
   } else {
     corpo = `<div class="q-text md">${md(it.enunciado)}</div>${altsHTML(it, p, "sAlt")}
-      ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === it.correta ? "res-ok" : "res-bad"}">${p.escolha === it.correta ? "✔ Correto!" : p.escolha === null ? "Resposta certa: " + (it.correta + 1) : "✘ Não foi dessa vez"}</p>${md(it.explicacao)}</div>` : ""}`;
-    pe = p.confirmado ? `<div class="study-foot"><span class="l"></span><button class="pill" data-act="sProx">Continuar →</button>${avaliar}</div>`
+      ${p.confirmado ? explicacaoHTML(it, p.escolha) : ""}`;
+    pe = p.confirmado ? `<div class="study-foot"><span class="l"></span><button class="pill" data-act="sProx">Próxima pergunta →</button>${avaliar}</div>`
       : `<div class="study-foot"><button class="pill-dark l" data-act="sMostrar">Mostrar resposta</button><button class="btn" data-act="sPular">Pular</button>${avaliar}</div>`;
   }
   return `<div class="study">${topo}<div class="card" style="padding:22px">${meta}${corpo}</div>${pe}
@@ -1593,6 +1605,8 @@ render();
       if (models.some(m => m.name === "qwen3:4b-instruct")) { lsSet("fp-config", { ...lsGet("fp-config", {}), ollamaModel: "qwen3:4b-instruct", ollamaCtx: 8192 }); render(); toast("IA local atualizada para qwen3:4b-instruct (bem mais rápida)."); }
     } catch {}
   }
+  // Pré-carrega a IA local na memória ao abrir o app (a primeira pergunta sai mais rápido)
+  { const s2 = cfg(); if (s2.provider === "ollama" && s2.ollamaModel) fetch(s2.ollamaUrl.replace(/\/$/, "") + "/api/generate", { method: "POST", body: JSON.stringify({ model: s2.ollamaModel, keep_alive: "30m", options: { num_ctx: s2.ollamaCtx || 8192 } }) }).catch(() => {}); }
   if (s.apiKey || (s.provider === "ollama" && s.ollamaModel) || s.provider === "webllm") return;
   try {
     const ctl = new AbortController(); setTimeout(() => ctl.abort(), 2500);
