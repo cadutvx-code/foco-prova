@@ -1383,7 +1383,8 @@ function viewHome() {
         <button data-act="excluirKit" data-id="${c.id}" style="color:var(--bad)">🗑 Excluir</button></div>` : ""}
     </div>`;
   };
-  return `${cartaoMeta()}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  const avisoEndereco = location.hostname.endsWith("github.io") ? `<div class="aviso-nuvem">🏠 O Foco Prova mudou de endereço: <a href="https://focoprova.web.app" style="color:var(--accent);font-weight:800">focoprova.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
+  return `${avisoEndereco}${cartaoMeta()}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}
