@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="coi-serviceworker.min.js"></script>
 <title>Foco Prova</title>
 <link rel="icon" href="icone.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -413,7 +414,7 @@ Regras:
 // Quantos caracteres de material cabem no contexto da IA escolhida (IA local/navegador têm pouco espaço)
 function limiteMateriais() {
   const s = cfg();
-  if (s.provider === "webllm") return ((MODELOS_WEB[s.webModel]?.ctx || 8192) - 3600) * 3;
+  if (s.provider === "webllm") return (WL.modo === "cpu" || !navigator.gpu) ? 2500 : ((MODELOS_WEB[s.webModel]?.ctx || 8192) - 3600) * 3;
   if (s.provider === "ollama") return (Math.max(+s.ollamaCtx || 16384, 4096) - 3600) * 3;
   return Infinity;
 }
@@ -468,8 +469,9 @@ async function motorWebLLM(modelo) {
     try { webllm = await import("https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/+esm"); }
     catch { throw new Error("sem internet para baixar a IA (ela precisa de internet só na primeira vez)"); }
     // Pede a placa de vídeo dedicada (em notebooks o navegador às vezes escolhe a integrada, que não aguenta)
-    const placa = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-    if (!placa) throw new Error("o navegador não liberou a placa de vídeo — ative a “aceleração de hardware” nas configurações do navegador e atualize-o");
+    let placa = null;
+    for (const op of [{ powerPreference: "high-performance" }, undefined, { powerPreference: "low-power" }]) { try { placa = await navigator.gpu.requestAdapter(op); } catch {} if (placa) break; }
+    if (!placa) throw new Error("o navegador não liberou a placa de vídeo — feche e abra o navegador de novo; se continuar, ative a “aceleração de hardware” nas configurações e atualize-o");
     const f16 = placa.features.has("shader-f16");
     // Ordem de tentativa: o modelo escolhido e, se não couber, os menores; versão compatível com a placa
     const ordem = ["Qwen2.5-3B-Instruct", "Qwen2.5-1.5B-Instruct", "Qwen2.5-0.5B-Instruct"];
@@ -506,7 +508,69 @@ async function motorWebLLM(modelo) {
   }
   finally { WL.carregando = null; progressoIA("", null); }
 }
-async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
+// IA do navegador: tenta a placa de vídeo (WebGPU); se não houver ou falhar, usa o processador (funciona em qualquer aparelho)
+async function chamarWebLLM(s, opts) {
+  if (!navigator.gpu) WL.modo = "cpu";
+  if (WL.modo !== "cpu") {
+    try { return await chamarWebGPU(s, opts); }
+    catch (e) {
+      if (!/carregar a IA do navegador|WebGPU|placa de vídeo/i.test(e?.message || "")) throw e;
+      WL.modo = "cpu"; render();
+      toast("Sem placa de vídeo disponível: usando a IA no processador (mais lenta, mas funciona em qualquer aparelho).");
+    }
+  }
+  return chamarCPU(s, opts);
+}
+
+/* ---------- IA no processador (wllama / llama.cpp em WebAssembly) ---------- */
+const CP = { w: null, carregando: null, ctx: 4096 };
+// 1.5B: o menor modelo que ainda cria perguntas boas (o de 0.5B repete alternativas)
+const CPU_MODELO = { repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF", file: "qwen2.5-1.5b-instruct-q4_k_m.gguf" };
+async function motorCPU() {
+  if (CP.w) return CP.w;
+  if (CP.carregando) return CP.carregando;
+  CP.carregando = (async () => {
+    const base = "https://cdn.jsdelivr.net/npm/@wllama/wllama@3.6.1/esm/";
+    const { Wllama } = await import(base + "index.js");
+    const w = new Wllama({ default: base + "wasm/wllama.wasm" }, { suppressNativeLog: true });
+    progressoIA("Baixando a IA (só na primeira vez)…", 0.01);
+    await w.loadModelFromHF(CPU_MODELO, {
+      n_ctx: CP.ctx, n_gpu_layers: 0,
+      progressCallback: ({ loaded, total }) => total && progressoIA(`Baixando a IA (só na primeira vez): ${Math.round(loaded / total * 100)}%`, loaded / total)
+    });
+    CP.w = w; return w;
+  })();
+  try { return await CP.carregando; }
+  catch (e) { throw new Error("Não consegui carregar a IA no processador (" + String(e?.message || e).slice(0, 140) + "). Verifique a internet na primeira vez e o espaço livre no aparelho."); }
+  finally { CP.carregando = null; progressoIA("", null); }
+}
+async function chamarCPU(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
+  const w = await motorCPU();
+  const limite = Math.min(maxTokens || 1200, 1200);
+  const hist = messages.slice(-5).map(m => {
+    if (typeof m.content !== "string") throw new Error("A IA do navegador só lê texto. Para PDFs escaneados e fotos, use “Ler texto” na aba Materiais.");
+    return { role: m.role, content: m.content };
+  });
+  let sys = textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "");
+  // O contexto no processador é menor: se passar do limite, usa só o começo dos trechos
+  const orcamento = (CP.ctx - limite - 400) * 3, usado = hist.reduce((n, m) => n + m.content.length, 0);
+  if (sys.length + usado > orcamento) sys = sys.slice(0, Math.max(1500, orcamento - usado)) + "\n…\n</materiais>";
+  const req = { messages: [{ role: "system", content: sys }, ...hist], max_tokens: limite, temperature: schema ? 0.5 : 0.7, stream: true, abortSignal: sinal };
+  if (schema) req.response_format = { type: "json_schema", json_schema: { name: "resposta", schema } };
+  const prog = progressoEscrita(limite, rotulo);
+  let texto = "";
+  try {
+    const partes = await w.createChatCompletion(req);
+    for await (const p of partes) {
+      const d = p.choices?.[0]?.delta?.content;
+      if (d) { texto += d; prog(texto); aoParcial?.(texto); window.__ultimaRespostaIA = texto; }
+    }
+  } finally { progressoIA("", null); }
+  if (sinal?.aborted) throw new Error("interrompido");
+  return schema ? limparJSON(texto) : texto.trim();
+}
+
+async function chamarWebGPU(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
   const modelo = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
   const eng = await motorWebLLM(modelo);
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
@@ -558,8 +622,10 @@ const filaIA = []; let rodandoIA = null;
 function umPorVez(fn, urgente = false, fundo = false) {
   return new Promise((res, rej) => {
     const job = { fn, res, rej, urgente, fundo };
-    if (urgente) { filaIA.splice(filaIA.filter(j => j.urgente).length, 0, job); if (rodandoIA?.fundo) { rodandoIA.preemptado = true; rodandoIA.ctl.abort(); } }
+    if (urgente) filaIA.splice(filaIA.filter(j => j.urgente).length, 0, job);
+    else if (!fundo) { const i = filaIA.findIndex(j => j.fundo); i < 0 ? filaIA.push(job) : filaIA.splice(i, 0, job); }
     else filaIA.push(job);
+    if (!fundo && rodandoIA?.fundo) { rodandoIA.preemptado = true; rodandoIA.ctl.abort(); }
     proximoIA();
   });
 }
@@ -569,7 +635,7 @@ async function proximoIA() {
   rodandoIA = job; job.preemptado = false; job.ctl = new AbortController();
   try { job.res(await job.fn(job.ctl.signal)); }
   catch (e) {
-    if (job.preemptado) filaIA.splice(filaIA.filter(j => j.urgente).length, 0, job); // volta para a fila
+    if (job.preemptado) { const i = filaIA.findIndex(j => j.fundo); i < 0 ? filaIA.push(job) : filaIA.splice(i, 0, job); } // volta para a fila, depois dos pedidos seus
     else job.rej(e);
   } finally { rodandoIA = null; proximoIA(); }
 }
@@ -645,12 +711,23 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
 async function chamar(opts) {
   const s = cfg();
   if (s.provider === "ollama") return umPorVez(sinal => chamarOllama(s, { ...opts, sinal }), opts.urgente, opts.fundo);
-  if (s.provider === "webllm") return umPorVez(sinal => chamarWebLLM(s, { ...opts, sinal }), opts.urgente, opts.fundo);
+  if (s.provider === "webllm") return umPorVez(async sinal => {
+    try { return await chamarWebLLM(s, { ...opts, sinal }); }
+    catch (e) {
+      if (!/carregar a IA do navegador|placa de vídeo/i.test(e?.message || "")) throw e;
+      const achou = await acharOllama(1);
+      if (!achou) throw e;
+      lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: achou, ollamaCtx: 8192, escolhaManual: false });
+      toast(`A IA do navegador não carregou; usando a IA local (${achou}).`); render();
+      return chamarOllama(cfg(), { ...opts, sinal });
+    }
+  }, opts.urgente, opts.fundo);
   const { system, messages, schema, maxTokens = 32000 } = opts;
   if (!s.apiKey) { abrirConfig(); throw new Error("Configure sua chave da API da Anthropic primeiro."); }
   const client = new Anthropic({ apiKey: s.apiKey, dangerouslyAllowBrowser: true });
   const params = { model: s.model, max_tokens: maxTokens, system, messages, output_config: { effort: s.effort } };
-  if (schema) params.output_config.format = { type: "json_schema", schema };
+  // limites de tamanho de lista são só para as IAs locais; a API recebe o esquema sem eles
+  if (schema) params.output_config.format = { type: "json_schema", schema: JSON.parse(JSON.stringify(schema, (k, v) => k === "maxItems" ? undefined : v)) };
   let resp;
   try {
     // fallback no servidor: se o modelo recusar por engano, outro modelo continua
@@ -1457,10 +1534,15 @@ async function entregar(forcado = false) {
 }
 
 /* ---------- Estudo inteligente (adaptativo) ---------- */
-SCH.smart = obj({ topicos: arr(str), itens: arr(obj({ topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str) })) });
+// Perguntas primeiro (a 1ª aparece mais cedo); lista de tópicos curta no fim
+SCH.smart = obj({ itens: arr(obj({ topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str) })), topicos: { type: "array", items: str, maxItems: 10 } });
+// Versão leve para a IA no processador: menos texto por pergunta (a explicação completa é gerada quando você responde)
+SCH.smartLeve = obj({ itens: arr(obj({ topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str })), topicos: { type: "array", items: str, maxItems: 8 } });
+const topicoValido = t => { t = String(t || "").trim(); return t.length >= 2 && t.length <= 80 && !/[<>{}]|^(t[óo]pico|topic|name|nome)\s*\d*$/i.test(t); };
 function garantirSmart(c) {
   c.dominio ||= {};
   c.inteligente ||= { prefs: "", topicos: [], historico: [], xp: 0, respondidas: 0, acertos: 0 };
+  c.inteligente.topicos = c.inteligente.topicos.filter(topicoValido);
 }
 const nivelDe = sc => sc < .4 ? 1 : sc < .75 ? 2 : 3;
 function statusTopico(d) {
@@ -1488,7 +1570,8 @@ async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false) {
   garantirSmart(c);
   const I = c.inteligente;
   const local = cfg().provider !== "anthropic";
-  n ||= local ? 4 : 8;
+  const cpu = cfg().provider === "webllm" && (WL.modo === "cpu" || !navigator.gpu);
+  n = cpu ? Math.min(n || 2, 2) : (n || (local ? 4 : 8));
   const dom = I.topicos.map(t => { const d = c.dominio[t]; return d?.tentativas ? `- ${t}: domínio ${Math.round(d.score * 100)}% (${d.acertos}/${d.tentativas} acertos) → dificuldade alvo ${nivelDe(d.score)}` : `- ${t}: ainda não praticado`; }).join("\n");
   const jaFeitas = [...I.historico.slice(-40), ...(I.banco || []).map(b => b.enunciado.slice(0, 100))];
   const hist = jaFeitas.map(h => "- " + h).join("\n") || "(nenhuma)";
@@ -1506,23 +1589,26 @@ Regras de adaptação:
 ${hist}
 ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
   const foco = focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" ");
+  // No processador cada palavra lida custa tempo: instrução curta e direta
+  const instrFinal = !cpu ? instr : `Crie ${n} perguntas de múltipla escolha sobre o material, em português. Cada uma com 4 alternativas e só uma correta ("correta" = índice 0 a 3). "explicacao": por que a correta está certa (1 frase). "topico": assunto curto (ex.: "Edema").${focoTopico ? ` Só sobre: ${focoTopico}.` : foco ? ` Priorize: ${foco.slice(0, 120)}.` : ""}${I.historico.length ? ` Não repita: ${I.historico.slice(-5).map(h => h.slice(0, 50)).join("; ")}.` : ""}${I.prefs ? ` Preferência: ${I.prefs.slice(0, 150)}.` : ""}`;
   const preparar = bruto => {
     const it = { ...bruto, tipo: "multipla" };
     if (!it.enunciado || !altsValidas(it)) return null;
-    if (it.topico && !I.topicos.includes(it.topico)) I.topicos.push(it.topico);
+    if (!topicoValido(it.topico)) it.topico = "Geral";
+    if (!I.topicos.includes(it.topico)) I.topicos.push(it.topico);
     normalizarMultipla(it);
     it.dificuldade = Math.min(3, Math.max(1, it.dificuldade || 1));
     return it;
   };
   let lidos = 0; const prontos = [];
   const entregar = bruto => { const it = preparar(bruto); if (it) { prontos.push(it); aoItem?.(it); } };
-  const r = await gerarJSON(c, instr, SCH.smart, foco, {
+  const r = await gerarJSON(c, instrFinal, cpu ? SCH.smartLeve : SCH.smart, foco, {
     rotulo: "Preparando suas perguntas", fundo,
     // IA local: lê só os trechos ligados aos pontos fracos (bem mais rápido em arquivos grandes)
-    system: local ? [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco, 7000) }] : undefined,
+    system: local ? [{ type: "text", text: cpu ? "Você cria perguntas de estudo a partir do material abaixo, em português." : SYS_BASE }, { type: "text", text: blocoMateriais(c, foco, cpu ? 1800 : 7000) }] : undefined,
     aoParcial: local ? texto => { const itens = itensCompletos(texto); while (lidos < itens.length) entregar(itens[lidos++]); } : undefined
   });
-  for (const t of r.topicos || []) if (t && !I.topicos.includes(t)) I.topicos.push(t);
+  for (const t of r.topicos || []) if (topicoValido(t) && !I.topicos.includes(t)) I.topicos.push(t);
   const itens = r.itens || [];
   while (lidos < itens.length) entregar(itens[lidos++]);
   return prontos;
@@ -1537,7 +1623,7 @@ function viewSmart(c) {
   return `<div class="stack">
     <div class="card">
       <div class="head" style="margin-bottom:10px"><div><h2 style="margin:0">🧠 Estudo inteligente</h2>
-        <div class="muted" style="font-size:13px">A IA acompanha o que você domina, foca nos seus pontos fracos e aumenta a dificuldade conforme você evolui — misturando mini-lições, questões e flashcards.</div></div></div>
+        <div class="muted" style="font-size:13px">A IA acompanha o que você domina, foca nos seus pontos fracos e aumenta a dificuldade conforme você evolui — com perguntas de múltipla escolha e a explicação de cada resposta.</div></div></div>
       <div class="row" style="gap:28px;margin:8px 0 16px">
         <div><div class="score">${geral}%</div><div class="muted" style="font-size:13px">domínio geral</div></div>
         <div><b style="font-size:22px">${I.respondidas}</b><div class="muted" style="font-size:13px">respondidas</div></div>
@@ -1787,7 +1873,7 @@ async function detectarModelos() {
     toast(models.length ? `${models.length} modelo(s) encontrado(s).` : "Ollama está rodando, mas sem modelos baixados.");
   } catch { toast("Não encontrei o Ollama nesse endereço. Ele está instalado e aberto?", true); }
 }
-const nomeIA = () => { const s = cfg(); return s.provider === "ollama" ? `IA local: ${s.ollamaModel || "sem modelo"}` : s.provider === "webllm" ? `IA do navegador: ${(MODELOS_WEB[s.webModel]?.nome || "").split(" ")[0] || "Completa"}` : `Claude: ${s.model.replace("claude-", "")}`; };
+const nomeIA = () => { const s = cfg(); return s.provider === "ollama" ? `IA local: ${s.ollamaModel || "sem modelo"}` : s.provider === "webllm" ? (WL.modo === "cpu" ? "IA do navegador (processador)" : `IA do navegador: ${(MODELOS_WEB[s.webModel]?.nome || "").split(" ")[0] || "Completa"}`) : `Claude: ${s.model.replace("claude-", "")}`; };
 function aplicarTema() {
   const t = lsGet("fp-tema", null);
   if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
@@ -1845,7 +1931,7 @@ document.addEventListener("click", async e => {
     case "limparChat": if (confirm("Apagar a conversa com o tutor?")) { c.chat = []; await salvar(c); render(); } break;
     case "config": abrirConfig(); break;
     case "fecharCfg": $("#dlgConfig").close(); break;
-    case "salvarCfg": lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
+    case "salvarCfg": lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
     case "inicio": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
@@ -1937,6 +2023,20 @@ catch (e) { toast("Armazenamento local indisponível — os dados não serão sa
 render();
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
 setTimeout(detectarPendentes, 1500);
+// Procura o Ollama algumas vezes (ao abrir o PC ele leva alguns segundos para ligar)
+async function acharOllama(tentativas = 1) {
+  const url = (cfg().ollamaUrl || "http://localhost:11434").replace(/\/$/, "");
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2000);
+      const { models = [] } = await (await fetch(url + "/api/tags", { signal: ctl.signal })).json(); clearTimeout(t);
+      const nomes = models.map(m => m.name);
+      if (nomes.length) return ["qwen3:4b-instruct", "qwen3:4b", "qwen3:8b"].find(n => nomes.includes(n)) || nomes[0];
+    } catch {}
+    if (i < tentativas - 1) await new Promise(r => setTimeout(r, 2000));
+  }
+  return null;
+}
 // Detecta a IA local automaticamente quando não há chave do Claude configurada
 (async () => {
   const s = cfg();
@@ -1949,24 +2049,27 @@ setTimeout(detectarPendentes, 1500);
   }
   // Pré-carrega a IA local na memória ao abrir o app (a primeira pergunta sai mais rápido)
   { const s2 = cfg(); if (s2.provider === "ollama" && s2.ollamaModel) fetch(s2.ollamaUrl.replace(/\/$/, "") + "/api/generate", { method: "POST", body: JSON.stringify({ model: s2.ollamaModel, keep_alive: "30m", options: { num_ctx: s2.ollamaCtx || 8192 } }) }).catch(() => {}); }
-  if (s.apiKey || (s.provider === "ollama" && s.ollamaModel) || s.provider === "webllm") return;
-  try {
-    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 2500);
-    const { models = [] } = await (await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/tags", { signal: ctl.signal })).json();
-    if (!models.length) throw 0;
-    const nomes = models.map(m => m.name);
-    const escolhido = ["qwen3:4b-instruct", "qwen3:4b", "qwen3:8b"].find(n => nomes.includes(n)) || nomes[0];
-    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: escolhido, ollamaCtx: 8192 });
-    render(); toast(`IA local detectada e ativada: ${escolhido}`);
-  } catch {
-    // Sem Ollama: usa a IA grátis que roda no próprio navegador (celular ou PC)
-    if (navigator.gpu) {
-      const celular = matchMedia("(pointer: coarse)").matches || (navigator.deviceMemory && navigator.deviceMemory <= 4);
-      const fraco = navigator.deviceMemory && navigator.deviceMemory <= 3;
-      const modelo = fraco ? "Qwen2.5-0.5B-Instruct-q4f16_1-MLC" : celular ? "Qwen2.5-1.5B-Instruct-q4f16_1-MLC" : "Qwen2.5-3B-Instruct-q4f16_1-MLC";
-      lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: modelo });
-      render(); toast("Usando a IA grátis do navegador. Na primeira geração ela é baixada uma vez.");
-    } else toast("Este navegador não roda a IA grátis (WebGPU). Use o Chrome ou o Edge atualizados, ou configure outra IA em ⚙️.", true);
+  if (s.apiKey || (s.provider === "ollama" && s.ollamaModel)) return;
+  if (s.provider === "webllm" && s.escolhaManual) return; // você escolheu a IA do navegador em Ajustes
+  const achou = await acharOllama(s.provider === "webllm" ? 6 : 8);
+  if (achou) {
+    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: achou, ollamaCtx: 8192 });
+    render(); toast(`IA local (Ollama) ativada: ${achou}`);
+    fetch(cfg().ollamaUrl.replace(/\/$/, "") + "/api/generate", { method: "POST", body: JSON.stringify({ model: achou, keep_alive: "30m", options: { num_ctx: 8192 } }) }).catch(() => {});
+    return;
+  }
+  if (s.provider === "webllm") return;
+  // Sem Ollama: usa a IA grátis que roda no próprio navegador (celular ou PC)
+  if (navigator.gpu) {
+    const celular = matchMedia("(pointer: coarse)").matches || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+    const fraco = navigator.deviceMemory && navigator.deviceMemory <= 3;
+    const modelo = fraco ? "Qwen2.5-0.5B-Instruct-q4f16_1-MLC" : celular ? "Qwen2.5-1.5B-Instruct-q4f16_1-MLC" : "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: modelo });
+    render(); toast("Usando a IA grátis do navegador. Na primeira geração ela é baixada uma vez.");
+  } else {
+    // Sem WebGPU (iPhone, celulares e navegadores antigos): a IA roda no processador
+    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC" });
+    WL.modo = "cpu"; render(); toast("Usando a IA grátis no processador deste aparelho. Na primeira geração ela é baixada uma vez (~400 MB).");
   }
 })();
 </script>
