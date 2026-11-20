@@ -83,6 +83,30 @@ h3{font-size:16px;margin:0 0 6px}
 .kit:hover{border-color:var(--accent);transform:translateY(-2px)}
 .kit .ico{font-size:28px}
 .kit b{font-size:16px}
+.criar-top{display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:var(--panel);cursor:pointer;width:min(330px,100%);font-weight:800;box-shadow:var(--shadow);margin-bottom:22px}
+.criar-top:hover{border-color:var(--accent)}
+.criar-top .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:18px;flex:none}
+.criar-top .seta{margin-left:auto;color:var(--muted)}
+.materia{margin-bottom:26px}
+.materia-head{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.materia-head h2{margin:0 6px 0 0;font-size:21px}
+.materia-head .mini{font-size:16px}
+.mkits{display:flex;flex-wrap:wrap;gap:14px}
+.mkit{position:relative;width:250px;height:156px;border-radius:18px;padding:16px 16px 14px;color:#fff;cursor:pointer;overflow:hidden;text-align:left;border:none;display:flex;flex-direction:column;box-shadow:var(--shadow);transition:.15s}
+.mkit:hover{transform:translateY(-3px);filter:brightness(1.05)}
+.mkit b{font-size:15px;line-height:1.3;max-width:85%;text-shadow:0 1px 2px rgba(0,0,0,.15)}
+.mkit .sub{font-size:12px;opacity:.85;margin-top:4px;font-weight:700}
+.mkit .marca{position:absolute;right:-6px;bottom:-12px;font-size:78px;opacity:.28;transform:rotate(-12deg);pointer-events:none}
+.mkit .barra{margin-top:auto;height:14px;border-radius:999px;background:rgba(0,0,0,.18);width:72%;overflow:hidden}
+.mkit .barra>div{height:100%;border-radius:999px;background:rgba(255,255,255,.75)}
+.mkit .tres{position:absolute;top:10px;right:8px;width:28px;height:28px;border-radius:8px;border:none;background:transparent;color:#fff;font-size:18px;cursor:pointer;font-weight:900}
+.mkit .tres:hover{background:rgba(0,0,0,.15)}
+.kit-menu{position:absolute;top:40px;right:8px;z-index:5;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column;min-width:190px}
+.kit-menu button{background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13.5px}
+.kit-menu button:hover{background:var(--panel2)}
+.mkit.add{background:transparent!important;border:2px dashed var(--line);color:var(--muted);align-items:center;justify-content:center;font-weight:800;box-shadow:none}
+.mkit.add:hover{border-color:var(--accent);color:var(--accent)}
+.detectando{font-size:12px;color:var(--muted);font-weight:700;display:inline-flex;gap:6px;align-items:center}
 .kit.novo{border-style:dashed;align-items:center;justify-content:center;color:var(--accent);font-weight:800;min-height:150px;box-shadow:none;background:transparent}
 /* ---- componentes ---- */
 .btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-weight:700}
@@ -236,6 +260,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <h2 style="margin-bottom:14px">Novo caderno</h2>
   <div class="stack">
     <label>Nome<input type="text" id="novoNome" placeholder="ex.: Fisiologia – Ateneo" maxlength="80"></label>
+    <label>Matéria <span style="font-weight:500">(deixe em branco para a IA identificar sozinha)</span><input type="text" id="novoMateria" list="listaMaterias" placeholder="ex.: Nutrição Clínica" maxlength="60"></label>
     <div><div class="muted" style="font-size:13px;font-weight:600;margin-bottom:6px">Ícone</div><div class="icons-pick" id="novoIcones"></div></div>
     <div class="dropzone-hint" id="novoDrop" data-act="novoArquivos">📎 Adicionar arquivos agora (opcional) — clique ou arraste aqui</div>
     <div class="nfiles" id="novoLista"></div>
@@ -246,6 +271,14 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   </div>
 </dialog>
 <input type="file" id="novoArquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp" hidden>
+<datalist id="listaMaterias"></datalist>
+<dialog id="dlgTexto">
+  <h2 id="txtTitulo" style="margin-bottom:14px"></h2>
+  <div class="stack">
+    <input type="text" id="txtValor" list="listaMaterias" maxlength="80">
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="txtCancelar">Cancelar</button><button class="pill" data-act="txtOk">Salvar</button></div>
+  </div>
+</dialog>
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
@@ -685,6 +718,7 @@ async function adicionarArquivos(files) {
     } catch (e) { toast(`${f.name}: ${e.message}`, true); }
   }
   toast("Materiais adicionados.");
+  if (!c.materia) detectarMateria(c);
 }
 /* ---------- OCR grátis no próprio app (Tesseract) ---------- */
 function carregarScript(src) {
@@ -987,33 +1021,89 @@ function render() {
   $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : viewHome();
 }
 
+const CORES_MATERIA = ["#f2a900", "#1d6ff2", "#12a36b", "#e0475e", "#7c4dff", "#f26b1d", "#0b9fa8", "#d6338a"];
+const SEM_MATERIA = "Outros";
+function materiasCfg() { return lsGet("fp-materias", {}); }
+function corMateria(nome) {
+  const m = materiasCfg();
+  if (m[nome]?.cor) return m[nome].cor;
+  let h = 0; for (const ch of nome) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return CORES_MATERIA[h % CORES_MATERIA.length];
+}
+const nomesMaterias = () => [...new Set(S.cadernos.map(c => c.materia).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+function atualizarListaMaterias() { $("#listaMaterias").innerHTML = nomesMaterias().map(m => `<option value="${esc(m)}">`).join(""); }
+
 function viewHome() {
-  const lista = [...S.cadernos].sort((a, b) => b.atualizado - a.atualizado);
-  const kits = lista.map(c => {
-    const n = nivelCaderno(c);
-    return `<button class="kit" data-act="abrir" data-id="${c.id}">
-      <span class="ico">${c.icone || "📘"}</span><b>${esc(c.nome)}</b>
-      <span class="muted" style="font-size:13px">${c.materiais.length} material(is) · Nível ${n.nivel}</span>
-      <div class="prog" style="margin-top:6px"><div style="width:${Math.round(n.geral * 100)}%"></div></div>
-      <span class="stars" style="font-size:15px">${[1, 2, 3].map(i => `<b class="${i <= n.estrelas ? "on" : ""}">★</b>`).join("")}</span>
-    </button>`;
-  }).join("");
-  return `<div class="head"><div><h1>Meus cadernos</h1><div class="muted">Um caderno para cada matéria ou prova. Envie seus arquivos e a IA monta o estudo.</div></div>
-    <button class="pill" data-act="novo">＋ Novo caderno</button></div>
-  <div class="kits">${kits}<button class="kit novo" data-act="novo"><span style="font-size:30px">＋</span>Criar caderno</button></div>
-  ${lista.length ? "" : `<div class="card" style="margin-top:22px"><h2>Como funciona</h2>
+  const grupos = {};
+  for (const c of S.cadernos) (grupos[c.materia || SEM_MATERIA] ||= []).push(c);
+  const ordem = Object.keys(grupos).sort((a, b) => a === SEM_MATERIA ? 1 : b === SEM_MATERIA ? -1 : a.localeCompare(b, "pt-BR"));
+  const cartao = c => {
+    const n = nivelCaderno(c), cor = corMateria(c.materia || SEM_MATERIA);
+    const pct = Math.max(4, Math.round(n.geral * 100));
+    return `<div class="mkit" style="background:${cor}" data-act="abrir" data-id="${c.id}" role="button" tabindex="0">
+      <b>${esc(c.nome)}</b>
+      <span class="sub">${c.materiais.length} material(is) · Nível ${n.nivel}${S.detectando === c.id ? " · identificando matéria…" : ""}</span>
+      <span class="marca">${c.icone || "📘"}</span>
+      <div class="barra"><div style="width:${pct}%"></div></div>
+      <button class="tres" data-act="menuKit" data-id="${c.id}" title="Opções">⋮</button>
+      ${S.menuKit === c.id ? `<div class="kit-menu">
+        <button data-act="moverKit" data-id="${c.id}">📂 Mudar de matéria</button>
+        <button data-act="renomearKit" data-id="${c.id}">✏️ Renomear</button>
+        <button data-act="detectarKit" data-id="${c.id}">✨ Identificar matéria com IA</button>
+        <button data-act="excluirKit" data-id="${c.id}" style="color:var(--bad)">🗑 Excluir</button></div>` : ""}
+    </div>`;
+  };
+  return `<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  ${ordem.map(m => `<section class="materia">
+      <div class="materia-head"><h2>${esc(m)}</h2>
+        ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}
+      </div>
+      <div class="mkits">${grupos[m].sort((a, b) => b.atualizado - a.atualizado).map(cartao).join("")}</div>
+    </section>`).join("")}
+  ${S.cadernos.length ? "" : `<div class="card" style="max-width:640px"><h2>Como funciona</h2>
     <ol class="steps">
-      <li><div><b>Crie um caderno</b> para a matéria (ex.: "Literatura – O Ateneu").</div></li>
-      <li><div><b>Adicione materiais:</b> PDF, PowerPoint, Word, texto ou fotos das anotações.</div></li>
-      <li><div><b>Clique em “Começar a estudar”:</b> o estudo inteligente foca nos seus pontos fracos. Também há guia de estudo, flashcards, quiz, teste e tutor.</div></li>
+      <li><div><b>Crie um caderno</b> e envie seus arquivos (PDF, slides, Word, fotos).</div></li>
+      <li><div><b>A IA identifica a matéria</b> (ex.: Nutrição Clínica, Fisiologia) e organiza seus cadernos por ela.</div></li>
+      <li><div><b>Clique em “Começar a estudar”:</b> perguntas que focam nos seus pontos fracos.</div></li>
     </ol>
     <p class="muted" style="font-size:13px;margin-bottom:0">IA em uso: <b>${esc(nomeIA())}</b> — troque em Ajustes.</p></div>`}`;
+}
+
+// A IA lê o começo do material e diz a matéria (reaproveita as que você já tem)
+async function detectarMateria(c, forcar = false) {
+  if (!c || !ativos(c).length || (c.materia && !forcar) || S.detectando) return;
+  S.detectando = c.id; render();
+  try {
+    const existentes = nomesMaterias();
+    const amostra = ativos(c).map(m => `${m.nome}\n${m.texto.slice(0, 1800)}`).join("\n\n").slice(0, 3500);
+    const r = await chamar({
+      system: "Você classifica materiais de estudo universitários por matéria (disciplina).",
+      messages: [{ role: "user", content: `Caderno: "${c.nome}"\nTrecho do material:\n${amostra}\n\nMatérias que o estudante já tem: ${existentes.length ? existentes.join(", ") : "(nenhuma)"}.\nQual é a matéria deste caderno? Se combinar com uma existente, use EXATAMENTE aquele nome. Se não, crie um nome curto (1 a 3 palavras, em português, com maiúscula inicial), como "Nutrição Clínica" ou "Fisiologia Humana".` }],
+      schema: obj({ materia: str }), maxTokens: cfg().provider === "anthropic" ? 4000 : 80, rotulo: "Identificando a matéria"
+    });
+    const nome = String(r.materia || "").trim().replace(/^["']|["']$/g, "").slice(0, 60);
+    if (nome) { c.materia = existentes.find(e => e.toLowerCase() === nome.toLowerCase()) || nome; await salvar(c); toast(`“${c.nome}” foi colocado em ${c.materia}.`); }
+  } catch (e) { if (forcar) toast("Não consegui identificar a matéria: " + erroMsg(e), true); }
+  c.materiaTentada = true; S.detectando = null; render();
+}
+// Cadernos antigos sem matéria: identifica um de cada vez, em segundo plano
+function detectarPendentes() {
+  const c = S.cadernos.find(x => !x.materia && !x.materiaTentada && ativos(x).length);
+  if (c && !S.detectando && !S.player) detectarMateria(c).then(() => setTimeout(detectarPendentes, 500));
+}
+
+// Janela de texto (renomear, mudar de matéria)
+function pedirTexto(titulo, valor, aoSalvar) {
+  S.aoSalvarTexto = aoSalvar;
+  $("#txtTitulo").textContent = titulo; $("#txtValor").value = valor || "";
+  atualizarListaMaterias(); $("#dlgTexto").showModal();
+  setTimeout(() => { $("#txtValor").focus(); $("#txtValor").select(); }, 50);
 }
 
 function viewCaderno(c, emEstudo) {
   const corpo = { materiais: viewMateriais, smart: viewSmart, resumo: viewResumo, flash: viewFlash, quiz: viewQuiz, prova: viewProva, tutor: viewTutor }[S.aba](c);
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
-  return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}</h1>
+  return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
     <div class="kit-bar"><button class="pill" data-act="smartIniciar">▶ Começar a estudar</button>${barraNivel(c)}</div>
     ${corpo}`;
@@ -1562,6 +1652,7 @@ async function perguntar(txt) {
 /* ================= novo caderno ================= */
 function abrirNovo(arquivos = []) {
   S.novo = { icone: ICONES_KIT[Math.floor(Math.random() * 6)], arquivos: [...arquivos] };
+  $("#novoMateria").value = ""; atualizarListaMaterias();
   $("#novoNome").value = arquivos[0] ? arquivos[0].name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").slice(0, 80) : "";
   desenharNovo();
   $("#dlgNovo").showModal();
@@ -1575,11 +1666,13 @@ function desenharNovo() {
 async function criarCaderno() {
   const nome = $("#novoNome").value.trim() || (S.novo.arquivos[0]?.name.replace(/\.[^.]+$/, "")) || `Caderno ${S.cadernos.length + 1}`;
   const nc = novoCaderno(nome); nc.icone = S.novo.icone;
+  const mat = $("#novoMateria").value.trim(); if (mat) nc.materia = nomesMaterias().find(e => e.toLowerCase() === mat.toLowerCase()) || mat;
   S.cadernos.push(nc); S.atual = nc.id; S.aba = "materiais"; S.player = null;
   await salvar(nc);
   $("#dlgNovo").close(); render();
   toast(`Caderno “${nome}” criado e salvo.`);
   if (S.novo.arquivos.length) await adicionarArquivos(S.novo.arquivos);
+  if (!nc.materia) detectarMateria(nc);
 }
 
 /* ================= config ================= */
@@ -1621,9 +1714,19 @@ function aplicarTema() {
 /* ================= eventos ================= */
 document.addEventListener("click", async e => {
   const el = e.target.closest("[data-act]"); if (!el || el.disabled) return;
+  if (S.menuKit && !e.target.closest(".kit-menu") && el.dataset.act !== "menuKit") { S.menuKit = null; if (el.dataset.act === "abrir") { render(); return; } }
   const act = el.dataset.act, id = el.dataset.id, c = atual();
   switch (act) {
     case "novo": abrirNovo(); break;
+    case "menuKit": S.menuKit = S.menuKit === id ? null : id; render(); break;
+    case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; delete k.materiaTentada; if (!v) k.materiaTentada = true; await salvar(k); render(); }); break; }
+    case "renomearKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Renomear caderno", k.nome, async v => { if (v) { k.nome = v; await salvar(k); render(); } }); break; }
+    case "detectarKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; detectarMateria(k, true); break; }
+    case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(k.id); S.cadernos = S.cadernos.filter(x => x.id !== k.id); } render(); break; }
+    case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo)) { k.materia = v; await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; lsSet("fp-materias", m); } render(); }); break; }
+    case "corMateria": { const m = materiasCfg(), atualCor = corMateria(id); m[id] = { ...(m[id] || {}), cor: CORES_MATERIA[(CORES_MATERIA.indexOf(atualCor) + 1) % CORES_MATERIA.length] }; lsSet("fp-materias", m); render(); break; }
+    case "txtCancelar": $("#dlgTexto").close(); break;
+    case "txtOk": { const v = $("#txtValor").value.trim(); $("#dlgTexto").close(); S.aoSalvarTexto?.(v); break; }
     case "novoArquivos": $("#novoArquivo").click(); break;
     case "novoIcone": S.novo.icone = el.dataset.id; desenharNovo(); break;
     case "fecharNovo": $("#dlgNovo").close(); break;
@@ -1632,7 +1735,7 @@ document.addEventListener("click", async e => {
     case "verMat": S.verMat = S.verMat === id ? null : id; render(); break;
     case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; guardarRestantes(c, S.player); S.atual = id; S.player = null; S.verDeck = null; render(); prepararBanco(atual()); break;
     case "aba": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
-    case "renomear": { const n = prompt("Novo nome:", c.nome); if (n?.trim()) { c.nome = n.trim(); await salvar(c); render(); } break; }
+    case "renomear": pedirTexto("Renomear caderno", c.nome, async v => { if (v) { c.nome = v; await salvar(c); render(); } }); break;
     case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
     case "escolher": $("#arquivo").click(); break;
     case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); break; }
@@ -1718,6 +1821,7 @@ document.addEventListener("keydown", e => {
 });
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
+$("#txtValor").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("[data-act=txtOk]").click(); } });
 $("#novoNome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); criarCaderno(); } });
 $("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });
 $("#backupIn").addEventListener("change", async e => {
@@ -1749,6 +1853,7 @@ aplicarTema();
 try { db = await abrirDB(); S.cadernos = (await dbAll()) || []; }
 catch (e) { toast("Armazenamento local indisponível — os dados não serão salvos.", true); }
 render();
+setTimeout(detectarPendentes, 4000);
 // Detecta a IA local automaticamente quando não há chave do Claude configurada
 (async () => {
   const s = cfg();
