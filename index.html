@@ -477,7 +477,7 @@ async function motorWebLLM(modelo) {
   catch (e) { throw new Error("Não consegui carregar a IA do navegador: " + (e?.message || e) + ". Tente o modelo Leve em Configurações."); }
   finally { WL.carregando = null; progressoIA("", null); }
 }
-async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, aoParcial }) {
+async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
   const modelo = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
   const eng = await motorWebLLM(modelo);
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
@@ -495,6 +495,7 @@ async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, ao
   let ultimo = Date.now(), parado = false;
   const vigia = setInterval(() => { if (Date.now() - ultimo > 120000) { parado = true; try { eng.interruptGenerate(); } catch {} } }, 5000);
   try {
+    sinal?.addEventListener("abort", () => { try { eng.interruptGenerate(); } catch {} });
     const partes = await eng.chat.completions.create(req);
     for await (const p of partes) {
       const ch = p.choices?.[0];
@@ -505,6 +506,7 @@ async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, ao
     if (/context|token|exceed/i.test(e?.message || "")) throw new Error("O conteúdo ficou grande demais para a IA do navegador. Use um foco mais específico ou peça menos itens.");
     throw e;
   } finally { clearInterval(vigia); progressoIA("", null); }
+  if (sinal?.aborted) throw new Error("interrompido");
   if (parado) throw new Error("A IA do navegador parou de responder. Tente de novo (se repetir, escolha um tamanho menor de IA em Ajustes).");
   if (fim === "length" && schema) throw new Error("A resposta da IA do navegador foi cortada. Peça menos itens.");
   return schema ? limparJSON(texto) : texto.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
@@ -520,8 +522,27 @@ function progressoEscrita(limite, rotulo) {
   };
 }
 // IAs locais/navegador atendem um pedido por vez: enfileira para não travar
-let filaIA = Promise.resolve();
-function umPorVez(fn) { const p = filaIA.then(fn, fn); filaIA = p.catch(() => {}); return p; }
+// Pedidos urgentes (explicação, matéria) passam na frente da geração de perguntas em segundo plano
+// Pedidos urgentes interrompem a geração em segundo plano, que recomeça logo depois
+const filaIA = []; let rodandoIA = null;
+function umPorVez(fn, urgente = false, fundo = false) {
+  return new Promise((res, rej) => {
+    const job = { fn, res, rej, urgente, fundo };
+    if (urgente) { filaIA.splice(filaIA.filter(j => j.urgente).length, 0, job); if (rodandoIA?.fundo) { rodandoIA.preemptado = true; rodandoIA.ctl.abort(); } }
+    else filaIA.push(job);
+    proximoIA();
+  });
+}
+async function proximoIA() {
+  if (rodandoIA) return;
+  const job = filaIA.shift(); if (!job) return;
+  rodandoIA = job; job.preemptado = false; job.ctl = new AbortController();
+  try { job.res(await job.fn(job.ctl.signal)); }
+  catch (e) {
+    if (job.preemptado) filaIA.splice(filaIA.filter(j => j.urgente).length, 0, job); // volta para a fila
+    else job.rej(e);
+  } finally { rodandoIA = null; proximoIA(); }
+}
 
 /* ---------- IA local (Ollama) ---------- */
 function textoDoSystem(system) { return Array.isArray(system) ? system.map(b => b.text).join("\n\n") : String(system || ""); }
@@ -532,7 +553,7 @@ function limparJSON(t) {
   if (m) { try { return JSON.parse(m[0]); } catch {} }
   throw new Error("A IA local devolveu um formato inválido. Tente de novo, peça menos itens ou use um modelo maior.");
 }
-async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, aoParcial }) {
+async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
   if (!s.ollamaModel) { abrirConfig(); throw new Error("Escolha um modelo do Ollama em Configurações."); }
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido, sem texto extra." : "") }];
   for (const m of messages) {
@@ -552,6 +573,7 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
   const limite = Math.min(maxTokens || 4000, 4000);
   progressoIA(`${rotulo || "A IA está escrevendo"}… lendo o material`, 0.02);
   const ctl = new AbortController();
+  sinal?.addEventListener("abort", () => ctl.abort());
   let resp;
   try {
     resp = await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/chat", {
@@ -592,8 +614,8 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
 
 async function chamar(opts) {
   const s = cfg();
-  if (s.provider === "ollama") return umPorVez(() => chamarOllama(s, opts));
-  if (s.provider === "webllm") return umPorVez(() => chamarWebLLM(s, opts));
+  if (s.provider === "ollama") return umPorVez(sinal => chamarOllama(s, { ...opts, sinal }), opts.urgente, opts.fundo);
+  if (s.provider === "webllm") return umPorVez(sinal => chamarWebLLM(s, { ...opts, sinal }), opts.urgente, opts.fundo);
   const { system, messages, schema, maxTokens = 32000 } = opts;
   if (!s.apiKey) { abrirConfig(); throw new Error("Configure sua chave da API da Anthropic primeiro."); }
   const client = new Anthropic({ apiKey: s.apiKey, dangerouslyAllowBrowser: true });
@@ -617,7 +639,7 @@ function gerarJSON(c, instrucao, schema, foco = "", extra = {}) {
   return chamar({
     system: extra.system || [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: instrucao }],
-    schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo, aoParcial: extra.aoParcial
+    schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo, aoParcial: extra.aoParcial, fundo: extra.fundo
   });
 }
 
@@ -867,6 +889,11 @@ function altsValidas(x) {
   if (alts.length < 3 || letras.some(l => l.length < 2)) return false;
   if (new Set(letras.map(l => l.toLowerCase())).size !== letras.length) return false;
   if (!(Number.isInteger(x.correta) && x.correta >= 0 && x.correta < alts.length)) return false;
+  // Questão ambígua ou com gabarito contraditório (a própria explicação diz outra coisa): descarta
+  if (Array.isArray(x.explicacoes) && x.explicacoes.length === alts.length) {
+    const certas = x.explicacoes.map((t, i) => /^\s*(correta|certa|correto|correct)/i.test(String(t)) ? i : -1).filter(i => i >= 0);
+    if (certas.length > 1 || (certas.length === 1 && certas[0] !== x.correta)) return false;
+  }
   x.alternativas = alts;
   return true;
 }
@@ -974,12 +1001,35 @@ function normalizarMultipla(q) {
 function explicacaoHTML(q, escolha) {
   const acertou = escolha === q.correta;
   const porQue = i => (q.explicacoes?.[i] || "").trim();
+  const certa = (q.explicacao || "").trim() || porQue(q.correta);
+  const errada = escolha !== null && escolha >= 0 && !acertou ? porQue(escolha) : "";
+  const carregando = `<span class="muted"><span class="spin"></span> escrevendo a explicação…</span>`;
   let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? "✔ Correto!" : escolha === null ? `A resposta certa é a ${q.correta + 1}.` : `✘ Errado — a certa é a ${q.correta + 1}.`}</p>`;
-  if (!acertou && escolha !== null && escolha >= 0) h += `<p><b>Por que a ${escolha + 1} está errada:</b> ${porQue(escolha) ? esc(porQue(escolha)) : "ela não corresponde ao que o material diz sobre o tema."}</p>`;
-  h += `<p><b>Por que a ${q.correta + 1} está certa:</b></p>${md(q.explicacao || porQue(q.correta))}`;
+  if (!acertou && escolha !== null && escolha >= 0) h += `<p><b>Por que a ${escolha + 1} está errada:</b> ${errada ? esc(errada) : explicandoAgora(q) ? carregando : ""}</p>`;
+  h += `<p><b>Por que a ${q.correta + 1} está certa:</b></p>${certa ? md(certa) : explicandoAgora(q) ? `<p>${carregando}</p>` : ""}`;
   return `<div class="expl md">${h}</div>`;
 }
-
+// Explicação curta/ausente? Pede na hora para a IA (passa na frente da fila)
+const explicacaoFraca = t => !t || t.trim().length < 25;
+const explicandoAgora = q => q._explicando && Date.now() - q._explicando < 90000;
+async function completarExplicacao(c, q, escolha) {
+  const precisaCerta = explicacaoFraca(q.explicacao) && explicacaoFraca(q.explicacoes?.[q.correta]);
+  const precisaErrada = escolha !== null && escolha >= 0 && escolha !== q.correta && explicacaoFraca(q.explicacoes?.[escolha]);
+  if ((!precisaCerta && !precisaErrada) || explicandoAgora(q)) return;
+  q._explicando = Date.now(); render();
+  try {
+    const alts = q.alternativas.map((a, i) => `${i + 1}) ${a}`).join("\n");
+    const marcou = precisaErrada ? escolha + 1 : null;
+    const r = await chamar({
+      system: [{ type: "text", text: SYS_BASE + "\nVocê é um professor explicando a correção de uma questão. Seja específico: cite o conceito do material que justifica a resposta." }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.topico || ""}`, 5000) }],
+      messages: [{ role: "user", content: `Questão: ${q.enunciado}\nAlternativas:\n${alts}\nA correta é a ${q.correta + 1}.${marcou ? ` O estudante marcou a ${marcou}.` : ""}\n\nEm "certa": explique em 2 a 3 frases POR QUE a alternativa ${q.correta + 1} está correta, com base no conteúdo.\nEm "errada": ${marcou ? `explique em 1 a 2 frases POR QUE a alternativa ${marcou} está errada (qual é o erro dela ou o que ela confunde).` : `deixe vazio.`}` }],
+      schema: obj({ certa: str, errada: str }), maxTokens: cfg().provider === "anthropic" ? 6000 : 450, rotulo: "Explicando a resposta", urgente: true
+    });
+    if (r.certa?.trim()) q.explicacao = r.certa.trim();
+    if (marcou && r.errada?.trim()) { q.explicacoes ||= q.alternativas.map(() => ""); q.explicacoes[escolha] = r.errada.trim(); }
+  } catch (e) { toast("Não consegui gerar a explicação: " + erroMsg(e), true); }
+  delete q._explicando; render(); salvar(c);
+}
 /* ================= views ================= */
 const IC = {
   inicio: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
@@ -1076,14 +1126,15 @@ async function detectarMateria(c, forcar = false) {
   S.detectando = c.id; render();
   try {
     const existentes = nomesMaterias();
-    const amostra = ativos(c).map(m => `${m.nome}\n${m.texto.slice(0, 1800)}`).join("\n\n").slice(0, 3500);
+    // trechos do começo e do meio de cada material (a capa sozinha engana)
+    const amostra = ativos(c).map(m => { const t = m.texto, meio = Math.floor(t.length / 2); return `${t.slice(0, 1200)}\n…\n${t.slice(meio, meio + 1200)}`; }).join("\n\n").slice(0, 4000);
     const r = await chamar({
-      system: "Você classifica materiais de estudo universitários por matéria (disciplina).",
-      messages: [{ role: "user", content: `Caderno: "${c.nome}"\nTrecho do material:\n${amostra}\n\nMatérias que o estudante já tem: ${existentes.length ? existentes.join(", ") : "(nenhuma)"}.\nQual é a matéria deste caderno? Se combinar com uma existente, use EXATAMENTE aquele nome. Se não, crie um nome curto (1 a 3 palavras, em português, com maiúscula inicial), como "Nutrição Clínica" ou "Fisiologia Humana".` }],
-      schema: obj({ materia: str }), maxTokens: cfg().provider === "anthropic" ? 4000 : 80, rotulo: "Identificando a matéria"
+      system: "Você identifica a disciplina acadêmica de materiais de estudo lendo o CONTEÚDO deles.",
+      messages: [{ role: "user", content: `Trechos do material:\n${amostra}\n\nO nome que o estudante deu ao caderno é "${c.nome}" — pode ser abreviado ou ambíguo; decida pelo CONTEÚDO dos trechos.\nDisciplinas comuns: Fisiologia, Anatomia, Bioquímica, Biologia Celular, Histologia, Microbiologia, Imunologia, Parasitologia, Genética, Farmacologia, Patologia, Nutrição, Fisioterapia, Enfermagem, Psicologia, Química, Física, Matemática, Português, Literatura, História, Geografia, Direito, Economia.\nAtenção: Fisiologia (como o corpo funciona: líquidos corporais, rins, sistema nervoso, Guyton) é diferente de Fisioterapia (reabilitação, exercícios terapêuticos).\nMatérias que o estudante já tem: ${existentes.length ? existentes.join(", ") : "(nenhuma)"} — se for a MESMA disciplina, use exatamente esse nome; se for outra, crie a nova (1 a 3 palavras, maiúscula inicial).\nResponda a matéria em "materia".` }],
+      schema: obj({ materia: str }), maxTokens: cfg().provider === "anthropic" ? 4000 : 80, rotulo: "Identificando a matéria", urgente: true
     });
     const nome = String(r.materia || "").trim().replace(/^["']|["']$/g, "").slice(0, 60);
-    if (nome) { c.materia = existentes.find(e => e.toLowerCase() === nome.toLowerCase()) || nome; await salvar(c); toast(`“${c.nome}” foi colocado em ${c.materia}.`); }
+    if (nome) { c.materia = existentes.find(e => e.toLowerCase() === nome.toLowerCase()) || nome; c.materiaAuto = true; await salvar(c); toast(`“${c.nome}” foi colocado em ${c.materia}.`); }
   } catch (e) { if (forcar) toast("Não consegui identificar a matéria: " + erroMsg(e), true); }
   c.materiaTentada = true; S.detectando = null; render();
 }
@@ -1278,7 +1329,7 @@ function quizResponder(c, i) {
   const q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]];
   p.escolha = i; p.confirmado = true;
   if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
-  render();
+  render(); completarExplicacao(c, q, i);
 }
 function iniciarQuiz(id, ordem) {
   const qz = atual().quizzes.find(x => x.id === id);
@@ -1403,7 +1454,7 @@ function itensCompletos(texto) {
   }
   return out;
 }
-async function gerarLoteSmart(c, focoTopico, aoItem, n) {
+async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false) {
   garantirSmart(c);
   const I = c.inteligente;
   const local = cfg().provider !== "anthropic";
@@ -1418,8 +1469,8 @@ Regras de adaptação:
 - Cerca de 60% das perguntas nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
 - TODAS são de múltipla escolha com EXATAMENTE 4 alternativas plausíveis e só uma correta ("correta" = índice 0 a 3 da certa). Varie a posição da certa.
-- "explicacao": por que a correta está certa (1 a 2 frases, citando o material).
-- "explicacoes": 4 textos CURTOS (até 15 palavras cada), um por alternativa NA MESMA ORDEM, dizendo por que está certa ou errada.
+- "explicacao" (OBRIGATÓRIO, nunca vazio): por que a correta está certa, em 1 a 2 frases que citem o conceito do material.
+- "explicacoes" (OBRIGATÓRIO): 4 textos curtos (até 20 palavras cada), um por alternativa NA MESMA ORDEM. Comece cada uma com "Correta:" ou "Errada:" (só UMA pode ser "Correta:", a mesma de "correta"); nas erradas, diga o erro concreto (ex.: "Errada: quem produz ATP é a mitocôndria, não o ribossomo"). Evite perguntas com mais de uma resposta defensável.
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar novos).
 - Não repita estas perguntas:
 ${hist}
@@ -1436,7 +1487,7 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
   let lidos = 0; const prontos = [];
   const entregar = bruto => { const it = preparar(bruto); if (it) { prontos.push(it); aoItem?.(it); } };
   const r = await gerarJSON(c, instr, SCH.smart, foco, {
-    rotulo: "Preparando suas perguntas",
+    rotulo: "Preparando suas perguntas", fundo,
     // IA local: lê só os trechos ligados aos pontos fracos (bem mais rápido em arquivos grandes)
     system: local ? [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco, 7000) }] : undefined,
     aoParcial: local ? texto => { const itens = itensCompletos(texto); while (lidos < itens.length) entregar(itens[lidos++]); } : undefined
@@ -1553,7 +1604,7 @@ function smartPrefetch(c) {
   if (!p || p.tipo !== "smart" || p.fim || p.proximo) return;
   if (p.fila.length - p.i > 4) return; // já há perguntas suficientes prontas
   if ((p.falhas || 0) >= 2) return;    // evita insistir se a IA estiver com problema
-  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it))
+  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), undefined, true)
     .then(r => { p.falhas = r.length ? 0 : (p.falhas || 0) + 1; })
     .catch(() => { p.falhas = (p.falhas || 0) + 1; })
     .finally(() => { if (S.player === p) { p.proximo = null; salvar(c); smartPrefetch(c); } });
@@ -1576,7 +1627,7 @@ function prepararBanco(c) {
   S.preparando[c.id] = gerarLoteSmart(c, null, it => {
     if (S.player?.tipo === "smart" && S.atual === c.id && !S.player.fim && !S.player.focoTopico) empurrar(c, S.player, it);
     else { (c.inteligente.banco ||= []).push(it); }
-  }, 4).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
+  }, 4, true).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
 }
 function smartIniciar(c, focoTopico = null) {
   garantirSmart(c);
@@ -1609,7 +1660,7 @@ async function smartResponder(c, acertou) {
     deck.cards.push({ frente: it.enunciado, verso: resp, topico: it.topico, caixa: 0, proxima: 0 });
   }
   I.historico.push(it.enunciado.slice(0, 140)); if (I.historico.length > 80) I.historico.splice(0, I.historico.length - 80);
-  p.confirmado = true; render(); smartPrefetch(c); await salvar(c);
+  p.confirmado = true; render(); completarExplicacao(c, it, p.escolha); smartPrefetch(c); await salvar(c);
 }
 function smartProx(c) {
   const p = S.player, it = p.fila[p.i];
@@ -1720,7 +1771,7 @@ document.addEventListener("click", async e => {
   switch (act) {
     case "novo": abrirNovo(); break;
     case "menuKit": S.menuKit = S.menuKit === id ? null : id; render(); break;
-    case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; delete k.materiaTentada; if (!v) k.materiaTentada = true; await salvar(k); render(); }); break; }
+    case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; k.materiaAuto = false; k.materiaTentada = true; await salvar(k); render(); }); break; }
     case "renomearKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Renomear caderno", k.nome, async v => { if (v) { k.nome = v; await salvar(k); render(); } }); break; }
     case "detectarKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; detectarMateria(k, true); break; }
     case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(k.id); S.cadernos = S.cadernos.filter(x => x.id !== k.id); } render(); break; }
@@ -1854,7 +1905,8 @@ aplicarTema();
 try { db = await abrirDB(); S.cadernos = (await dbAll()) || []; }
 catch (e) { toast("Armazenamento local indisponível — os dados não serão salvos.", true); }
 render();
-setTimeout(detectarPendentes, 4000);
+if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
+setTimeout(detectarPendentes, 1500);
 // Detecta a IA local automaticamente quando não há chave do Claude configurada
 (async () => {
   const s = cfg();
