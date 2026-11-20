@@ -385,8 +385,8 @@ function limiteMateriais() {
   return Infinity;
 }
 // Se o material não cabe, escolhe trechos: os mais ligados ao foco ou, sem foco, uma amostra variada (cada geração vê partes diferentes)
-function blocoMateriais(c, foco = "") {
-  const mats = ativos(c), limite = limiteMateriais();
+function blocoMateriais(c, foco = "", maxChars = Infinity) {
+  const mats = ativos(c), limite = Math.min(limiteMateriais(), maxChars);
   const total = mats.reduce((n, m) => n + m.texto.length, 0);
   if (total <= limite) {
     return `<materiais>\n${mats.map(m => `<documento nome="${esc(m.nome)}">\n${m.texto}\n</documento>`).join("\n\n")}\n</materiais>`;
@@ -444,7 +444,7 @@ async function motorWebLLM(modelo) {
   catch (e) { throw new Error("Não consegui carregar a IA do navegador: " + (e?.message || e) + ". Tente o modelo Leve em Configurações."); }
   finally { WL.carregando = null; progressoIA("", null); }
 }
-async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo }) {
+async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, aoParcial }) {
   const modelo = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
   const eng = await motorWebLLM(modelo);
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
@@ -465,7 +465,7 @@ async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo }) 
     const partes = await eng.chat.completions.create(req);
     for await (const p of partes) {
       const ch = p.choices?.[0];
-      if (ch?.delta?.content) { texto += ch.delta.content; ultimo = Date.now(); prog(texto); }
+      if (ch?.delta?.content) { texto += ch.delta.content; ultimo = Date.now(); prog(texto); aoParcial?.(texto); }
       if (ch?.finish_reason) fim = ch.finish_reason;
     }
   } catch (e) {
@@ -499,7 +499,7 @@ function limparJSON(t) {
   if (m) { try { return JSON.parse(m[0]); } catch {} }
   throw new Error("A IA local devolveu um formato inválido. Tente de novo, peça menos itens ou use um modelo maior.");
 }
-async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo }) {
+async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, aoParcial }) {
   if (!s.ollamaModel) { abrirConfig(); throw new Error("Escolha um modelo do Ollama em Configurações."); }
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido, sem texto extra." : "") }];
   for (const m of messages) {
@@ -547,7 +547,7 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo }) 
         if (!linha) continue;
         const j = JSON.parse(linha);
         if (j.error) throw new Error("Erro do Ollama: " + j.error);
-        if (j.message?.content) { texto += j.message.content; ultimo = Date.now(); prog(texto); }
+        if (j.message?.content) { texto += j.message.content; ultimo = Date.now(); prog(texto); aoParcial?.(texto); }
       }
     }
   } catch (e) {
@@ -584,7 +584,7 @@ function gerarJSON(c, instrucao, schema, foco = "", extra = {}) {
   return chamar({
     system: extra.system || [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: instrucao }],
-    schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo
+    schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo, aoParcial: extra.aoParcial
   });
 }
 
@@ -1297,36 +1297,63 @@ function statusTopico(d) {
   if (d.score < .75) return ["Revisando", "var(--warn)"];
   return ["Dominado", "var(--ok)"];
 }
-async function gerarLoteSmart(c, focoTopico) {
+// Acha as perguntas já completas dentro do JSON que ainda está sendo escrito
+function itensCompletos(texto) {
+  const k = texto.indexOf('"itens"'); if (k < 0) return [];
+  const a = texto.indexOf("[", k); if (a < 0) return [];
+  const out = []; let prof = 0, ini = -1, str = false, esc = false;
+  for (let i = a + 1; i < texto.length; i++) {
+    const ch = texto[i];
+    if (str) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') str = false; continue; }
+    if (ch === '"') str = true;
+    else if (ch === "{") { if (prof === 0) ini = i; prof++; }
+    else if (ch === "}") { prof--; if (prof === 0 && ini >= 0) { try { out.push(JSON.parse(texto.slice(ini, i + 1))); } catch {} ini = -1; } }
+    else if (ch === "]" && prof === 0) break;
+  }
+  return out;
+}
+async function gerarLoteSmart(c, focoTopico, aoItem, n) {
   garantirSmart(c);
   const I = c.inteligente;
-  // IAs locais: bloco inicial pequeno (a 1ª pergunta aparece logo); os próximos vêm enquanto você responde
-  const local = cfg().provider !== "anthropic", primeiro = !(S.player?.fila?.length);
-  const n = local ? (primeiro ? 3 : 4) : 8;
+  const local = cfg().provider !== "anthropic";
+  n ||= local ? 4 : 8;
   const dom = I.topicos.map(t => { const d = c.dominio[t]; return d?.tentativas ? `- ${t}: domínio ${Math.round(d.score * 100)}% (${d.acertos}/${d.tentativas} acertos) → dificuldade alvo ${nivelDe(d.score)}` : `- ${t}: ainda não praticado`; }).join("\n");
-  const hist = I.historico.slice(-50).map(h => "- " + h).join("\n") || "(nenhuma)";
-  const instr = `Você conduz uma sessão de ESTUDO ADAPTATIVO, como um professor particular. Gere o próximo bloco com exatamente ${n} itens.
-${I.topicos.length ? `Tópicos conhecidos e domínio atual do estudante:\n${dom}` : `Primeira sessão: identifique os principais tópicos dos materiais (de 4 a 12, nomes curtos) e liste-os em "topicos". Comece com um diagnóstico de dificuldade 1 e 2 cobrindo os tópicos mais importantes.`}
+  const jaFeitas = [...I.historico.slice(-40), ...(I.banco || []).map(b => b.enunciado.slice(0, 100))];
+  const hist = jaFeitas.map(h => "- " + h).join("\n") || "(nenhuma)";
+  const instr = `Você conduz uma sessão de ESTUDO ADAPTATIVO, como um professor particular. Gere exatamente ${n} perguntas.
+${I.topicos.length ? `Tópicos conhecidos e domínio atual do estudante:\n${dom}` : `Primeira sessão: identifique os principais tópicos dos materiais (de 4 a 12, nomes curtos) e liste-os em "topicos". Comece com perguntas de dificuldade 1 e 2 sobre os tópicos mais importantes.`}
 ${focoTopico ? `\nO estudante pediu para focar SOMENTE no tópico: "${focoTopico}".` : `
 Regras de adaptação:
-- Cerca de 60% dos itens nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
+- Cerca de 60% das perguntas nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
-- TODOS os itens são perguntas de múltipla escolha com EXATAMENTE 4 alternativas plausíveis e só uma correta ("correta" = índice 0 a 3 da certa). Varie a posição da certa.
-- "explicacao": por que a alternativa correta está certa (2 a 4 frases, citando o conteúdo do material).
-- "explicacoes": lista com 4 textos curtos, um para cada alternativa NA MESMA ORDEM, dizendo por que aquela alternativa está certa ou errada.
-- Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar tópicos novos se encontrar).
-- Não repita estas perguntas já feitas:
+- TODAS são de múltipla escolha com EXATAMENTE 4 alternativas plausíveis e só uma correta ("correta" = índice 0 a 3 da certa). Varie a posição da certa.
+- "explicacao": por que a correta está certa (1 a 2 frases, citando o material).
+- "explicacoes": 4 textos CURTOS (até 15 palavras cada), um por alternativa NA MESMA ORDEM, dizendo por que está certa ou errada.
+- Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar novos).
+- Não repita estas perguntas:
 ${hist}
 ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
-  const r = await gerarJSON(c, instr, SCH.smart, focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" "), { rotulo: "Preparando suas questões" });
-  for (const t of r.topicos || []) if (t && !I.topicos.includes(t)) I.topicos.push(t);
-  return (r.itens || []).map(it => ({ ...it, tipo: "multipla" })).filter(it => it.enunciado && altsValidas(it)).map(it => {
-    if (!I.topicos.includes(it.topico)) I.topicos.push(it.topico);
-    if (it.tipo === "multipla") normalizarMultipla(it);
-    if (it.tipo === "vf") { it.alternativas = ["Verdadeiro", "Falso"]; it.correta = it.correta === 1 ? 1 : 0; }
+  const foco = focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" ");
+  const preparar = bruto => {
+    const it = { ...bruto, tipo: "multipla" };
+    if (!it.enunciado || !altsValidas(it)) return null;
+    if (it.topico && !I.topicos.includes(it.topico)) I.topicos.push(it.topico);
+    normalizarMultipla(it);
     it.dificuldade = Math.min(3, Math.max(1, it.dificuldade || 1));
     return it;
+  };
+  let lidos = 0; const prontos = [];
+  const entregar = bruto => { const it = preparar(bruto); if (it) { prontos.push(it); aoItem?.(it); } };
+  const r = await gerarJSON(c, instr, SCH.smart, foco, {
+    rotulo: "Preparando suas perguntas",
+    // IA local: lê só os trechos ligados aos pontos fracos (bem mais rápido em arquivos grandes)
+    system: local ? [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco, 7000) }] : undefined,
+    aoParcial: local ? texto => { const itens = itensCompletos(texto); while (lidos < itens.length) entregar(itens[lidos++]); } : undefined
   });
+  for (const t of r.topicos || []) if (t && !I.topicos.includes(t)) I.topicos.push(t);
+  const itens = r.itens || [];
+  while (lidos < itens.length) entregar(itens[lidos++]);
+  return prontos;
 }
 function viewSmart(c) {
   if (S.player?.tipo === "smart") return playerSmart(c);
@@ -1402,30 +1429,77 @@ function playerSmart(c) {
     <p class="muted dica-teclado" style="text-align:center;font-size:12px;margin-top:14px">Atalhos: 1–4 responde · Enter continua</p></div>`;
 }
 
+// Coloca a pergunta na sessão (aparece na hora se você estiver esperando) ou guarda no banco
+function empurrar(c, p, it) {
+  if (S.player === p && !p.fim) {
+    const esperando = p.i >= p.fila.length;
+    p.fila.push(it);
+    if (esperando) { render(); window.scrollTo(0, 0); }
+  } else { garantirSmart(c); (c.inteligente.banco ||= []).push(it); salvar(c); }
+}
 async function smartCarregar(c) {
   const p = S.player;
   try {
-    const itens = await (p.proximo || gerarLoteSmart(c, p.focoTopico));
-    p.proximo = null;
+    if (p.proximo) await p.proximo;
     if (S.player !== p) return;
-    if (!itens.length) throw new Error("A IA não devolveu itens. Tente novamente.");
-    p.fila.push(...itens);
+    if (p.i >= p.fila.length) {
+      p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), p.fila.length ? 4 : 3);
+      await p.proximo;
+    }
+    p.proximo = null;
+    if (S.player === p && p.i >= p.fila.length) throw new Error("A IA não devolveu perguntas válidas. Tente novamente.");
     await salvar(c);
+    smartPrefetch(c);
   } catch (e) {
     p.proximo = null;
     if (S.player === p) { toast(erroMsg(e), true); if (p.i >= p.fila.length) { S.player = null; } }
   }
   render();
 }
+// Sempre gerando à frente: enquanto você lê/responde, a IA já escreve as próximas
 function smartPrefetch(c) {
   const p = S.player;
-  if (!p.proximo && p.fila.length - p.i <= 2 && p.sessao.total > 0) { p.proximo = gerarLoteSmart(c, p.focoTopico); p.proximo.catch(() => { if (S.player === p) p.proximo = null; }); }
+  if (!p || p.tipo !== "smart" || p.fim || p.proximo) return;
+  if (p.fila.length - p.i > 4) return; // já há perguntas suficientes prontas
+  if ((p.falhas || 0) >= 2) return;    // evita insistir se a IA estiver com problema
+  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it))
+    .then(r => { p.falhas = r.length ? 0 : (p.falhas || 0) + 1; })
+    .catch(() => { p.falhas = (p.falhas || 0) + 1; })
+    .finally(() => { if (S.player === p) { p.proximo = null; salvar(c); smartPrefetch(c); } });
+}
+// Guarda as perguntas não respondidas para a próxima vez (abrem na hora)
+function guardarRestantes(c, p) {
+  if (!c || p?.tipo !== "smart") return;
+  const resto = p.fila.slice(p.confirmado ? p.i + 1 : p.i);
+  if (!resto.length) return;
+  garantirSmart(c);
+  c.inteligente.banco = [...resto, ...(c.inteligente.banco || [])].slice(0, 30);
+  salvar(c);
+}
+// Prepara perguntas em segundo plano (IA local/navegador) para o estudo começar sem espera
+S.preparando = {};
+function prepararBanco(c) {
+  if (!c || cfg().provider === "anthropic" || !ativos(c).length || S.preparando[c.id]) return;
+  garantirSmart(c);
+  if ((c.inteligente.banco || []).length >= 3) return;
+  S.preparando[c.id] = gerarLoteSmart(c, null, it => {
+    if (S.player?.tipo === "smart" && S.atual === c.id && !S.player.fim && !S.player.focoTopico) empurrar(c, S.player, it);
+    else { (c.inteligente.banco ||= []).push(it); }
+  }, 4).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
 }
 function smartIniciar(c, focoTopico = null) {
   garantirSmart(c);
-  const inicioDominio = {}; for (const t of c.inteligente.topicos) inicioDominio[t] = c.dominio[t]?.score || 0;
-  S.player = { tipo: "smart", fila: [], i: 0, escolha: null, confirmado: false, virado: false, focoTopico, proximo: null, inicioDominio, sessao: { acertos: 0, total: 0, xp: 0, combo: 0, erros: 0 } };
-  render(); smartCarregar(c);
+  const I = c.inteligente;
+  const inicioDominio = {}; for (const t of I.topicos) inicioDominio[t] = c.dominio[t]?.score || 0;
+  const banco = I.banco || [];
+  const usar = focoTopico ? banco.filter(it => it.topico === focoTopico) : banco.slice();
+  I.banco = banco.filter(it => !usar.includes(it));
+  S.player = { tipo: "smart", fila: usar, i: 0, escolha: null, confirmado: false, virado: false, focoTopico, proximo: null, inicioDominio, sessao: { acertos: 0, total: 0, xp: 0, combo: 0, erros: 0 } };
+  const p = S.player;
+  render(); salvar(c);
+  if (!focoTopico && S.preparando[c.id]) { p.proximo = S.preparando[c.id]; if (!p.fila.length) smartCarregar(c); }
+  else if (!p.fila.length) smartCarregar(c);
+  else smartPrefetch(c);
 }
 async function smartResponder(c, acertou) {
   const p = S.player, it = p.fila[p.i], I = c.inteligente;
@@ -1444,7 +1518,7 @@ async function smartResponder(c, acertou) {
     deck.cards.push({ frente: it.enunciado, verso: resp, topico: it.topico, caixa: 0, proxima: 0 });
   }
   I.historico.push(it.enunciado.slice(0, 140)); if (I.historico.length > 80) I.historico.splice(0, I.historico.length - 80);
-  p.confirmado = true; render(); await salvar(c);
+  p.confirmado = true; render(); smartPrefetch(c); await salvar(c);
 }
 function smartProx(c) {
   const p = S.player, it = p.fila[p.i];
@@ -1556,8 +1630,8 @@ document.addEventListener("click", async e => {
     case "criarCaderno": criarCaderno(); break;
     case "mostrarColar": S.colar = !S.colar; render(); if (S.colar) $("#colarTexto")?.focus(); break;
     case "verMat": S.verMat = S.verMat === id ? null : id; render(); break;
-    case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; S.atual = id; S.player = null; S.verDeck = null; render(); break;
-    case "aba": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
+    case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; guardarRestantes(c, S.player); S.atual = id; S.player = null; S.verDeck = null; render(); prepararBanco(atual()); break;
+    case "aba": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
     case "renomear": { const n = prompt("Novo nome:", c.nome); if (n?.trim()) { c.nome = n.trim(); await salvar(c); render(); } break; }
     case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
     case "escolher": $("#arquivo").click(); break;
@@ -1568,7 +1642,7 @@ document.addEventListener("click", async e => {
     case "ocr": lerComOCR(id); break;
     case "gerar": gerar(id); break;
     case "excluir": if (confirm("Excluir este item?")) { c[el.dataset.tipo] = c[el.dataset.tipo].filter(x => x.id !== id); await salvar(c); render(); } break;
-    case "sair": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); S.player = null; render(); break;
+    case "sair": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
     case "estudarDeck": iniciarFlash(id, false); break;
     case "estudarTudo": iniciarFlash(id, true); break;
     case "verDeck": S.verDeck = S.verDeck === id ? null : id; render(); break;
@@ -1589,7 +1663,7 @@ document.addEventListener("click", async e => {
     case "salvarCfg": lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
-    case "inicio": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); S.atual = null; S.player = null; render(); break;
+    case "inicio": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
     case "trocarIcone": { const i = ICONES_KIT.indexOf(c.icone || "📘"); c.icone = ICONES_KIT[(i + 1) % ICONES_KIT.length]; await salvar(c); render(); break; }
     case "smartGear": S.player.gear = !S.player.gear; render(); if (S.player.gear) $("#smartAjuste")?.focus(); break;
     case "sMostrar": S.player.escolha = null; smartResponder(c, false); break;
@@ -1602,7 +1676,7 @@ document.addEventListener("click", async e => {
     case "sAuto": smartResponder(c, id === "1"); break;
     case "sProx": smartProx(c); break;
     case "smartAjustar": { const t = $("#smartAjuste").value.trim(); if (!t) return; garantirSmart(c); c.inteligente.prefs = (c.inteligente.prefs ? c.inteligente.prefs + "\n" : "") + t; S.player.proximo = null; S.player.fila.length = Math.min(S.player.fila.length, S.player.i + 1); await salvar(c); toast("Ajuste aplicado — as próximas questões vão seguir isso."); smartPrefetch(c); render(); break; }
-    case "smartEncerrar": if (S.player.sessao.total) { S.player.fim = true; S.player.proximo = null; render(); } else { S.player = null; render(); } break;
+    case "smartEncerrar": guardarRestantes(c, S.player); if (S.player.sessao.total) { S.player.fim = true; S.player.proximo = null; render(); } else { S.player = null; render(); } prepararBanco(c); break;
     case "zerarSmart": if (confirm("Zerar todo o progresso do estudo inteligente deste caderno?")) { c.dominio = {}; c.inteligente = null; garantirSmart(c); await salvar(c); render(); } break;
     case "tema": { const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); lsSet("fp-tema", cur === "dark" ? "light" : "dark"); aplicarTema(); break; }
     case "exportar": {
