@@ -1014,8 +1014,9 @@ function barraNivel(c) {
 function render() {
   const c = atual();
   const emEstudo = !!S.player;
-  $("#rail").innerHTML = `<button class="ri ${!c ? "on" : ""}" data-act="inicio">${svg("inicio")}Início</button><div class="sep"></div>` +
-    ABAS.map(([k, n]) => `<button class="ri ${c && S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}" ${c ? "" : "disabled"}>${svg(k)}${n}</button>`).join("") +
+  // As opções de estudo só aparecem depois de escolher um caderno
+  $("#rail").innerHTML = `<button class="ri ${!c ? "on" : ""}" data-act="inicio">${svg("inicio")}Início</button>` +
+    (c ? `<div class="sep"></div>` + ABAS.map(([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}${n}</button>`).join("") : "") +
     `<button class="ri fim" data-act="config">${svg("config")}Ajustes</button>`;
   $("#iaChip span").textContent = nomeIA();
   $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : viewHome();
