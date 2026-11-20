@@ -238,8 +238,8 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
       </div>
       <label>Contexto (tokens) — quanto material a IA consegue ler de uma vez
         <select id="cfgOCtx">
-          <option value="8192">8 mil (PC fraco)</option>
-          <option value="16384">16 mil (recomendado)</option>
+          <option value="8192">8 mil (recomendado — mais rápido)</option>
+          <option value="16384">16 mil (lê mais material, mais lento)</option>
           <option value="32768">32 mil (mais lento)</option>
           <option value="65536">64 mil (precisa de bastante RAM/VRAM)</option>
           <option value="131072">128 mil</option>
@@ -247,8 +247,8 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
       </label>
       <div class="muted" style="font-size:13px;line-height:1.5">
         <b>Como instalar:</b> baixe em <b>ollama.com/download</b>, instale e rode no PowerShell:<br>
-        <code>ollama pull qwen3:8b</code> (recomendado, ~5 GB, 16 GB de RAM)<br>
-        PC mais fraco: <code>ollama pull qwen3:4b</code> · Para ler fotos: <code>ollama pull gemma3:4b</code><br>
+        <code>ollama pull qwen3:4b-instruct</code> (recomendado, ~2,5 GB, rápido)<br>
+        PC mais forte: <code>ollama pull qwen3:8b</code> · Para ler fotos: <code>ollama pull gemma3:4b</code><br>
         Depois clique em “Detectar modelos”.
       </div>
     </div>
@@ -335,7 +335,7 @@ async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } ca
 function novoCaderno(nome) {
   return { id: uid(), nome, criado: Date.now(), atualizado: Date.now(), materiais: [], resumos: [], decks: [], quizzes: [], provas: [], chat: [] };
 }
-const cfg = () => ({ provider: "anthropic", apiKey: "", model: "claude-opus-5-5", effort: "medium", ollamaUrl: "http://localhost:11434", ollamaModel: "", ollamaCtx: 16384, ...lsGet("fp-config", {}) });
+const cfg = () => ({ provider: "anthropic", apiKey: "", model: "claude-opus-5-5", effort: "medium", ollamaUrl: "http://localhost:11434", ollamaModel: "", ollamaCtx: 8192, ...lsGet("fp-config", {}) });
 
 /* ================= Claude ================= */
 const SYS_BASE = `Você é um assistente de estudos que cria materiais de revisão para provas a partir dos documentos do estudante.
@@ -412,7 +412,7 @@ async function motorWebLLM(modelo) {
   catch (e) { throw new Error("Não consegui carregar a IA do navegador: " + (e?.message || e) + ". Tente o modelo Leve em Configurações."); }
   finally { WL.carregando = null; progressoIA("", null); }
 }
-async function chamarWebLLM(s, { system, messages, schema }) {
+async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo }) {
   const modelo = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
   const eng = await motorWebLLM(modelo);
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
@@ -420,21 +420,43 @@ async function chamarWebLLM(s, { system, messages, schema }) {
     if (typeof m.content !== "string") throw new Error("A IA do navegador só lê texto. Para PDFs escaneados e fotos, cole o texto na aba Materiais.");
     msgs.push({ role: m.role, content: m.content });
   }
-  const req = { messages: msgs, temperature: schema ? 0.5 : 0.7, max_tokens: 2800, frequency_penalty: 0.3 };
+  const limite = Math.min(maxTokens || 2800, 2800);
+  const req = { messages: msgs, temperature: schema ? 0.5 : 0.7, max_tokens: limite, frequency_penalty: 0.3, stream: true };
   if (schema) req.response_format = { type: "json_object", schema: JSON.stringify(schema) };
   if (MODELOS_WEB[modelo]?.pensa) req.extra_body = { enable_thinking: false };
-  progressoIA("A IA está escrevendo… (roda no seu aparelho)", 0.5);
-  let r;
-  try { r = await eng.chat.completions.create(req); }
-  catch (e) {
+  const prog = progressoEscrita(limite, rotulo);
+  let texto = "", fim = null;
+  // Se a IA ficar 2 minutos sem escrever nada, interrompe em vez de travar para sempre
+  let ultimo = Date.now(), parado = false;
+  const vigia = setInterval(() => { if (Date.now() - ultimo > 120000) { parado = true; try { eng.interruptGenerate(); } catch {} } }, 5000);
+  try {
+    const partes = await eng.chat.completions.create(req);
+    for await (const p of partes) {
+      const ch = p.choices?.[0];
+      if (ch?.delta?.content) { texto += ch.delta.content; ultimo = Date.now(); prog(texto); }
+      if (ch?.finish_reason) fim = ch.finish_reason;
+    }
+  } catch (e) {
     if (/context|token|exceed/i.test(e?.message || "")) throw new Error("O conteúdo ficou grande demais para a IA do navegador. Use um foco mais específico ou peça menos itens.");
     throw e;
-  } finally { progressoIA("", null); }
-  const ch = r.choices[0];
-  if (ch.finish_reason === "length") throw new Error("A resposta da IA do navegador foi cortada. Peça menos itens.");
-  const texto = ch.message.content || "";
+  } finally { clearInterval(vigia); progressoIA("", null); }
+  if (parado) throw new Error("A IA do navegador parou de responder. Tente de novo (se repetir, escolha um tamanho menor de IA em Ajustes).");
+  if (fim === "length" && schema) throw new Error("A resposta da IA do navegador foi cortada. Peça menos itens.");
   return schema ? limparJSON(texto) : texto.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 }
+// Barra de progresso real: conta as palavras que a IA já escreveu
+function progressoEscrita(limite, rotulo) {
+  progressoIA(`${rotulo || "A IA está escrevendo"}… lendo o material`, 0.02);
+  let n = 0;
+  return texto => {
+    if (++n % 6) return;
+    const palavras = (texto.match(/\S+/g) || []).length;
+    progressoIA(`${rotulo || "A IA está escrevendo"}… ${palavras} palavras`, Math.min(0.95, n / (limite * 0.6)));
+  };
+}
+// IAs locais/navegador atendem um pedido por vez: enfileira para não travar
+let filaIA = Promise.resolve();
+function umPorVez(fn) { const p = filaIA.then(fn, fn); filaIA = p.catch(() => {}); return p; }
 
 /* ---------- IA local (Ollama) ---------- */
 function textoDoSystem(system) { return Array.isArray(system) ? system.map(b => b.text).join("\n\n") : String(system || ""); }
@@ -445,7 +467,7 @@ function limparJSON(t) {
   if (m) { try { return JSON.parse(m[0]); } catch {} }
   throw new Error("A IA local devolveu um formato inválido. Tente de novo, peça menos itens ou use um modelo maior.");
 }
-async function chamarOllama(s, { system, messages, schema }) {
+async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo }) {
   if (!s.ollamaModel) { abrirConfig(); throw new Error("Escolha um modelo do Ollama em Configurações."); }
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido, sem texto extra." : "") }];
   for (const m of messages) {
@@ -462,11 +484,14 @@ async function chamarOllama(s, { system, messages, schema }) {
   const tokens = Math.round(msgs.reduce((n, m) => n + m.content.length, 0) / 3.5);
   const ctx = Math.max(+s.ollamaCtx || 32768, 4096);
   if (tokens > ctx * 0.8) throw new Error(`Os materiais têm ≈${tokens.toLocaleString("pt-BR")} tokens, mais do que o contexto da IA local (${ctx.toLocaleString("pt-BR")}). Desmarque materiais, use um foco menor ou aumente o contexto em Configurações.`);
+  const limite = Math.min(maxTokens || 4000, 4000);
+  progressoIA(`${rotulo || "A IA está escrevendo"}… lendo o material`, 0.02);
+  const ctl = new AbortController();
   let resp;
   try {
     resp = await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/chat", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: s.ollamaModel, messages: msgs, stream: false, think: false, format: schema || undefined, options: { num_ctx: ctx, temperature: schema ? 0.4 : 0.7 } })
+      method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal,
+      body: JSON.stringify({ model: s.ollamaModel, messages: msgs, stream: true, think: false, format: schema || undefined, options: { num_ctx: ctx, num_predict: limite, temperature: schema ? 0.4 : 0.7 } })
     });
   } catch { throw new Error("Não consegui falar com o Ollama. Ele está aberto? (verifique o ícone na bandeja ou rode \"ollama serve\")"); }
   if (!resp.ok) {
@@ -474,15 +499,36 @@ async function chamarOllama(s, { system, messages, schema }) {
     if (resp.status === 404) throw new Error(`Modelo "${s.ollamaModel}" não encontrado. Rode: ollama pull ${s.ollamaModel}`);
     throw new Error("Erro do Ollama: " + t.slice(0, 200));
   }
-  const data = await resp.json();
-  const texto = data.message?.content || "";
+  // Lê a resposta em pedaços (streaming) para mostrar o progresso real
+  const prog = progressoEscrita(limite, rotulo);
+  const leitor = resp.body.getReader(), dec = new TextDecoder();
+  let buf = "", texto = "", ultimo = Date.now(), parado = false;
+  const vigia = setInterval(() => { if (Date.now() - ultimo > 180000) { parado = true; ctl.abort(); } }, 5000);
+  try {
+    for (;;) {
+      const { value, done } = await leitor.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const linha = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!linha) continue;
+        const j = JSON.parse(linha);
+        if (j.error) throw new Error("Erro do Ollama: " + j.error);
+        if (j.message?.content) { texto += j.message.content; ultimo = Date.now(); prog(texto); }
+      }
+    }
+  } catch (e) {
+    if (parado) throw new Error("A IA local parou de responder. Tente de novo.");
+    throw e;
+  } finally { clearInterval(vigia); progressoIA("", null); }
   return schema ? limparJSON(texto) : texto.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 }
 
 async function chamar(opts) {
   const s = cfg();
-  if (s.provider === "ollama") return chamarOllama(s, opts);
-  if (s.provider === "webllm") return chamarWebLLM(s, opts);
+  if (s.provider === "ollama") return umPorVez(() => chamarOllama(s, opts));
+  if (s.provider === "webllm") return umPorVez(() => chamarWebLLM(s, opts));
   const { system, messages, schema, maxTokens = 32000 } = opts;
   if (!s.apiKey) { abrirConfig(); throw new Error("Configure sua chave da API da Anthropic primeiro."); }
   const client = new Anthropic({ apiKey: s.apiKey, dangerouslyAllowBrowser: true });
@@ -502,11 +548,11 @@ async function chamar(opts) {
   return schema ? JSON.parse(texto) : texto;
 }
 
-function gerarJSON(c, instrucao, schema, foco = "") {
+function gerarJSON(c, instrucao, schema, foco = "", extra = {}) {
   return chamar({
-    system: [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
+    system: extra.system || [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: instrucao }],
-    schema
+    schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo
   });
 }
 
@@ -778,6 +824,39 @@ async function emLotes(qtd, campo, chave, fn) {
   return res;
 }
 
+// IAs pequenas: o guia é escrito por partes (tópicos → uma seção por vez), aparecendo na tela aos poucos
+async function gerarGuiaEmPartes(c, foco) {
+  const g = { id: uid(), criado: Date.now(), foco, titulo: "Guia de estudo", secoes: [], conceitos: [], perguntas_revisao: [], gerando: true, status: "Lendo os materiais e escolhendo os tópicos…" };
+  c.resumos.unshift(g); render();
+  const f = foco ? ` Concentre-se em: ${foco}.` : "";
+  const base = blocoMateriais(c, foco); // mesmo trecho em todas as partes: a IA não precisa reler tudo a cada seção
+  try {
+    const plano = await gerarJSON(c, `Liste de 4 a 7 tópicos principais destes materiais, com os NOMES REAIS dos assuntos (ex.: 'Edema', 'Filtração glomerular'), nunca nomes genéricos como 'Tópico 1', em ordem lógica, e dê um título específico ao guia.${f}`,
+      obj({ titulo: str, topicos: arr(str) }), foco, { maxTokens: 400, rotulo: "Escolhendo os tópicos", system: [{ type: "text", text: SYS_BASE }, { type: "text", text: base }] });
+    g.titulo = plano.titulo || g.titulo;
+    const tops = [...new Set((plano.topicos || []).map(t => String(t).trim()).filter(Boolean))].slice(0, 7);
+    if (!tops.length) throw new Error("a IA não encontrou tópicos nos materiais");
+    for (const [i, t] of tops.entries()) {
+      g.status = `Escrevendo a parte ${i + 1} de ${tops.length}: ${t}`; render();
+      const txt = await chamar({
+        system: [{ type: "text", text: SYS_BASE }, { type: "text", text: base }],
+        messages: [{ role: "user", content: `Escreva a seção "${t}" de um guia de estudo, em Markdown: explicação clara e didática (6 a 12 linhas), com listas e **negrito** nos termos-chave. Não repita o título da seção. Use só os materiais.` }],
+        maxTokens: 900, rotulo: `Parte ${i + 1} de ${tops.length}`
+      });
+      g.secoes.push({ titulo: t, conteudo: txt.replace(/^\s*#{1,6}[^\n]*\n+/, "") }); await salvar(c); render();
+    }
+    g.status = "Criando o glossário e as perguntas de revisão…"; render();
+    try {
+      const r = await gerarJSON(c, `Com base nos materiais, crie um glossário com 6 a 10 conceitos-chave (termo e definição curta) e 5 perguntas de revisão.${f}`,
+        obj({ conceitos: arr(obj({ termo: str, definicao: str })), perguntas_revisao: arr(str) }), foco, { maxTokens: 1200, rotulo: "Glossário", system: [{ type: "text", text: SYS_BASE }, { type: "text", text: base }] });
+      g.conceitos = r.conceitos || []; g.perguntas_revisao = r.perguntas_revisao || [];
+    } catch {}
+  } catch (e) {
+    if (!g.secoes.length) c.resumos = c.resumos.filter(x => x !== g);
+    throw e;
+  } finally { delete g.gerando; delete g.status; await salvar(c); }
+}
+
 async function gerar(tipo) {
   const c = atual();
   if (!ativos(c).length) return toast("Adicione materiais na aba Materiais primeiro.", true);
@@ -787,7 +866,9 @@ async function gerar(tipo) {
   const d = dif === "mista" ? "Misture níveis de dificuldade (fácil, médio e difícil)." : `Nível de dificuldade: ${dif}.`;
   S.ocupado = tipo; render();
   try {
-    if (tipo === "resumo") {
+    if (tipo === "resumo" && cfg().provider !== "anthropic") {
+      await gerarGuiaEmPartes(c, foco);
+    } else if (tipo === "resumo") {
       const r = await gerarJSON(c, `Crie um resumo de estudo completo e bem estruturado dos materiais, organizado por tópicos (seções com conteúdo em Markdown, usando listas, negrito e tabelas quando ajudar). Inclua um glossário de conceitos-chave e de 5 a 10 perguntas de revisão.${f}`, SCH.resumo);
       c.resumos.unshift({ id: uid(), criado: Date.now(), foco, ...r });
     } else if (tipo === "flash") {
@@ -949,7 +1030,7 @@ function viewResumo(c) {
   const sem = semMateriais(c); if (sem) return sem;
   return `<div class="stack">${formGerar("resumo", "resumo", { qtd: false })}
   ${c.resumos.length ? "" : `<div class="empty">Nenhum resumo gerado ainda.</div>`}
-  ${c.resumos.map(r => `<article class="card">
+  ${c.resumos.map(r => `<article class="card">${r.gerando ? `<div class="badge warn" style="display:inline-flex;gap:6px;align-items:center;margin-bottom:10px;text-transform:none;letter-spacing:0"><span class="spin"></span>${esc(r.status || "Gerando…")}</div>` : ""}
     <div class="head" style="margin-bottom:8px"><div><h2 style="margin:0">${esc(r.titulo)}</h2><div class="muted" style="font-size:12px">${fmtData(r.criado)}${r.foco ? " · foco: " + esc(r.foco) : ""}</div></div>
     <button class="btn small danger" data-act="excluir" data-tipo="resumos" data-id="${r.id}">Excluir</button></div>
     ${r.secoes.map(s => `<h3 style="margin-top:18px">${esc(s.titulo)}</h3><div class="md">${md(s.conteudo)}</div>`).join("")}
@@ -1186,7 +1267,7 @@ Regras de adaptação:
 - Não repita estas perguntas já feitas:
 ${hist}
 ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
-  const r = await gerarJSON(c, instr, SCH.smart, focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" "));
+  const r = await gerarJSON(c, instr, SCH.smart, focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" "), { rotulo: "Preparando suas questões" });
   for (const t of r.topicos || []) if (t && !I.topicos.includes(t)) I.topicos.push(t);
   return (r.itens || []).filter(it => it.enunciado && altsValidas(it)).map(it => {
     if (!I.topicos.includes(it.topico)) I.topicos.push(it.topico);
@@ -1497,6 +1578,7 @@ document.addEventListener("dragleave", e => { e.target.closest?.("#drop")?.class
 document.addEventListener("drop", e => { const d = e.target.closest?.("#drop"); if (d) { e.preventDefault(); d.classList.remove("over"); adicionarArquivos([...e.dataTransfer.files]); } });
 
 /* ================= início ================= */
+{ const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
 aplicarTema();
 try { db = await abrirDB(); S.cadernos = (await dbAll()) || []; }
 catch (e) { toast("Armazenamento local indisponível — os dados não serão salvos.", true); }
@@ -1504,14 +1586,21 @@ render();
 // Detecta a IA local automaticamente quando não há chave do Claude configurada
 (async () => {
   const s = cfg();
+  // Troca o qwen3 "que sempre pensa" (lento) pela versão instruct, se estiver instalada
+  if (s.provider === "ollama" && /^qwen3:(4b|8b)$/.test(s.ollamaModel || "")) {
+    try {
+      const { models = [] } = await (await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/tags")).json();
+      if (models.some(m => m.name === "qwen3:4b-instruct")) { lsSet("fp-config", { ...lsGet("fp-config", {}), ollamaModel: "qwen3:4b-instruct", ollamaCtx: 8192 }); render(); toast("IA local atualizada para qwen3:4b-instruct (bem mais rápida)."); }
+    } catch {}
+  }
   if (s.apiKey || (s.provider === "ollama" && s.ollamaModel) || s.provider === "webllm") return;
   try {
     const ctl = new AbortController(); setTimeout(() => ctl.abort(), 2500);
     const { models = [] } = await (await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/tags", { signal: ctl.signal })).json();
     if (!models.length) throw 0;
     const nomes = models.map(m => m.name);
-    const escolhido = ["qwen3:4b", "qwen3:8b"].find(n => nomes.includes(n)) || nomes[0];
-    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: escolhido, ollamaCtx: s.ollamaCtx || 16384 });
+    const escolhido = ["qwen3:4b-instruct", "qwen3:4b", "qwen3:8b"].find(n => nomes.includes(n)) || nomes[0];
+    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: escolhido, ollamaCtx: 8192 });
     render(); toast(`IA local detectada e ativada: ${escolhido}`);
   } catch {
     // Sem Ollama: usa a IA grátis que roda no próprio navegador (celular ou PC)
