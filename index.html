@@ -24,15 +24,15 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#11111b; --panel:#1a1a28; --panel2:#232336; --rail:#161624; --text:#ebebf5; --muted:#9a9bb5; --line:#2c2d42;
-    --accent:#8b83ff; --accent2:#b18cff; --accent-soft:#272550; --navy:#2f2b66;
-    --ok:#3fd18c; --ok-soft:#143425; --bad:#ff6b7c; --bad-soft:#3b1c24; --warn:#f2b54f; --warn-soft:#3a2d14; --shadow:none;
+    --bg:#110b2e; --panel:#1b1446; --panel2:#251d5c; --rail:#0c0824; --text:#ffffff; --muted:#c4c0ec; --line:#342b74;
+    --accent:#4d8dff; --accent2:#8b6bff; --accent-soft:#22357a; --navy:#2a2170;
+    --ok:#3fd18c; --ok-soft:#123a2e; --bad:#ff6b7c; --bad-soft:#47203a; --warn:#ffc35a; --warn-soft:#3d3018; --shadow:0 4px 18px rgba(0,0,0,.25);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#11111b; --panel:#1a1a28; --panel2:#232336; --rail:#161624; --text:#ebebf5; --muted:#9a9bb5; --line:#2c2d42;
-  --accent:#8b83ff; --accent2:#b18cff; --accent-soft:#272550; --navy:#2f2b66;
-  --ok:#3fd18c; --ok-soft:#143425; --bad:#ff6b7c; --bad-soft:#3b1c24; --warn:#f2b54f; --warn-soft:#3a2d14; --shadow:none;
+  --bg:#110b2e; --panel:#1b1446; --panel2:#251d5c; --rail:#0c0824; --text:#ffffff; --muted:#c4c0ec; --line:#342b74;
+  --accent:#4d8dff; --accent2:#8b6bff; --accent-soft:#22357a; --navy:#2a2170;
+  --ok:#3fd18c; --ok-soft:#123a2e; --bad:#ff6b7c; --bad-soft:#47203a; --warn:#ffc35a; --warn-soft:#3d3018; --shadow:0 4px 18px rgba(0,0,0,.25);
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 "Nunito","Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
@@ -738,7 +738,9 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
 
 /* ---------- Gemini na nuvem (Firebase AI Logic, plano grátis) ---------- */
 // Do mais capaz ao mais leve: se um atingir o limite grátis, tenta o próximo
-const MODELOS_GEMINI = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+// Flash-Lite primeiro: rápido e quase sempre disponível no plano grátis; os outros são reserva
+const MODELOS_GEMINI = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-4-hydrogen"];
+const GEM_PAUSA = {}; // modelo sobrecarregado → pula por alguns minutos
 const GEM = { ai: null, AI: null, carregando: null };
 async function motorGemini() {
   if (GEM.ai) return GEM;
@@ -762,7 +764,9 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: partesGemini(m.content) }));
   const limite = Math.min(maxTokens || 8192, 32768);
   let ultimoErro;
-  for (const [i, nome] of MODELOS_GEMINI.entries()) {
+  const livres = MODELOS_GEMINI.filter(n => !(GEM_PAUSA[n] > Date.now()));
+  const ordem = livres.length ? livres : MODELOS_GEMINI;
+  for (const [i, nome] of ordem.entries()) {
     const prog = fundo ? () => {} : progressoEscrita(Math.min(limite, 3000), rotulo);
     try {
       const modelo = AI.getGenerativeModel(ai, {
@@ -782,13 +786,16 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
       if (!fundo) progressoIA("", null);
       ultimoErro = e;
       const msg = String(e?.message || e);
-      // limite grátis do modelo atingido ou modelo indisponível: tenta o próximo
-      if (/429|quota|exhausted|rate|not.?found|404|unavailable|503|overloaded/i.test(msg) && i < MODELOS_GEMINI.length - 1) continue;
+      // limite grátis, modelo sobrecarregado ("high demand") ou indisponível: tenta o próximo
+      if (/(429|500|502|503|504|404)|quota|exhausted|rate.?limit|high demand|overload|unavailable|not.?found|internal/i.test(msg)) {
+        GEM_PAUSA[nome] = Date.now() + 5 * 60000;
+        if (i < ordem.length - 1) continue;
+      }
       break;
     }
   }
   const msg = String(ultimoErro?.message || ultimoErro);
-  const err = new Error(/429|quota|exhausted|rate/i.test(msg) ? "o limite grátis do Gemini acabou por hoje" : /app.?check|recaptcha|403|permission/i.test(msg) ? "a proteção do Gemini (App Check) recusou o acesso" : /network|fetch|offline/i.test(msg) ? "sem internet" : msg.slice(0, 160));
+  const err = new Error(/429|quota|exhausted|rate.?limit/i.test(msg) ? "o limite grátis do Gemini acabou por agora" : /50[0-4]|high demand|overload/i.test(msg) ? "os servidores do Gemini estão sobrecarregados agora" : /app.?check|recaptcha|403|permission/i.test(msg) ? "a proteção do Gemini (App Check) recusou o acesso" : /network|fetch|offline/i.test(msg) ? "sem internet" : msg.slice(0, 160));
   err.reserva = true; // pode usar a IA do navegador no lugar
   throw err;
 }
@@ -1943,8 +1950,8 @@ const FB_CONFIG = {
   messagingSenderId: "242917076224",
   appId: "1:242917076224:web:9d8f141a5155f32dddd7e5"
 };
-// Chave do site do reCAPTCHA v3 (pública) — protege o uso do Gemini (App Check)
-const RECAPTCHA_SITE_KEY = null;
+// Chave do site do reCAPTCHA Enterprise (pública) — protege o uso do Gemini (App Check)
+const RECAPTCHA_SITE_KEY = "6LeIkikuAAAAABs00JvGk_Jk_bMjYios3stGkSKg";
 const GEMINI_OK = () => !!(FB_CONFIG && RECAPTCHA_SITE_KEY);
 let appFirebaseP = null;
 function appFirebase() {
@@ -1954,7 +1961,7 @@ function appFirebase() {
     const app = initializeApp(FB_CONFIG);
     if (RECAPTCHA_SITE_KEY) {
       const AC = await import(base + "firebase-app-check.js");
-      AC.initializeAppCheck(app, { provider: new AC.ReCaptchaV3Provider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+      AC.initializeAppCheck(app, { provider: new AC.ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
     }
     return app;
   })();
