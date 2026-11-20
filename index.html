@@ -1935,7 +1935,14 @@ async function perguntar(txt) {
 
 /* ================= conta e nuvem (Firebase) ================= */
 // Configuração pública do projeto Firebase (não é senha: só identifica o projeto)
-const FB_CONFIG = null;
+const FB_CONFIG = {
+  apiKey: "AIzaSyBiluHvIHKlk5pYD1uQFXulhbmmgA5Mz70",
+  authDomain: "foco-prova-b2c5c.firebaseapp.com",
+  projectId: "foco-prova-b2c5c",
+  storageBucket: "foco-prova-b2c5c.firebasestorage.app",
+  messagingSenderId: "242917076224",
+  appId: "1:242917076224:web:9d8f141a5155f32dddd7e5"
+};
 // Chave do site do reCAPTCHA v3 (pública) — protege o uso do Gemini (App Check)
 const RECAPTCHA_SITE_KEY = null;
 const GEMINI_OK = () => !!(FB_CONFIG && RECAPTCHA_SITE_KEY);
