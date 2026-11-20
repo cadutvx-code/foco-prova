@@ -414,10 +414,19 @@ function novoCaderno(nome) {
 const cfg = () => ({ provider: "anthropic", apiKey: "", model: "claude-opus-5-5", effort: "medium", ollamaUrl: "http://localhost:11434", ollamaModel: "", ollamaCtx: 8192, ...lsGet("fp-config", {}) });
 
 /* ================= Claude ================= */
+// Idioma do conteúdo gerado: escolhido no caderno; se não escolhido, o mesmo do material
+function idiomaCaderno(c) {
+  if (c?.idioma) return c.idioma;
+  const t = (c ? ativos(c) : []).map(m => m.texto.slice(0, 2500)).join(" ");
+  return t && idiomaDoTexto(t) === "spa" ? "es" : "pt";
+}
+const linhaIdioma = c => idiomaCaderno(c) === "es"
+  ? "\nIDIOMA OBRIGATÓRIO: escreva TODO o conteúdo (perguntas, alternativas, explicações, resumos, flashcards) em ESPANHOL."
+  : "\nIDIOMA OBRIGATÓRIO: escreva TODO o conteúdo em PORTUGUÊS do Brasil.";
 const SYS_BASE = `Você é um assistente de estudos que cria materiais de revisão para provas a partir dos documentos do estudante.
 Regras:
 - Use SOMENTE o conteúdo dos materiais fornecidos. Não invente fatos que não estejam neles.
-- Escreva em português do Brasil, de forma clara e didática.
+- Escreva de forma clara e didática, no idioma indicado abaixo.
 - Priorize os conceitos mais importantes e com maior chance de cair em prova.
 - Quando útil, indique de onde veio a informação (nome do documento, página ou slide).`;
 
@@ -754,7 +763,7 @@ async function chamar(opts) {
 
 function gerarJSON(c, instrucao, schema, foco = "", extra = {}) {
   return chamar({
-    system: extra.system || [{ type: "text", text: SYS_BASE }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
+    system: extra.system || [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: instrucao }],
     schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo, aoParcial: extra.aoParcial, fundo: extra.fundo
   });
@@ -997,11 +1006,13 @@ function lerForm() {
   if ($("#g-tempo")) S.form.tempo = Math.max(0, +$("#g-tempo").value || 0);
   if ($("#g-tipos")) S.form.tipos = [...document.querySelectorAll("#g-tipos input:checked")].map(i => i.value);
 }
+const ROTULO_RESPOSTA = /^\s*(correta|correto|certa|errada|errado|incorreta|correcta|correcto|incorrecta|incorrecto|correct|incorrect|verdadeir[oa]|fals[oa])\s*[:\-–.]\s*/i;
 // Descarta questões com alternativas vazias, repetidas ou sem gabarito (comum em IAs pequenas)
 function altsValidas(x) {
   if (!Array.isArray(x.alternativas) || x.tipo === "dissertativa" || x.tipo === "flashcard" || x.tipo === "licao" || x.frente) return true;
   if (x.tipo === "vf") return true;
-  const alts = x.alternativas.map(a => String(a).replace(/^\s*(?:[A-Ea-e]|[1-5])\s*[).:\-–]\s+/, "").trim());
+  // tira "A)", "1." e rótulos que entregam a resposta ("Errada:", "Correcta:"…)
+  const alts = x.alternativas.map(a => String(a).replace(/^\s*(?:[A-Ea-e]|[1-5])\s*[).:\-–]\s+/, "").replace(ROTULO_RESPOSTA, "").trim());
   const letras = alts.map(a => a.replace(/[^\p{L}\p{N}]/gu, ""));
   if (alts.length < 3 || letras.some(l => l.length < 2)) return false;
   if (new Set(letras.map(l => l.toLowerCase())).size !== letras.length) return false;
@@ -1042,14 +1053,14 @@ async function gerarGuiaEmPartes(c, foco) {
   const base = blocoMateriais(c, foco); // mesmo trecho em todas as partes: a IA não precisa reler tudo a cada seção
   try {
     const plano = await gerarJSON(c, `Liste de 4 a 7 tópicos principais destes materiais, com os NOMES REAIS dos assuntos (ex.: 'Edema', 'Filtração glomerular'), nunca nomes genéricos como 'Tópico 1', em ordem lógica, e dê um título específico ao guia.${f}`,
-      obj({ titulo: str, topicos: arr(str) }), foco, { maxTokens: 400, rotulo: "Escolhendo os tópicos", system: [{ type: "text", text: SYS_BASE }, { type: "text", text: base }] });
+      obj({ titulo: str, topicos: arr(str) }), foco, { maxTokens: 400, rotulo: "Escolhendo os tópicos", system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: base }] });
     g.titulo = plano.titulo || g.titulo;
     const tops = [...new Set((plano.topicos || []).map(t => String(t).trim()).filter(Boolean))].slice(0, 7);
     if (!tops.length) throw new Error("a IA não encontrou tópicos nos materiais");
     for (const [i, t] of tops.entries()) {
       g.status = `Escrevendo a parte ${i + 1} de ${tops.length}: ${t}`; render();
       const txt = await chamar({
-        system: [{ type: "text", text: SYS_BASE }, { type: "text", text: base }],
+        system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: base }],
         messages: [{ role: "user", content: `Escreva a seção "${t}" de um guia de estudo, em Markdown: explicação clara e didática (6 a 12 linhas), com listas e **negrito** nos termos-chave. Não repita o título da seção. Use só os materiais.` }],
         maxTokens: 900, rotulo: `Parte ${i + 1} de ${tops.length}`
       });
@@ -1058,7 +1069,7 @@ async function gerarGuiaEmPartes(c, foco) {
     g.status = "Criando o glossário e as perguntas de revisão…"; render();
     try {
       const r = await gerarJSON(c, `Com base nos materiais, crie um glossário com 6 a 10 conceitos-chave (termo e definição curta) e 5 perguntas de revisão.${f}`,
-        obj({ conceitos: arr(obj({ termo: str, definicao: str })), perguntas_revisao: arr(str) }), foco, { maxTokens: 1200, rotulo: "Glossário", system: [{ type: "text", text: SYS_BASE }, { type: "text", text: base }] });
+        obj({ conceitos: arr(obj({ termo: str, definicao: str })), perguntas_revisao: arr(str) }), foco, { maxTokens: 1200, rotulo: "Glossário", system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: base }] });
       g.conceitos = r.conceitos || []; g.perguntas_revisao = r.perguntas_revisao || [];
     } catch {}
   } catch (e) {
@@ -1116,14 +1127,16 @@ function normalizarMultipla(q) {
 }
 // Explicação depois de responder: por que a certa está certa e por que a marcada (errada) está errada
 function explicacaoHTML(q, escolha) {
+  const es = idiomaCaderno(atual()) === "es";
   const acertou = escolha === q.correta;
-  const porQue = i => (q.explicacoes?.[i] || "").trim();
+  const porQue = i => (q.explicacoes?.[i] || "").trim().replace(ROTULO_RESPOSTA, "");
   const certa = (q.explicacao || "").trim() || porQue(q.correta);
   const errada = escolha !== null && escolha >= 0 && !acertou ? porQue(escolha) : "";
-  const carregando = `<span class="muted"><span class="spin"></span> escrevendo a explicação…</span>`;
-  let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? "✔ Correto!" : escolha === null ? `A resposta certa é a ${q.correta + 1}.` : `✘ Errado — a certa é a ${q.correta + 1}.`}</p>`;
-  if (!acertou && escolha !== null && escolha >= 0) h += `<p><b>Por que a ${escolha + 1} está errada:</b> ${errada ? esc(errada) : explicandoAgora(q) ? carregando : ""}</p>`;
-  h += `<p><b>Por que a ${q.correta + 1} está certa:</b></p>${certa ? md(certa) : explicandoAgora(q) ? `<p>${carregando}</p>` : ""}`;
+  const carregando = `<span class="muted"><span class="spin"></span> ${es ? "escribiendo la explicación…" : "escrevendo a explicação…"}</span>`;
+  const n1 = q.correta + 1, n2 = escolha + 1;
+  let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `La respuesta correcta es la ${n1}.` : `A resposta certa é a ${n1}.`) : (es ? `✘ Incorrecto — la correcta es la ${n1}.` : `✘ Errado — a certa é a ${n1}.`)}</p>`;
+  if (!acertou && escolha !== null && escolha >= 0) h += `<p><b>${es ? `Por qué la ${n2} es incorrecta:` : `Por que a ${n2} está errada:`}</b> ${errada ? esc(errada) : explicandoAgora(q) ? carregando : ""}</p>`;
+  h += `<p><b>${es ? `Por qué la ${n1} es correcta:` : `Por que a ${n1} está certa:`}</b></p>${certa ? md(certa) : explicandoAgora(q) ? `<p>${carregando}</p>` : ""}`;
   return `<div class="expl md">${h}</div>`;
 }
 // Explicação curta/ausente? Pede na hora para a IA (passa na frente da fila)
@@ -1138,8 +1151,8 @@ async function completarExplicacao(c, q, escolha) {
     const alts = q.alternativas.map((a, i) => `${i + 1}) ${a}`).join("\n");
     const marcou = precisaErrada ? escolha + 1 : null;
     const r = await chamar({
-      system: [{ type: "text", text: SYS_BASE + "\nVocê é um professor explicando a correção de uma questão. Seja específico: cite o conceito do material que justifica a resposta." }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.topico || ""}`, 5000) }],
-      messages: [{ role: "user", content: `Questão: ${q.enunciado}\nAlternativas:\n${alts}\nA correta é a ${q.correta + 1}.${marcou ? ` O estudante marcou a ${marcou}.` : ""}\n\nEm "certa": explique em 2 a 3 frases POR QUE a alternativa ${q.correta + 1} está correta, com base no conteúdo.\nEm "errada": ${marcou ? `explique em 1 a 2 frases POR QUE a alternativa ${marcou} está errada (qual é o erro dela ou o que ela confunde).` : `deixe vazio.`}` }],
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê é um professor explicando a correção de uma questão. Seja específico: cite o conceito do material que justifica a resposta." }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.topico || ""}`, 5000) }],
+      messages: [{ role: "user", content: `Questão: ${q.enunciado}\nAlternativas:\n${alts}\nA correta é a ${q.correta + 1}.${marcou ? ` O estudante marcou a ${marcou}.` : ""}\n\n${idiomaCaderno(c) === "es" ? "Responda em espanhol.\n" : ""}Em "certa": explique em 2 a 3 frases POR QUE a alternativa ${q.correta + 1} está correta, com base no conteúdo.\nEm "errada": ${marcou ? `explique em 1 a 2 frases POR QUE a alternativa ${marcou} está errada (qual é o erro dela ou o que ela confunde).` : `deixe vazio.`}` }],
       schema: obj({ certa: str, errada: str }), maxTokens: cfg().provider === "anthropic" ? 6000 : 450, rotulo: "Explicando a resposta", urgente: true
     });
     if (r.certa?.trim()) q.explicacao = r.certa.trim();
@@ -1275,7 +1288,9 @@ function viewCaderno(c, emEstudo) {
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
-    <div class="kit-bar"><button class="pill" data-act="smartIniciar">▶ Começar a estudar</button>${barraNivel(c)}</div>
+    <div class="kit-bar"><button class="pill" data-act="smartIniciar">▶ Começar a estudar</button>${barraNivel(c)}
+      <label class="inline" title="Idioma das perguntas, respostas e explicações">🌐 <select id="idiomaCaderno" style="width:auto;padding:6px 10px;border-radius:999px">
+        <option value="pt" ${idiomaCaderno(c) === "pt" ? "selected" : ""}>Português</option><option value="es" ${idiomaCaderno(c) === "es" ? "selected" : ""}>Español</option></select></label></div>
     ${corpo}`;
 }
 
@@ -1577,7 +1592,14 @@ function itensCompletos(texto) {
   }
   return out;
 }
-async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false) {
+// Mesmo trecho de material para todos os pedidos deste caderno: a IA local reaproveita o que já leu (bem mais rápido)
+S.matCache = {};
+function materialFixo(c, limite) {
+  const chave = `${c.id}|${limite}|${ativos(c).map(m => m.id + ":" + m.texto.length).join(",")}`;
+  if (S.matCache[c.id]?.chave !== chave) S.matCache[c.id] = { chave, texto: blocoMateriais(c, "", limite) };
+  return S.matCache[c.id].texto;
+}
+async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false, leve = false) {
   garantirSmart(c);
   const I = c.inteligente;
   const local = cfg().provider !== "anthropic";
@@ -1601,7 +1623,7 @@ ${hist}
 ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
   const foco = focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" ");
   // No processador cada palavra lida custa tempo: instrução curta e direta
-  const instrFinal = !cpu ? instr : `Crie ${n} perguntas de múltipla escolha sobre o material, em português. Cada uma com 4 alternativas e só uma correta ("correta" = índice 0 a 3). "explicacao": por que a correta está certa (1 frase). "topico": assunto curto (ex.: "Edema").${focoTopico ? ` Só sobre: ${focoTopico}.` : foco ? ` Priorize: ${foco.slice(0, 120)}.` : ""}${I.historico.length ? ` Não repita: ${I.historico.slice(-5).map(h => h.slice(0, 50)).join("; ")}.` : ""}${I.prefs ? ` Preferência: ${I.prefs.slice(0, 150)}.` : ""}`;
+  const instrFinal = !cpu ? (leve ? instr.replace(/^- "explicacoes".*$/m, "- As alternativas são só o texto da opção, sem rótulos como \"Correta\" ou \"Errada\".") : instr) : `Crie ${n} perguntas de múltipla escolha sobre o material, em ${idiomaCaderno(c) === "es" ? "espanhol" : "português"}. Cada uma com 4 alternativas e só uma correta ("correta" = índice 0 a 3). "explicacao": por que a correta está certa (1 frase). "topico": assunto curto (ex.: "Edema").${focoTopico ? ` Só sobre: ${focoTopico}.` : foco ? ` Priorize: ${foco.slice(0, 120)}.` : ""}${I.historico.length ? ` Não repita: ${I.historico.slice(-5).map(h => h.slice(0, 50)).join("; ")}.` : ""}${I.prefs ? ` Preferência: ${I.prefs.slice(0, 150)}.` : ""}`;
   const preparar = bruto => {
     const it = { ...bruto, tipo: "multipla" };
     if (!it.enunciado || !altsValidas(it)) return null;
@@ -1613,10 +1635,10 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
   };
   let lidos = 0; const prontos = [];
   const entregar = bruto => { const it = preparar(bruto); if (it) { prontos.push(it); aoItem?.(it); } };
-  const r = await gerarJSON(c, instrFinal, cpu ? SCH.smartLeve : SCH.smart, foco, {
+  const r = await gerarJSON(c, instrFinal, (cpu || leve) ? SCH.smartLeve : SCH.smart, foco, {
     rotulo: "Preparando suas perguntas", fundo,
     // IA local: lê só os trechos ligados aos pontos fracos (bem mais rápido em arquivos grandes)
-    system: local ? [{ type: "text", text: cpu ? "Você cria perguntas de estudo a partir do material abaixo, em português." : SYS_BASE }, { type: "text", text: blocoMateriais(c, foco, cpu ? 1800 : 7000) }] : undefined,
+    system: local ? [{ type: "text", text: (cpu ? "Você cria perguntas de estudo a partir do material abaixo." : SYS_BASE) + linhaIdioma(c) }, { type: "text", text: materialFixo(c, cpu ? 1800 : 6000) }] : undefined,
     aoParcial: local ? texto => { const itens = itensCompletos(texto); while (lidos < itens.length) entregar(itens[lidos++]); } : undefined
   });
   for (const t of r.topicos || []) if (topicoValido(t) && !I.topicos.includes(t)) I.topicos.push(t);
@@ -1712,7 +1734,8 @@ async function smartCarregar(c) {
     if (p.proximo) await p.proximo;
     if (S.player !== p) return;
     if (p.i >= p.fila.length) {
-      p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), p.fila.length ? 4 : 3);
+      const primeira = !p.fila.length;
+      p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), primeira ? 1 : 3, false, primeira);
       await p.proximo;
     }
     p.proximo = null;
@@ -1731,7 +1754,7 @@ function smartPrefetch(c) {
   if (!p || p.tipo !== "smart" || p.fim || p.proximo) return;
   if (p.fila.length - p.i > 4) return; // já há perguntas suficientes prontas
   if ((p.falhas || 0) >= 2) return;    // evita insistir se a IA estiver com problema
-  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), undefined, true)
+  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), 3, true)
     .then(r => { p.falhas = r.length ? 0 : (p.falhas || 0) + 1; })
     .catch(() => { p.falhas = (p.falhas || 0) + 1; })
     .finally(() => { if (S.player === p) { p.proximo = null; salvar(c); smartPrefetch(c); } });
@@ -1754,7 +1777,7 @@ function prepararBanco(c) {
   S.preparando[c.id] = gerarLoteSmart(c, null, it => {
     if (S.player?.tipo === "smart" && S.atual === c.id && !S.player.fim && !S.player.focoTopico) empurrar(c, S.player, it);
     else { (c.inteligente.banco ||= []).push(it); }
-  }, 4, true).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
+  }, 3, true).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
 }
 function smartIniciar(c, focoTopico = null) {
   garantirSmart(c);
@@ -1819,7 +1842,7 @@ async function perguntar(txt) {
   S.ocupado = "tutor"; render(); window.scrollTo(0, document.body.scrollHeight);
   try {
     const resposta = await chamar({
-      system: [{ type: "text", text: SYS_BASE + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
       messages: c.chat.map(m => ({ role: m.role, content: m.content })),
       maxTokens: 16000
     });
@@ -2143,6 +2166,12 @@ document.addEventListener("input", e => {
   S.player.resp[q] = e.target.type === "radio" ? +e.target.value : e.target.value;
 });
 document.addEventListener("change", e => {
+  if (e.target.id === "idiomaCaderno") {
+    const c = atual(); c.idioma = e.target.value; garantirSmart(c); c.inteligente.banco = []; // perguntas prontas no outro idioma são descartadas
+    salvar(c); render(); prepararBanco(c);
+    toast(c.idioma === "es" ? "Las preguntas ahora serán en español." : "As perguntas agora serão em português.");
+    return;
+  }
   if (e.target.id === "smartPrefs") { const c = atual(); garantirSmart(c); c.inteligente.prefs = e.target.value.trim(); salvar(c); toast("Preferências salvas."); return; }
   const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
   if (e.target.type === "radio") S.player.resp[q] = +e.target.value;
