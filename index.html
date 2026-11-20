@@ -464,17 +464,46 @@ async function motorWebLLM(modelo) {
   if (!navigator.gpu) throw new Error("Este aparelho/navegador não suporta a IA do navegador (WebGPU). Use o Chrome ou o Edge atualizados (no iPhone: iOS 26+ com Safari).");
   if (WL.carregando) return WL.carregando;
   WL.carregando = (async () => {
-    const webllm = await import("https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/+esm");
-    if (WL.engine) { try { await WL.engine.unload(); } catch {} WL.engine = null; }
-    progressoIA("Preparando a IA…", 0);
-    const eng = await webllm.CreateMLCEngine(modelo, {
-      initProgressCallback: r => progressoIA(/fetch|download|cache/i.test(r.text) && r.progress < 1 ? `Baixando a IA (só na primeira vez): ${Math.round(r.progress * 100)}%` : "Carregando a IA na memória…", r.progress)
-    }, { context_window_size: MODELOS_WEB[modelo]?.ctx || 8192 });
-    WL.engine = eng; WL.modelo = modelo;
-    return eng;
+    let webllm;
+    try { webllm = await import("https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/+esm"); }
+    catch { throw new Error("sem internet para baixar a IA (ela precisa de internet só na primeira vez)"); }
+    // Pede a placa de vídeo dedicada (em notebooks o navegador às vezes escolhe a integrada, que não aguenta)
+    const placa = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    if (!placa) throw new Error("o navegador não liberou a placa de vídeo — ative a “aceleração de hardware” nas configurações do navegador e atualize-o");
+    const f16 = placa.features.has("shader-f16");
+    // Ordem de tentativa: o modelo escolhido e, se não couber, os menores; versão compatível com a placa
+    const ordem = ["Qwen2.5-3B-Instruct", "Qwen2.5-1.5B-Instruct", "Qwen2.5-0.5B-Instruct"];
+    const base = modelo.replace(/-q4f(16|32)_1-MLC$/, "");
+    const lista = ordem.slice(Math.max(0, ordem.indexOf(base))).map(b => `${b}-${f16 ? "q4f16_1" : "q4f32_1"}-MLC`);
+    let erro;
+    for (const id of lista) {
+      for (const usarIDB of [false, true]) {
+        try {
+          if (WL.engine) { try { await WL.engine.unload(); } catch {} WL.engine = null; }
+          progressoIA("Preparando a IA…", 0);
+          const eng = await webllm.CreateMLCEngine(id, {
+            appConfig: { ...webllm.prebuiltAppConfig, useIndexedDBCache: usarIDB },
+            initProgressCallback: r => progressoIA(/fetch|download|cache/i.test(r.text) && r.progress < 1 ? `Baixando a IA (só na primeira vez): ${Math.round(r.progress * 100)}%` : "Carregando a IA na memória…", r.progress)
+          }, { context_window_size: MODELOS_WEB[id]?.ctx || 8192 });
+          WL.engine = eng; WL.modelo = modelo;
+          if (id !== modelo) {
+            lsSet("fp-config", { ...lsGet("fp-config", {}), webModel: id }); WL.modelo = id;
+            toast(id.startsWith(base) ? "IA do navegador ajustada para funcionar nesta placa de vídeo." : "A IA maior não coube na memória deste aparelho; usando uma versão menor.");
+          }
+          return eng;
+        } catch (e) {
+          erro = e; console.warn("WebLLM falhou com", id, usarIDB ? "(IndexedDB)" : "", e);
+          if (!/cache|quota|storage|indexeddb|network|fetch/i.test(e?.message || "")) break; // só tenta outro jeito de guardar se o erro foi de armazenamento
+        }
+      }
+    }
+    throw erro;
   })();
   try { return await WL.carregando; }
-  catch (e) { throw new Error("Não consegui carregar a IA do navegador: " + (e?.message || e) + ". Tente o modelo Leve em Configurações."); }
+  catch (e) {
+    const det = String(e?.message || e).slice(0, 160);
+    throw new Error(`Não consegui carregar a IA do navegador (${det}). Feche abas pesadas e tente de novo, atualize o Chrome/Edge, ou use a IA local ou o Claude em Ajustes.`);
+  }
   finally { WL.carregando = null; progressoIA("", null); }
 }
 async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
@@ -504,6 +533,7 @@ async function chamarWebLLM(s, { system, messages, schema, maxTokens, rotulo, ao
     }
   } catch (e) {
     if (/context|token|exceed/i.test(e?.message || "")) throw new Error("O conteúdo ficou grande demais para a IA do navegador. Use um foco mais específico ou peça menos itens.");
+    if (/device|lost|memory|oom|gpu/i.test(e?.message || "")) { WL.engine = null; WL.modelo = null; throw new Error("A placa de vídeo ficou sem memória. Feche abas pesadas e tente de novo (o app vai recarregar a IA)."); }
     throw e;
   } finally { clearInterval(vigia); progressoIA("", null); }
   if (sinal?.aborted) throw new Error("interrompido");
