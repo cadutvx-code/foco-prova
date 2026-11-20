@@ -406,6 +406,7 @@ const dbDel = id => tx("readwrite", s => s.delete(id));
 /* ================= estado ================= */
 const S = { novo: { icone: "📘", arquivos: [] }, colar: false, verMat: null, cadernos: [], atual: null, aba: "materiais", player: null, ocupado: null, form: { qtd: 15, dif: "mista", foco: "" }, verDeck: null, timer: null };
 const atual = () => S.cadernos.find(c => c.id === S.atual);
+window.__estadoFoco = S; // ajuda a investigar problemas pelo console
 const ativos = c => c.materiais.filter(m => m.ativo !== false && m.texto?.trim());
 async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } agendarSync(c); }
 function novoCaderno(nome) {
@@ -472,6 +473,7 @@ const MODELOS_WEB = {
   "Qwen2.5-0.5B-Instruct-q4f16_1-MLC": { nome: "Leve (aparelho fraco, erra mais) — ~400 MB", ctx: 8192 }
 };
 const WL = { engine: null, modelo: null, carregando: null };
+window.__WL = WL;
 function progressoIA(txt, pct) {
   const el = $("#iaProg");
   if (pct === null) { el.style.display = "none"; return; }
@@ -563,7 +565,7 @@ async function motorCPU() {
   catch (e) { throw new Error("Não consegui carregar a IA no processador (" + String(e?.message || e).slice(0, 140) + "). Verifique a internet na primeira vez e o espaço livre no aparelho."); }
   finally { CP.carregando = null; progressoIA("", null); }
 }
-async function chamarCPU(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
+async function chamarCPU(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo }) {
   const w = await motorCPU();
   const limite = Math.min(maxTokens || 1200, 1200);
   const hist = messages.slice(-5).map(m => {
@@ -576,7 +578,7 @@ async function chamarCPU(s, { system, messages, schema, maxTokens, rotulo, aoPar
   if (sys.length + usado > orcamento) sys = sys.slice(0, Math.max(1500, orcamento - usado)) + "\n…\n</materiais>";
   const req = { messages: [{ role: "system", content: sys }, ...hist], max_tokens: limite, temperature: schema ? 0.5 : 0.7, stream: true, abortSignal: sinal };
   if (schema) req.response_format = { type: "json_schema", json_schema: { name: "resposta", schema } };
-  const prog = progressoEscrita(limite, rotulo);
+  const prog = fundo ? () => {} : progressoEscrita(limite, rotulo);
   let texto = "";
   try {
     const partes = await w.createChatCompletion(req);
@@ -584,12 +586,12 @@ async function chamarCPU(s, { system, messages, schema, maxTokens, rotulo, aoPar
       const d = p.choices?.[0]?.delta?.content;
       if (d) { texto += d; prog(texto); aoParcial?.(texto); window.__ultimaRespostaIA = texto; }
     }
-  } finally { progressoIA("", null); }
+  } finally { if (!fundo) progressoIA("", null); }
   if (sinal?.aborted) throw new Error("interrompido");
   return schema ? limparJSON(texto) : texto.trim();
 }
 
-async function chamarWebGPU(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
+async function chamarWebGPU(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo }) {
   const modelo = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
   const eng = await motorWebLLM(modelo);
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
@@ -601,7 +603,7 @@ async function chamarWebGPU(s, { system, messages, schema, maxTokens, rotulo, ao
   const req = { messages: msgs, temperature: schema ? 0.5 : 0.7, max_tokens: limite, frequency_penalty: 0.3, stream: true };
   if (schema) req.response_format = { type: "json_object", schema: JSON.stringify(schema) };
   if (MODELOS_WEB[modelo]?.pensa) req.extra_body = { enable_thinking: false };
-  const prog = progressoEscrita(limite, rotulo);
+  const prog = fundo ? () => {} : progressoEscrita(limite, rotulo);
   let texto = "", fim = null;
   // Se a IA ficar 2 minutos sem escrever nada, interrompe em vez de travar para sempre
   let ultimo = Date.now(), parado = false;
@@ -618,7 +620,7 @@ async function chamarWebGPU(s, { system, messages, schema, maxTokens, rotulo, ao
     if (/context|token|exceed/i.test(e?.message || "")) throw new Error("O conteúdo ficou grande demais para a IA do navegador. Use um foco mais específico ou peça menos itens.");
     if (/device|lost|memory|oom|gpu/i.test(e?.message || "")) { WL.engine = null; WL.modelo = null; throw new Error("A placa de vídeo ficou sem memória. Feche abas pesadas e tente de novo (o app vai recarregar a IA)."); }
     throw e;
-  } finally { clearInterval(vigia); progressoIA("", null); }
+  } finally { clearInterval(vigia); if (!fundo) progressoIA("", null); }
   if (sinal?.aborted) throw new Error("interrompido");
   if (parado) throw new Error("A IA do navegador parou de responder. Tente de novo (se repetir, escolha um tamanho menor de IA em Ajustes).");
   if (fim === "length" && schema) throw new Error("A resposta da IA do navegador foi cortada. Peça menos itens.");
@@ -626,7 +628,7 @@ async function chamarWebGPU(s, { system, messages, schema, maxTokens, rotulo, ao
 }
 // Barra de progresso real: conta as palavras que a IA já escreveu
 function progressoEscrita(limite, rotulo) {
-  progressoIA(`${rotulo || "A IA está escrevendo"}… lendo o material`, 0.02);
+  progressoIA(`${rotulo || "A IA está escrevendo"}… analisando o material`, 0.02);
   let n = 0;
   return texto => {
     if (++n % 6) return;
@@ -652,8 +654,10 @@ async function proximoIA() {
   if (rodandoIA) return;
   const job = filaIA.shift(); if (!job) return;
   rodandoIA = job; job.preemptado = false; job.ctl = new AbortController();
-  try { job.res(await job.fn(job.ctl.signal)); }
+  const t0 = Date.now(); (window.__logIA ||= []).push(`início ${job.urgente ? "urgente" : job.fundo ? "fundo" : "normal"} (fila ${filaIA.length})`);
+  try { job.res(await job.fn(job.ctl.signal)); window.__logIA.push(`fim ${Math.round((Date.now() - t0) / 1000)}s`); }
   catch (e) {
+    window.__logIA?.push(`${job.preemptado ? "interrompido" : "erro: " + String(e?.message || e).slice(0, 80)} ${Math.round((Date.now() - t0) / 1000)}s`);
     if (job.preemptado) { const i = filaIA.findIndex(j => j.fundo); i < 0 ? filaIA.push(job) : filaIA.splice(i, 0, job); } // volta para a fila, depois dos pedidos seus
     else job.rej(e);
   } finally { rodandoIA = null; proximoIA(); }
@@ -668,7 +672,7 @@ function limparJSON(t) {
   if (m) { try { return JSON.parse(m[0]); } catch {} }
   throw new Error("A IA local devolveu um formato inválido. Tente de novo, peça menos itens ou use um modelo maior.");
 }
-async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal }) {
+async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo }) {
   if (!s.ollamaModel) { abrirConfig(); throw new Error("Escolha um modelo do Ollama em Configurações."); }
   const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido, sem texto extra." : "") }];
   for (const m of messages) {
@@ -686,7 +690,7 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
   const ctx = Math.max(+s.ollamaCtx || 32768, 4096);
   if (tokens > ctx * 0.8) throw new Error(`Os materiais têm ≈${tokens.toLocaleString("pt-BR")} tokens, mais do que o contexto da IA local (${ctx.toLocaleString("pt-BR")}). Desmarque materiais, use um foco menor ou aumente o contexto em Configurações.`);
   const limite = Math.min(maxTokens || 4000, 4000);
-  progressoIA(`${rotulo || "A IA está escrevendo"}… lendo o material`, 0.02);
+  if (!fundo) progressoIA(`${rotulo || "A IA está escrevendo"}… analisando o material`, 0.02);
   const ctl = new AbortController();
   sinal?.addEventListener("abort", () => ctl.abort());
   let resp;
@@ -702,7 +706,7 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
     throw new Error("Erro do Ollama: " + t.slice(0, 200));
   }
   // Lê a resposta em pedaços (streaming) para mostrar o progresso real
-  const prog = progressoEscrita(limite, rotulo);
+  const prog = fundo ? () => {} : progressoEscrita(limite, rotulo);
   const leitor = resp.body.getReader(), dec = new TextDecoder();
   let buf = "", texto = "", ultimo = Date.now(), parado = false;
   const vigia = setInterval(() => { if (Date.now() - ultimo > 180000) { parado = true; ctl.abort(); } }, 5000);
@@ -723,7 +727,7 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
   } catch (e) {
     if (parado) throw new Error("A IA local parou de responder. Tente de novo.");
     throw e;
-  } finally { clearInterval(vigia); progressoIA("", null); }
+  } finally { clearInterval(vigia); if (!fundo) progressoIA("", null); }
   return schema ? limparJSON(texto) : texto.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 }
 
@@ -1020,7 +1024,8 @@ function altsValidas(x) {
   // Questão ambígua ou com gabarito contraditório (a própria explicação diz outra coisa): descarta
   if (Array.isArray(x.explicacoes) && x.explicacoes.length === alts.length) {
     const certas = x.explicacoes.map((t, i) => /^\s*(correta|certa|correto|correct)/i.test(String(t)) ? i : -1).filter(i => i >= 0);
-    if (certas.length > 1 || (certas.length === 1 && certas[0] !== x.correta)) return false;
+    // rótulos trocados nas explicações: mantém a pergunta e descarta só as explicações (a certa é escrita quando você responder)
+    if (certas.length !== 1 || certas[0] !== x.correta) delete x.explicacoes;
   }
   x.alternativas = alts;
   return true;
@@ -1151,9 +1156,9 @@ async function completarExplicacao(c, q, escolha) {
     const alts = q.alternativas.map((a, i) => `${i + 1}) ${a}`).join("\n");
     const marcou = precisaErrada ? escolha + 1 : null;
     const r = await chamar({
-      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê é um professor explicando a correção de uma questão. Seja específico: cite o conceito do material que justifica a resposta." }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.topico || ""}`, 5000) }],
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê é um professor explicando a correção de uma questão. Seja específico: cite o conceito do material que justifica a resposta." }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.topico || ""}`, cfg().provider === "webllm" ? 1500 : 4000) }],
       messages: [{ role: "user", content: `Questão: ${q.enunciado}\nAlternativas:\n${alts}\nA correta é a ${q.correta + 1}.${marcou ? ` O estudante marcou a ${marcou}.` : ""}\n\n${idiomaCaderno(c) === "es" ? "Responda em espanhol.\n" : ""}Em "certa": explique em 2 a 3 frases POR QUE a alternativa ${q.correta + 1} está correta, com base no conteúdo.\nEm "errada": ${marcou ? `explique em 1 a 2 frases POR QUE a alternativa ${marcou} está errada (qual é o erro dela ou o que ela confunde).` : `deixe vazio.`}` }],
-      schema: obj({ certa: str, errada: str }), maxTokens: cfg().provider === "anthropic" ? 6000 : 450, rotulo: "Explicando a resposta", urgente: true
+      schema: obj({ certa: str, errada: str }), maxTokens: cfg().provider === "anthropic" ? 6000 : 260, rotulo: "Explicando a resposta", urgente: true
     });
     if (r.certa?.trim()) q.explicacao = r.certa.trim();
     if (marcou && r.errada?.trim()) { q.explicacoes ||= q.alternativas.map(() => ""); q.explicacoes[escolha] = r.errada.trim(); }
@@ -1599,7 +1604,7 @@ function materialFixo(c, limite) {
   if (S.matCache[c.id]?.chave !== chave) S.matCache[c.id] = { chave, texto: blocoMateriais(c, "", limite) };
   return S.matCache[c.id].texto;
 }
-async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false, leve = false) {
+async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false, leve = false, conversa = null) {
   garantirSmart(c);
   const I = c.inteligente;
   const local = cfg().provider !== "anthropic";
@@ -1616,7 +1621,7 @@ Regras de adaptação:
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
 - TODAS são de múltipla escolha com EXATAMENTE 4 alternativas plausíveis e só uma correta ("correta" = índice 0 a 3 da certa). Varie a posição da certa.
 - "explicacao" (OBRIGATÓRIO, nunca vazio): por que a correta está certa, em 1 a 2 frases que citem o conceito do material.
-- "explicacoes" (OBRIGATÓRIO): 4 textos curtos (até 20 palavras cada), um por alternativa NA MESMA ORDEM. Comece cada uma com "Correta:" ou "Errada:" (só UMA pode ser "Correta:", a mesma de "correta"); nas erradas, diga o erro concreto (ex.: "Errada: quem produz ATP é a mitocôndria, não o ribossomo"). Evite perguntas com mais de uma resposta defensável.
+- "explicacoes" (OBRIGATÓRIO): 4 textos MUITO curtos (até 12 palavras cada), um por alternativa NA MESMA ORDEM. Comece cada uma com "Correta:" ou "Errada:" (só UMA pode ser "Correta:", a mesma de "correta"); nas erradas, diga o erro concreto (ex.: "Errada: quem produz ATP é a mitocôndria, não o ribossomo"). Evite perguntas com mais de uma resposta defensável.
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar novos).
 - Não repita estas perguntas:
 ${hist}
@@ -1635,12 +1640,27 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
   };
   let lidos = 0; const prontos = [];
   const entregar = bruto => { const it = preparar(bruto); if (it) { prontos.push(it); aoItem?.(it); } };
-  const r = await gerarJSON(c, instrFinal, (cpu || leve) ? SCH.smartLeve : SCH.smart, foco, {
+  // IAs locais: o pedido seguinte CONTINUA a conversa anterior ("mais perguntas, diferentes"),
+  // assim a IA reaproveita a leitura do material em vez de reler tudo
+  const limiteConversa = cpu ? 4 : 6;
+  const continuar = cfg().provider === "ollama" && conversa?.msgs?.length && conversa.msgs.length < limiteConversa && (conversa.chars || 0) < 6000;
+  const pedido = continuar
+    ? `Gere mais ${n} perguntas NOVAS, diferentes de todas as anteriores, no mesmo formato JSON.${foco ? ` Priorize: ${foco.slice(0, 150)}.` : ""}`
+    : instrFinal;
+  const messages = continuar ? [...conversa.msgs, { role: "user", content: pedido }] : [{ role: "user", content: pedido }];
+  let bruto = "";
+  const r = await chamar({
+    system: local
+      ? [{ type: "text", text: (cpu ? "Você cria perguntas de estudo a partir do material abaixo." : SYS_BASE) + linhaIdioma(c) }, { type: "text", text: materialFixo(c, cpu ? 1800 : cfg().provider === "webllm" ? 3000 : 6000) }]
+      : [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
+    messages, schema: (cpu || leve) ? SCH.smartLeve : SCH.smart,
     rotulo: "Preparando suas perguntas", fundo,
-    // IA local: lê só os trechos ligados aos pontos fracos (bem mais rápido em arquivos grandes)
-    system: local ? [{ type: "text", text: (cpu ? "Você cria perguntas de estudo a partir do material abaixo." : SYS_BASE) + linhaIdioma(c) }, { type: "text", text: materialFixo(c, cpu ? 1800 : 6000) }] : undefined,
-    aoParcial: local ? texto => { const itens = itensCompletos(texto); while (lidos < itens.length) entregar(itens[lidos++]); } : undefined
+    aoParcial: local ? texto => { bruto = texto; const itens = itensCompletos(texto); while (lidos < itens.length) entregar(itens[lidos++]); } : undefined
   });
+  if (local && conversa) {
+    conversa.msgs = [...messages, { role: "assistant", content: bruto || JSON.stringify(r) }];
+    conversa.chars = conversa.msgs.reduce((t, m) => t + m.content.length, 0);
+  }
   for (const t of r.topicos || []) if (topicoValido(t) && !I.topicos.includes(t)) I.topicos.push(t);
   const itens = r.itens || [];
   while (lidos < itens.length) entregar(itens[lidos++]);
@@ -1697,7 +1717,7 @@ function playerSmart(c) {
       ${ses.erros ? `<div class="muted" style="font-size:13px">As questões que você errou foram salvas no baralho “🧠 Revisão de erros” (Flashcards).</div>` : ""}
       <div class="row" style="justify-content:center"><button class="pill" data-act="smartIniciar">▶ Nova sessão</button><button class="btn" data-act="sair">Ver progresso</button></div></div></div>`;
   }
-  if (!it) return `<div class="study">${topo}<div class="card empty"><span class="spin"></span><p>Montando suas próximas questões com base no seu desempenho…</p><p class="muted" style="font-size:13px">${esc(nomeIA())}</p></div></div>`;
+  if (!it) return `<div class="study">${topo}<div class="card empty"><span class="spin"></span><p>${p.sessao.total ? "Preparando a próxima pergunta…" : "Preparando a primeira pergunta…"}</p><p class="muted" style="font-size:13px">${esc(nomeIA())}</p></div></div>`;
   const dots = "●".repeat(it.dificuldade) + "○".repeat(3 - it.dificuldade);
   const meta = `<div class="q-meta"><span>${esc(it.topico)}</span><span>${it.tipo === "licao" ? "📖 Mini-lição" : it.tipo === "flashcard" ? "🃏 Lembre a resposta" : `${ses.acertos}/${ses.total} ✔${ses.combo >= 2 ? ` · 🔥 ${ses.combo}` : ""} · ${dots}`}</span></div>`;
   const avaliar = `<div class="r"><button class="thumb up" data-act="sNota" data-id="1" title="Boa questão">👍</button><button class="thumb down" data-act="sNota" data-id="0" title="Questão ruim — evitar parecidas">👎</button></div>`;
@@ -1735,7 +1755,7 @@ async function smartCarregar(c) {
     if (S.player !== p) return;
     if (p.i >= p.fila.length) {
       const primeira = !p.fila.length;
-      p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), primeira ? 1 : 3, false, primeira);
+      p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), primeira ? 1 : 3, false, primeira, p.conversa ||= { msgs: [] });
       await p.proximo;
     }
     p.proximo = null;
@@ -1754,7 +1774,7 @@ function smartPrefetch(c) {
   if (!p || p.tipo !== "smart" || p.fim || p.proximo) return;
   if (p.fila.length - p.i > 4) return; // já há perguntas suficientes prontas
   if ((p.falhas || 0) >= 2) return;    // evita insistir se a IA estiver com problema
-  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), 3, true)
+  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), cfg().provider === "webllm" ? 1 : 3, true, false, p.conversa ||= { msgs: [] })
     .then(r => { p.falhas = r.length ? 0 : (p.falhas || 0) + 1; })
     .catch(() => { p.falhas = (p.falhas || 0) + 1; })
     .finally(() => { if (S.player === p) { p.proximo = null; salvar(c); smartPrefetch(c); } });
@@ -1777,7 +1797,7 @@ function prepararBanco(c) {
   S.preparando[c.id] = gerarLoteSmart(c, null, it => {
     if (S.player?.tipo === "smart" && S.atual === c.id && !S.player.fim && !S.player.focoTopico) empurrar(c, S.player, it);
     else { (c.inteligente.banco ||= []).push(it); }
-  }, 3, true).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
+  }, cfg().provider === "webllm" ? 2 : 3, true, false, (S.conversaBanco ||= {})[c.id] ||= { msgs: [] }).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
 }
 function smartIniciar(c, focoTopico = null) {
   garantirSmart(c);
@@ -2232,6 +2252,14 @@ catch (e) { toast("Armazenamento local indisponível — os dados não serão sa
 render();
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
 iniciarNuvem();
+setTimeout(() => {
+  const s = cfg();
+  if (s.provider === "webllm" && navigator.gpu) umPorVez(async () => {
+    const eng = await motorWebLLM(s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC");
+    const r = await eng.chat.completions.create({ messages: [{ role: "user", content: "ok" }], max_tokens: 2 });
+    return r;
+  }, false, true).catch(() => {});
+}, 2500);
 // Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)
 navigator.serviceWorker?.getRegistrations?.().then(regs => {
   const velhos = regs.filter(r => /coi-serviceworker/.test(r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || ""));
