@@ -13,69 +13,102 @@
 <script src="lib/jszip.min.js"></script>
 <script src="lib/marked.min.js"></script>
 <script src="lib/purify.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#f6f5fb; --panel:#ffffff; --panel2:#f0eef8; --text:#1d1b29; --muted:#6b6880; --line:#e3e0ef;
-  --accent:#6246ea; --accent-soft:#ece8ff; --ok:#1a9b5c; --ok-soft:#e3f6ec; --bad:#d63c4a; --bad-soft:#fdeaec;
-  --warn:#b7791f; --warn-soft:#fdf3e1; --shadow:0 1px 2px rgba(20,15,50,.06),0 4px 16px rgba(20,15,50,.05);
+  --bg:#f2f3fa; --panel:#ffffff; --panel2:#eceef8; --rail:#f8f8fd; --text:#1b1d33; --muted:#6c6f8a; --line:#e2e4f0;
+  --accent:#4f46e5; --accent2:#8b5cf6; --accent-soft:#e8e7fd; --navy:#24214f;
+  --ok:#15955a; --ok-soft:#e1f5ea; --bad:#d9364a; --bad-soft:#fde8eb; --warn:#c27c0e; --warn-soft:#fdf2dc;
+  --star:#f5b301; --shadow:0 1px 2px rgba(25,22,70,.05),0 6px 20px rgba(25,22,70,.05); --r:14px;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#121119; --panel:#1b1a25; --panel2:#24222f; --text:#ecebf3; --muted:#9b98ad; --line:#302e3d;
-    --accent:#8b75ff; --accent-soft:#2a2547; --ok:#3ccf8a; --ok-soft:#173527; --bad:#ff6b78; --bad-soft:#3a1d22;
-    --warn:#f0b450; --warn-soft:#3a2e16; --shadow:none;
+    --bg:#11111b; --panel:#1a1a28; --panel2:#232336; --rail:#161624; --text:#ebebf5; --muted:#9a9bb5; --line:#2c2d42;
+    --accent:#8b83ff; --accent2:#b18cff; --accent-soft:#272550; --navy:#2f2b66;
+    --ok:#3fd18c; --ok-soft:#143425; --bad:#ff6b7c; --bad-soft:#3b1c24; --warn:#f2b54f; --warn-soft:#3a2d14; --shadow:none;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#121119; --panel:#1b1a25; --panel2:#24222f; --text:#ecebf3; --muted:#9b98ad; --line:#302e3d;
-  --accent:#8b75ff; --accent-soft:#2a2547; --ok:#3ccf8a; --ok-soft:#173527; --bad:#ff6b78; --bad-soft:#3a1d22;
-  --warn:#f0b450; --warn-soft:#3a2e16; --shadow:none;
+  --bg:#11111b; --panel:#1a1a28; --panel2:#232336; --rail:#161624; --text:#ebebf5; --muted:#9a9bb5; --line:#2c2d42;
+  --accent:#8b83ff; --accent2:#b18cff; --accent-soft:#272550; --navy:#2f2b66;
+  --ok:#3fd18c; --ok-soft:#143425; --bad:#ff6b7c; --bad-soft:#3b1c24; --warn:#f2b54f; --warn-soft:#3a2d14; --shadow:none;
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 "Nunito","Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
 button,input,select,textarea{font:inherit;color:inherit}
-.app{display:grid;grid-template-columns:270px 1fr;min-height:100vh}
-aside{background:var(--panel);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:12px;position:sticky;top:0;height:100vh;overflow:auto}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;padding:0 6px}
-.brand .logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:17px}
-.nb{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:10px;padding:9px 11px;cursor:pointer}
-.nb:hover{background:var(--panel2)}
-.nb.on{background:var(--accent-soft);border-color:var(--accent)}
-.nb small{color:var(--muted);font-size:12px}
-.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px}
-main{padding:28px clamp(16px,4vw,44px) 60px;max-width:1100px;width:100%}
-h1{font-size:26px;margin:0 0 4px}
+/* ---- estrutura: barra do topo + trilho lateral + conteúdo ---- */
+.topbar{position:sticky;top:0;z-index:20;height:58px;display:flex;align-items:center;gap:12px;padding:0 18px;background:var(--rail);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:20px;letter-spacing:-.02em;background:none;border:none;cursor:pointer;padding:0}
+.brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;display:grid;place-items:center;font-size:15px}
+.topbar .sp{flex:1}
+.ia-chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--muted);max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ia-chip i{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.pill-dark{white-space:nowrap;background:var(--navy);color:#fff;border:none;border-radius:999px;padding:7px 14px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.shell{display:grid;grid-template-columns:96px 1fr;min-height:calc(100vh - 58px)}
+.rail{background:var(--rail);border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:4px;position:sticky;top:58px;height:calc(100vh - 58px);overflow:auto}
+.ri{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px;border-radius:12px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:11.5px;font-weight:700;line-height:1.15;text-align:center}
+.ri svg{width:22px;height:22px}
+.ri:hover{background:var(--panel2);color:var(--text)}
+.ri.on{background:var(--accent-soft);color:var(--accent)}
+.ri:disabled{opacity:.35;cursor:default;background:none}
+.rail .sep{height:1px;background:var(--line);margin:6px 8px}
+.rail .fim{margin-top:auto}
+main{padding:24px clamp(16px,3.5vw,40px) 70px;max-width:1080px;width:100%}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}
 h2{font-size:19px;margin:0 0 12px}
 h3{font-size:16px;margin:0 0 6px}
 .muted{color:var(--muted)}
 .pad{padding:6px}
-.btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+/* ---- cabeçalho do caderno ---- */
+.kit-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.kit-icon{width:52px;height:52px;border-radius:14px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;font-size:28px;cursor:pointer;flex:none}
+.kit-head h1{font-size:24px;margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.kit-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.pill{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:999px;padding:9px 18px;font-weight:800;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 4px 14px rgba(79,70,229,.25)}
+.pill:hover{filter:brightness(1.07)}
+.pill:disabled{opacity:.6;cursor:not-allowed}
+.lvl{display:flex;align-items:center;gap:10px;flex:1;min-width:220px;max-width:520px}
+.lvl-bar{flex:1;height:24px;border-radius:999px;background:var(--panel2);position:relative;overflow:hidden;border:1px solid var(--line)}
+.lvl-bar>div{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:999px;transition:width .4s}
+.lvl-bar span{position:relative;z-index:1;font-size:12.5px;font-weight:800;padding:0 12px;line-height:22px;color:var(--text);mix-blend-mode:normal}
+.stars{display:flex;gap:2px;font-size:19px;line-height:1}
+.stars b{color:var(--line);font-weight:400}.stars b.on{color:var(--star)}
+.sec-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.sec-tabs button{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;font-weight:700;color:var(--muted);cursor:default}
+.sec-tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+/* ---- cartões de caderno (início) ---- */
+.kits{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.kit{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow);transition:.15s}
+.kit:hover{border-color:var(--accent);transform:translateY(-2px)}
+.kit .ico{font-size:28px}
+.kit b{font-size:16px}
+.kit.novo{border-style:dashed;align-items:center;justify-content:center;color:var(--accent);font-weight:800;min-height:150px;box-shadow:none;background:transparent}
+/* ---- componentes ---- */
+.btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-weight:700}
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.primary:hover{filter:brightness(1.08)}
 .btn.ghost{border-color:transparent;background:none}
 .btn.danger:hover{border-color:var(--bad);color:var(--bad)}
-.btn.small{padding:5px 10px;font-size:13px}
+.btn.small{padding:5px 12px;font-size:13px}
 .btn:disabled{opacity:.55;cursor:not-allowed}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
 .stack{display:flex;flex-direction:column;gap:14px}
 .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
 .grow{flex:1;min-width:200px}
-label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
 label.inline{flex-direction:row;align-items:center;gap:6px;color:var(--text);font-size:14px}
-input[type=text],input[type=number],input[type=password],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text);width:100%}
+input[type=text],input[type=number],input[type=password],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 11px;color:var(--text);width:100%;font-weight:500}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
 textarea{resize:vertical;min-height:90px}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
-.tab{background:none;border:none;padding:10px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
-.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
-.drop{border:2px dashed var(--line);border-radius:14px;padding:30px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel)}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:26px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel)}
 .drop.over,.drop:hover{border-color:var(--accent);background:var(--accent-soft)}
-.drop .big{font-size:34px}
-.mat{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel);flex-wrap:wrap}
+.drop .big{font-size:30px}
+.mat{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);flex-wrap:wrap}
 .mat .info{flex:1;min-width:180px}
-.badge{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--panel2);color:var(--muted)}
+.badge{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--panel2);color:var(--muted)}
 .badge.warn{background:var(--warn-soft);color:var(--warn)}
 .badge.ok{background:var(--ok-soft);color:var(--ok)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
@@ -84,74 +117,94 @@ textarea{resize:vertical;min-height:90px}
 .empty{text-align:center;padding:40px 20px;color:var(--muted)}
 .spin{width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-.prog{height:6px;background:var(--panel2);border-radius:9px;overflow:hidden}
-.prog>div{height:100%;background:var(--accent);transition:width .3s}
+.prog{height:7px;background:var(--panel2);border-radius:9px;overflow:hidden}
+.prog>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s}
 .flash{min-height:260px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px;cursor:pointer;font-size:19px;user-select:none}
 .flash .back{margin-top:18px;padding-top:18px;border-top:1px dashed var(--line);width:100%;font-size:17px;animation:fade .25s}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}}
 .rate{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
 .rate .btn{min-width:120px;justify-content:center}
-.alt{display:block;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:pointer;margin-bottom:8px}
-.alt:hover{border-color:var(--accent)}
+/* ---- tela de estudo: alternativas em grade numerada ---- */
+.study{max-width:860px;margin:0 auto}
+.study-top{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.study-top .lvl{max-width:none}
+.icon-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;display:grid;place-items:center;font-size:16px;flex:none}
+.icon-btn:hover{border-color:var(--accent)}
+.q-meta{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:12.5px;color:var(--muted);font-weight:700}
+.q-text{font-size:19px;font-weight:700;margin:4px 0 18px}
+.alts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.alt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--panel);cursor:pointer;font-weight:600;min-height:58px;transition:.12s}
+.alt:hover:not(:disabled){border-color:var(--accent);transform:translateY(-1px)}
+.alt .num{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;background:var(--panel2);color:var(--muted)}
 .alt.sel{border-color:var(--accent);background:var(--accent-soft)}
-.alt.right{border-color:var(--ok);background:var(--ok-soft)}
-.alt.wrong{border-color:var(--bad);background:var(--bad-soft)}
-.alt b{margin-right:8px}
-.expl{padding:12px 14px;border-radius:10px;background:var(--panel2);margin-top:6px}
+.alt.right{border-color:var(--ok);background:var(--ok-soft)}.alt.right .num{background:var(--ok);color:#fff}
+.alt.wrong{border-color:var(--bad);background:var(--bad-soft)}.alt.wrong .num{background:var(--bad);color:#fff}
+.alt:disabled{cursor:default}
+.alts-list .alt{margin-bottom:8px}
+.study-foot{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-top:20px}
+.study-foot .l{justify-self:start}.study-foot .r{justify-self:end;display:flex;gap:6px}
+.thumb{width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;font-size:16px;color:#fff}
+.thumb.up{background:var(--ok)}.thumb.down{background:var(--bad)}
+.thumb:hover{filter:brightness(1.1)}
+.expl{padding:12px 15px;border-radius:12px;background:var(--panel2);margin-top:14px}
 .q{padding:16px 0;border-bottom:1px solid var(--line)}
 .q:last-child{border-bottom:none}
-.q .opt{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer;color:var(--text);font-size:15px;flex-direction:row}
-.res-ok{color:var(--ok);font-weight:600}
-.res-bad{color:var(--bad);font-weight:600}
-.score{font-size:46px;font-weight:800;color:var(--accent);line-height:1}
+.q .opt{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer;color:var(--text);font-size:15px;flex-direction:row;font-weight:500}
+.res-ok{color:var(--ok);font-weight:800}
+.res-bad{color:var(--bad);font-weight:800}
+.score{font-size:46px;font-weight:900;color:var(--accent);line-height:1}
 .chat{display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
-.msg{padding:12px 15px;border-radius:13px;max-width:85%}
+.msg{padding:12px 15px;border-radius:16px;max-width:85%}
 .msg.user{align-self:flex-end;background:var(--accent);color:#fff}
 .msg.assistant{align-self:flex-start;background:var(--panel);border:1px solid var(--line)}
 .md p:first-child{margin-top:0}.md p:last-child{margin-bottom:0}
 .md table{border-collapse:collapse}.md td,.md th{border:1px solid var(--line);padding:4px 8px}
 .md code{background:var(--panel2);padding:1px 5px;border-radius:5px}
-.sticky-bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.timer{font-variant-numeric:tabular-nums;font-weight:700;padding:6px 12px;border-radius:8px;background:var(--panel2)}
+.sticky-bar{position:sticky;top:58px;z-index:5;background:var(--bg);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.timer{font-variant-numeric:tabular-nums;font-weight:800;padding:6px 12px;border-radius:999px;background:var(--panel2)}
 .timer.low{background:var(--bad-soft);color:var(--bad)}
-#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;max-width:min(560px,90vw);z-index:50}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:.2s;max-width:min(560px,90vw);z-index:50;font-weight:600}
 #toast.show{opacity:1}
 #toast.err{background:var(--bad);color:#fff}
-dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--text);padding:22px;width:min(520px,94vw)}
-dialog::backdrop{background:rgba(10,8,25,.5)}
+dialog{border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--text);padding:22px;width:min(520px,94vw)}
+dialog::backdrop{background:rgba(10,8,30,.5)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
-.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:700}
 .chip:hover{border-color:var(--accent);color:var(--accent)}
-.gloss dt{font-weight:700;margin-top:8px}.gloss dd{margin:2px 0 0 0;color:var(--muted)}
-details summary{cursor:pointer;color:var(--accent);font-size:13px}
-pre.prev{white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--bg);padding:10px;border-radius:8px;font-size:12px;border:1px solid var(--line)}
+.gloss dt{font-weight:800;margin-top:8px}.gloss dd{margin:2px 0 0 0;color:var(--muted)}
+details summary{cursor:pointer;color:var(--accent);font-size:13px;font-weight:700}
+pre.prev{white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--bg);padding:10px;border-radius:10px;font-size:12px;border:1px solid var(--line)}
 table.cards{width:100%;border-collapse:collapse;font-size:14px}
 table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}
 .steps{counter-reset:s;list-style:none;padding:0;display:grid;gap:10px}
 .steps li{counter-increment:s;display:flex;gap:12px;align-items:flex-start}
-.steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:13px}
+.steps li::before{content:counter(s);flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:13px}
+/* ---- celular: trilho vira barra inferior ---- */
 @media (max-width:760px){
-  .app{grid-template-columns:1fr}
-  aside{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
-  #lista{display:flex;gap:6px;overflow-x:auto}
-  #lista .nb{min-width:160px}
-  .side-foot{flex-direction:row;flex-wrap:wrap}
+  .shell{grid-template-columns:1fr}
+  .rail{position:fixed;top:auto;bottom:0;left:0;right:0;height:64px;flex-direction:row;padding:4px 6px;border-right:none;border-top:1px solid var(--line);z-index:30;overflow-x:auto;gap:2px}
+  .ri{min-width:62px;padding:6px 2px;font-size:10.5px}
+  .rail .sep,.rail .fim-extra{display:none}
+  .rail .fim{margin-top:0;margin-left:auto}
+  main{padding-bottom:96px}
+  .alts-grid{grid-template-columns:1fr}
   .msg{max-width:100%}
+  .q-text{font-size:17px}
+  .topbar{padding:0 12px}
+  .brand span{display:none}
+  .dica-teclado{display:none}
 }
 </style>
 </head>
 <body>
-<div class="app">
-  <aside>
-    <div class="brand"><div class="logo">✦</div>Foco Prova</div>
-    <button class="btn primary" data-act="novo">＋ Novo caderno</button>
-    <div class="muted" style="font-size:12px;padding:0 6px;text-transform:uppercase;letter-spacing:.06em">Cadernos</div>
-    <div id="lista" class="stack" style="gap:4px"></div>
-    <div class="side-foot">
-      <button class="btn ghost" data-act="config">⚙️ Configurações</button>
-      <button class="btn ghost" data-act="tema">🌓 Tema</button>
-    </div>
-  </aside>
+<header class="topbar">
+  <button class="brand" data-act="inicio"><span class="logo">✦</span><span>Foco Prova</span></button>
+  <div class="sp"></div>
+  <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
+  <button class="icon-btn" data-act="tema" title="Tema claro/escuro">🌓</button>
+</header>
+<div class="shell">
+  <nav class="rail" id="rail"></nav>
   <main id="main"></main>
 </div>
 <input type="file" id="arquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp" hidden>
@@ -482,19 +535,30 @@ function xmlTexto(xml, pTag, tTag) {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   return [...doc.getElementsByTagName(pTag)].map(p => [...p.getElementsByTagName(tTag)].map(t => t.textContent).join("")).filter(s => s.trim()).join("\n");
 }
+// Mapas de fontes: sem eles o PDF.js não consegue ler o texto de muitos PDFs (e o app achava que era escaneado)
+function abrirPDF(dados) {
+  return pdfjsLib.getDocument({ data: dados, cMapUrl: new URL("lib/cmaps/", location.href).href, cMapPacked: true, standardFontDataUrl: new URL("lib/standard_fonts/", location.href).href }).promise;
+}
+// Página "boa" = tem letras suficientes e não é lixo de fonte quebrada
+function paginaTemTexto(t) {
+  const semEspaco = t.replace(/\s/g, "");
+  const letras = (t.match(/\p{L}/gu) || []).length;
+  return letras >= 25 && letras / Math.max(semEspaco.length, 1) > 0.55;
+}
+const juntarPaginas = paginas => paginas.map((t, i) => t ? `[Página ${i + 1}]\n${t}` : "").filter(Boolean).join("\n\n");
 async function extrairPDF(file) {
-  const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
-  const out = [];
+  const pdf = await abrirPDF(new Uint8Array(await file.arrayBuffer()));
+  const paginas = [];
   for (let i = 1; i <= pdf.numPages; i++) {
+    if (pdf.numPages > 20 && i % 10 === 0) toast(`Lendo ${file.name}: página ${i} de ${pdf.numPages}…`);
     const tc = await (await pdf.getPage(i)).getTextContent();
     const t = tc.items.map(it => it.str + (it.hasEOL ? "\n" : " ")).join("").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-    out.push(`[Página ${i}]\n${t}`);
+    paginas.push(paginaTemTexto(t) ? t : "");
   }
-  const texto = out.join("\n\n");
-  const util = texto.replace(/\[Página \d+\]/g, "").replace(/\s/g, "").length;
-  const pouco = util < pdf.numPages * 60;
-  return { tipo: "pdf", texto: pouco ? "" : texto, extra: `${pdf.numPages} pág.`, poucoTexto: pouco, mime: "application/pdf", arquivo: pouco ? file : undefined };
+  const faltam = paginas.map((t, i) => t ? 0 : i + 1).filter(Boolean);
+  // Páginas quase vazias no meio de um PDF com texto (capa, figura) não precisam de OCR
+  const escaneado = faltam.length > pdf.numPages * 0.3;
+  return { tipo: "pdf", paginas, texto: juntarPaginas(paginas), extra: `${pdf.numPages} pág.`, poucoTexto: escaneado, faltam: escaneado ? faltam : [], mime: "application/pdf", arquivo: escaneado ? file : undefined };
 }
 async function extrairPPTX(file) {
   const zip = await JSZip.loadAsync(file);
@@ -539,7 +603,7 @@ async function adicionarArquivos(files) {
       const r = await extrair(f);
       c.materiais.push({ id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r });
       await salvar(c); render();
-      if (r.poucoTexto) toast(`${f.name}: pouco texto encontrado (provavelmente escaneado). Use "Transcrever com IA".`);
+      if (r.poucoTexto) toast(`${f.name}: parece escaneado. Clique em “Ler texto (grátis)”.`);
     } catch (e) { toast(`${f.name}: ${e.message}`, true); }
   }
   toast("Materiais adicionados.");
@@ -562,32 +626,67 @@ async function lerComOCR(id) {
   const dados = await dadosOriginais(m);
   if (!dados) return toast("O arquivo original não foi guardado. Remova este material e adicione o arquivo de novo.", true);
   m.transcrevendo = true; render();
-  let worker;
+  const inicio = Date.now();
+  let scheduler;
   try {
     progressoIA("Preparando o leitor de texto…", 0.02);
     await carregarScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
-    worker = await Tesseract.createWorker("por", 1, { logger: ev => { if (/loading/.test(ev.status)) progressoIA("Baixando o leitor de texto (só na primeira vez)…", Math.max(ev.progress || 0, 0.05)); } });
-    const out = [];
+    // Vários leitores em paralelo (um por núcleo do processador, até 6)
+    const celular = matchMedia("(pointer: coarse)").matches;
+    const nLeitores = Math.max(1, Math.min(celular ? 2 : 6, (navigator.hardwareConcurrency || 4) - 1));
+    scheduler = Tesseract.createScheduler();
+    const primeiro = await Tesseract.createWorker("por", 1, { logger: ev => { if (/loading/.test(ev.status)) progressoIA("Baixando o leitor de texto (só na primeira vez)…", Math.max(ev.progress || 0, 0.05)); } });
+    scheduler.addWorker(primeiro);
+    const extras = Array.from({ length: nLeitores - 1 }, () => Tesseract.createWorker("por", 1).then(w => scheduler.addWorker(w)).catch(() => {}));
+    const limpar = t => t.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
     if (m.tipo === "imagem") {
       progressoIA("Lendo a imagem…", 0.5);
-      out.push((await worker.recognize(new Blob([dados], { type: m.mime }))).data.text);
+      m.texto = limpar((await scheduler.addJob("recognize", new Blob([dados], { type: m.mime }))).data.text);
     } else {
-      const pdf = await pdfjsLib.getDocument({ data: dados }).promise;
-      for (let i = 1; i <= pdf.numPages; i++) {
-        progressoIA(`Lendo página ${i} de ${pdf.numPages}…`, (i - 1) / pdf.numPages);
-        const pg = await pdf.getPage(i), vp = pg.getViewport({ scale: 2 });
-        const cv = Object.assign(document.createElement("canvas"), { width: vp.width, height: vp.height });
-        await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
-        const t = (await worker.recognize(cv)).data.text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-        out.push(`[Página ${i}]\n${t}`);
+      const pdf = await abrirPDF(dados);
+      if (!m.paginas) { // arquivo antigo: tenta primeiro a leitura rápida de texto (agora com os mapas de fontes)
+        m.paginas = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          progressoIA(`Procurando texto: página ${i} de ${pdf.numPages}…`, i / pdf.numPages);
+          const tc = await (await pdf.getPage(i)).getTextContent();
+          const t = limpar(tc.items.map(it => it.str + (it.hasEOL ? "\n" : " ")).join(""));
+          m.paginas.push(paginaTemTexto(t) ? t : "");
+        }
+        m.faltam = m.paginas.map((t, i) => t ? 0 : i + 1).filter(Boolean);
+        if (m.faltam.length <= pdf.numPages * 0.3) m.faltam = []; // já tinha texto: não precisa de OCR
       }
+      const fila = (Array.isArray(m.faltam) ? m.faltam : m.paginas.map((t, i) => t ? 0 : i + 1).filter(Boolean)).filter(n => !m.paginas[n - 1]);
+      const total = fila.length || 1; let feitas = 0;
+      const atualizar = () => {
+        const seg = (Date.now() - inicio) / 1000, resta = feitas ? Math.round(seg / feitas * (total - feitas) / 60) : null;
+        progressoIA(`Lendo páginas escaneadas: ${feitas} de ${total}${resta !== null ? ` · faltam ~${resta < 1 ? "menos de 1" : resta} min` : ""}`, feitas / total);
+      };
+      atualizar();
+      await Promise.all(extras);
+      // Renderiza no máximo (leitores + 1) páginas à frente, para não estourar a memória
+      let proxima = 0;
+      const trabalhador = async () => {
+        while (proxima < fila.length) {
+          const n = fila[proxima++];
+          const pg = await pdf.getPage(n), vp = pg.getViewport({ scale: 1.8 });
+          const cv = Object.assign(document.createElement("canvas"), { width: Math.round(vp.width), height: Math.round(vp.height) });
+          await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+          const r = await scheduler.addJob("recognize", cv);
+          m.paginas[n - 1] = limpar(r.data.text) || " ";
+          cv.width = cv.height = 0;
+          feitas++; atualizar();
+          if (feitas % 5 === 0) { m.texto = juntarPaginas(m.paginas); salvar(c); } // salva o progresso
+        }
+      };
+      await Promise.all(Array.from({ length: scheduler.getNumWorkers() + 1 }, trabalhador));
+      m.texto = juntarPaginas(m.paginas);
+      m.faltam = [];
     }
-    m.texto = out.join("\n\n").trim();
     if (m.texto.replace(/\[Página \d+\]|\s/g, "").length < 20) throw new Error("não encontrei texto nas imagens");
     m.poucoTexto = false; delete m.b64; delete m.arquivo;
-    toast("Texto lido com sucesso! Confira em “ver texto extraído”.");
-  } catch (e) { toast("Falha ao ler o texto: " + (e?.message || e), true); }
-  finally { try { await worker?.terminate(); } catch {} progressoIA("", null); }
+    toast(`Texto lido em ${Math.max(1, Math.round((Date.now() - inicio) / 60000))} min! Confira em “ver texto extraído”.`);
+  } catch (e) { toast("Falha ao ler o texto: " + (e?.message || e) + (m.paginas?.some(Boolean) ? " — o que já foi lido ficou salvo; clique de novo para continuar." : ""), true); }
+  finally { try { await scheduler?.terminate(); } catch {} progressoIA("", null); }
   delete m.transcrevendo; await salvar(c); render();
 }
 
@@ -697,38 +796,76 @@ function normalizarMultipla(q) {
 }
 
 /* ================= views ================= */
+const IC = {
+  inicio: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+  materiais: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  smart: '<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/>',
+  resumo: '<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h6M8 11h6"/>',
+  flash: '<rect x="3" y="6" width="14" height="12" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v10"/>',
+  quiz: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14"/><path d="M12 17h.01"/>',
+  prova: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 11l2 2 4-4M8.5 16h7"/>',
+  tutor: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
+  config: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'
+};
+const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
+const ABAS = [["materiais", "Materiais"], ["smart", "Estudo inteligente"], ["resumo", "Guia de estudo"], ["flash", "Flashcards"], ["quiz", "Quiz"], ["prova", "Teste"], ["tutor", "Tutor"]];
+const ICONES_KIT = ["📘", "🧬", "📐", "🏛️", "⚗️", "🌎", "📖", "💡", "🧠", "⚖️", "🩺", "💻", "🎨", "📊"];
+
+// Nível = XP do estudo inteligente; estrelas = domínio geral dos tópicos
+function nivelCaderno(c) {
+  const I = c.inteligente || { xp: 0, topicos: [] };
+  const xp = I.xp || 0, nivel = Math.floor(xp / 150) + 1, pct = Math.round((xp % 150) / 150 * 100);
+  const sc = (I.topicos || []).map(t => c.dominio?.[t]?.score || 0);
+  const geral = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : 0;
+  const estrelas = geral >= .9 ? 3 : geral >= .6 ? 2 : geral >= .3 ? 1 : 0;
+  return { nivel, pct, estrelas, geral };
+}
+function barraNivel(c) {
+  const n = nivelCaderno(c);
+  return `<div class="lvl" title="Domínio geral: ${Math.round(n.geral * 100)}%"><div class="lvl-bar"><div style="width:${Math.max(n.pct, 0)}%"></div><span>Nível ${n.nivel}: ${n.pct}%</span></div>
+    <div class="stars">${[1, 2, 3].map(i => `<b class="${i <= n.estrelas ? "on" : ""}">★</b>`).join("")}</div></div>`;
+}
+
 function render() {
-  const lista = [...S.cadernos].sort((a, b) => b.atualizado - a.atualizado);
-  $("#lista").innerHTML = lista.map(c => `<button class="nb ${c.id === S.atual ? "on" : ""}" data-act="abrir" data-id="${c.id}"><span>${esc(c.nome)}</span><small>${c.materiais.length} material(is) · ${c.decks.length + c.quizzes.length + c.provas.length} estudo(s)</small></button>`).join("") || `<p class="muted pad" style="font-size:13px">Nenhum caderno ainda.</p>`;
   const c = atual();
-  $("#main").innerHTML = c ? viewCaderno(c) : viewHome();
+  const emEstudo = !!S.player;
+  $("#rail").innerHTML = `<button class="ri ${!c ? "on" : ""}" data-act="inicio">${svg("inicio")}Início</button><div class="sep"></div>` +
+    ABAS.map(([k, n]) => `<button class="ri ${c && S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}" ${c ? "" : "disabled"}>${svg(k)}${n}</button>`).join("") +
+    `<button class="ri fim" data-act="config">${svg("config")}Ajustes</button>`;
+  $("#iaChip span").textContent = nomeIA();
+  $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : viewHome();
 }
 
 function viewHome() {
-  return `<h1>Estude a partir dos seus próprios materiais</h1>
-  <p class="muted">Envie PDFs, slides e anotações — o Foco Prova cria resumos, flashcards, quizzes e provas simuladas com base no conteúdo deles.</p>
-  <div class="card" style="margin-top:20px">
-    <h2>Como funciona</h2>
+  const lista = [...S.cadernos].sort((a, b) => b.atualizado - a.atualizado);
+  const kits = lista.map(c => {
+    const n = nivelCaderno(c);
+    return `<button class="kit" data-act="abrir" data-id="${c.id}">
+      <span class="ico">${c.icone || "📘"}</span><b>${esc(c.nome)}</b>
+      <span class="muted" style="font-size:13px">${c.materiais.length} material(is) · Nível ${n.nivel}</span>
+      <div class="prog" style="margin-top:6px"><div style="width:${Math.round(n.geral * 100)}%"></div></div>
+      <span class="stars" style="font-size:15px">${[1, 2, 3].map(i => `<b class="${i <= n.estrelas ? "on" : ""}">★</b>`).join("")}</span>
+    </button>`;
+  }).join("");
+  return `<div class="head"><div><h1>Meus cadernos</h1><div class="muted">Um caderno para cada matéria ou prova. Envie seus arquivos e a IA monta o estudo.</div></div>
+    <button class="pill" data-act="novo">＋ Novo caderno</button></div>
+  <div class="kits">${kits}<button class="kit novo" data-act="novo"><span style="font-size:30px">＋</span>Criar caderno</button></div>
+  ${lista.length ? "" : `<div class="card" style="margin-top:22px"><h2>Como funciona</h2>
     <ol class="steps">
-      <li><div><b>Escolha a IA</b> em ⚙️ Configurações: Claude (chave da API da Anthropic) ou IA local grátis com Ollama.</div></li>
-      <li><div><b>Crie um caderno</b> para cada matéria ou prova (ex.: "Bioquímica – P2").</div></li>
-      <li><div><b>Adicione materiais:</b> PDF, PowerPoint (.pptx), Word (.docx), texto ou fotos das anotações.</div></li>
-      <li><div><b>Gere e estude:</b> resumo, flashcards com repetição espaçada, quiz, prova simulada com correção e um tutor para tirar dúvidas.</div></li>
+      <li><div><b>Crie um caderno</b> para a matéria (ex.: "Literatura – O Ateneu").</div></li>
+      <li><div><b>Adicione materiais:</b> PDF, PowerPoint, Word, texto ou fotos das anotações.</div></li>
+      <li><div><b>Clique em “Começar a estudar”:</b> o estudo inteligente foca nos seus pontos fracos. Também há guia de estudo, flashcards, quiz, teste e tutor.</div></li>
     </ol>
-    <div class="row" style="margin-top:16px">
-      <button class="btn primary" data-act="novo">＋ Criar meu primeiro caderno</button>
-      ${cfg().apiKey || cfg().provider === "ollama" ? `<span class="badge ok">${esc(nomeIA())}</span>` : `<button class="btn" data-act="config">⚙️ Configurar IA</button>`}
-    </div>
-  </div>`;
+    <p class="muted" style="font-size:13px;margin-bottom:0">IA em uso: <b>${esc(nomeIA())}</b> — troque em Ajustes.</p></div>`}`;
 }
 
-const ABAS = [["materiais", "📁 Materiais"], ["smart", "🧠 Estudo inteligente"], ["resumo", "📝 Resumo"], ["flash", "🃏 Flashcards"], ["quiz", "❓ Quiz"], ["prova", "📋 Prova simulada"], ["tutor", "💬 Tutor"]];
-function viewCaderno(c) {
+function viewCaderno(c, emEstudo) {
   const corpo = { materiais: viewMateriais, smart: viewSmart, resumo: viewResumo, flash: viewFlash, quiz: viewQuiz, prova: viewProva, tutor: viewTutor }[S.aba](c);
-  return `<div class="head"><div><h1>${esc(c.nome)}</h1><div class="muted" style="font-size:13px">${ativos(c).length} material(is) ativo(s) · ${esc(nomeIA())}</div></div>
-    <div class="row"><button class="btn small" data-act="renomear">✏️ Renomear</button><button class="btn small danger" data-act="excluirCaderno">🗑️ Excluir</button></div></div>
-  <nav class="tabs">${ABAS.map(([k, n]) => `<button class="tab ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${n}</button>`).join("")}</nav>
-  ${corpo}`;
+  if (emEstudo) return corpo; // modo foco: só a tela de estudo
+  return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}</h1>
+      <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
+    <div class="kit-bar"><button class="pill" data-act="smartIniciar">▶ Começar a estudar</button>${barraNivel(c)}</div>
+    ${corpo}`;
 }
 
 function semMateriais(c) {
@@ -752,7 +889,9 @@ function formGerar(tipo, label, { qtd = true, extra = "" } = {}) {
 function viewMateriais(c) {
   const totalChars = ativos(c).reduce((s, m) => s + m.texto.length, 0);
   const tokens = Math.round(totalChars / 4);
-  return `<div class="stack">
+  return `<div class="sec-tabs"><button class="on">${c.materiais.length} ${c.materiais.length === 1 ? "Material" : "Materiais"}</button></div>
+  <div class="stack">
+    <div class="row" style="align-items:center"><button class="btn" data-act="escolher">＋ Adicionar</button><span class="muted" style="font-size:13px">ou arraste os arquivos para a área abaixo</span></div>
     <div class="drop" id="drop" data-act="escolher">
       <div class="big">📤</div>
       <b>Arraste arquivos aqui ou clique para escolher</b>
@@ -880,17 +1019,17 @@ function playerQuiz(c) {
   const q = qs[p.i];
   return topo + `<div class="card">
     <div class="muted" style="font-size:12px">${esc(q.topico)}</div>
-    <div class="md" style="font-size:17px;margin:6px 0 16px">${md(q.enunciado)}</div>
-    ${q.alternativas.map((a, i) => {
-      let cls = "";
-      if (p.confirmado) cls = i === q.correta ? "right" : i === p.escolha ? "wrong" : "";
-      else if (i === p.escolha) cls = "sel";
-      return `<button class="alt ${cls}" data-act="escolher-alt" data-id="${i}" ${p.confirmado ? "disabled" : ""}><b>${LETRAS[i]})</b>${esc(a)}</button>`;
-    }).join("")}
-    ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === q.correta ? "res-ok" : "res-bad"}">${p.escolha === q.correta ? "✔ Correto!" : "✘ Incorreto — resposta: " + LETRAS[q.correta]}</p>${md(q.explicacao)}</div>` : ""}
-    <div class="row" style="justify-content:flex-end;margin-top:14px">
-      ${p.confirmado ? `<button class="btn primary" data-act="proxima">${p.i + 1 < qs.length ? "Próxima →" : "Ver resultado"}</button>` : `<button class="btn primary" data-act="confirmar" ${p.escolha === null ? "disabled" : ""}>Confirmar</button>`}
-    </div></div>`;
+    <div class="q-text md">${md(q.enunciado)}</div>
+    ${altsHTML(q, p, "escolher-alt")}
+    ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === q.correta ? "res-ok" : "res-bad"}">${p.escolha === q.correta ? "✔ Correto!" : "✘ Incorreto — resposta: " + (q.correta + 1)}</p>${md(q.explicacao)}</div>` : ""}
+    <div class="study-foot"><span class="l"></span>${p.confirmado ? `<button class="pill" data-act="proxima">${p.i + 1 < qs.length ? "Continuar →" : "Ver resultado"}</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
+}
+function quizResponder(c, i) {
+  const p = S.player; if (p.confirmado) return;
+  const q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]];
+  p.escolha = i; p.confirmado = true;
+  if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
+  render();
 }
 function iniciarQuiz(id, ordem) {
   const qz = atual().quizzes.find(x => x.id === id);
@@ -1018,7 +1157,7 @@ Regras de adaptação:
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar tópicos novos se encontrar).
 - Não repita estas perguntas já feitas:
 ${hist}
-${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}`;
+${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
   const r = await gerarJSON(c, instr, SCH.smart, focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" "));
   for (const t of r.topicos || []) if (t && !I.topicos.includes(t)) I.topicos.push(t);
   return (r.itens || []).filter(it => it.enunciado && altsValidas(it)).map(it => {
@@ -1058,41 +1197,51 @@ function viewSmart(c) {
     </div>` : `<div class="empty">Na primeira sessão a IA identifica os tópicos dos seus materiais e faz um diagnóstico.</div>`}
   </div>`;
 }
+function altsHTML(it, p, act) {
+  const lista = it.alternativas.map((a, i) => {
+    let cls = "";
+    if (p.confirmado) cls = i === it.correta ? "right" : i === p.escolha ? "wrong" : "";
+    return `<button class="alt ${cls}" data-act="${act}" data-id="${i}" ${p.confirmado ? "disabled" : ""}><span class="num">${i + 1}</span><span>${esc(a)}</span></button>`;
+  }).join("");
+  const longas = it.alternativas.some(a => String(a).length > 90);
+  return `<div class="${longas ? "alts-list" : "alts-grid"}">${lista}</div>`;
+}
 function playerSmart(c) {
   const p = S.player, it = p.fila[p.i], ses = p.sessao;
-  const topo = `<div class="sticky-bar"><button class="btn small" data-act="smartEncerrar">■ Encerrar sessão</button>
-    <span class="row" style="gap:14px;font-size:14px"><span>✔ ${ses.acertos}/${ses.total}</span>${ses.combo >= 2 ? `<span style="color:var(--warn);font-weight:700">🔥 ${ses.combo} seguidas</span>` : ""}<span class="badge ok">+${ses.xp} XP</span></span></div>
-    <div class="row" style="margin-bottom:14px;gap:8px"><input type="text" id="smartAjuste" class="grow" style="flex:1" placeholder="Ajustar em tempo real: ex. mais difícil, mais questões de fórmulas…"><button class="btn small" data-act="smartAjustar">Ajustar</button></div>`;
+  const topo = `<div class="study-top"><button class="icon-btn" data-act="smartEncerrar" title="Encerrar sessão">✕</button>${barraNivel(c)}
+    <button class="icon-btn" data-act="smartGear" title="Ajustar o estudo">⚙</button></div>
+    ${p.gear ? `<div class="card" style="margin-bottom:16px"><label>Diga como quer estudar (vale para as próximas questões)<div class="row" style="flex-wrap:nowrap"><input type="text" id="smartAjuste" placeholder="ex.: mais difícil, estilo vestibular, foco em personagens…"><button class="btn primary small" data-act="smartAjustar">Aplicar</button></div></label></div>` : ""}`;
   if (p.fim) {
     const melhorou = Object.entries(p.inicioDominio).map(([t, s0]) => [t, (c.dominio[t]?.score || 0) - s0]).filter(([, d]) => d > 0.01).sort((a, b) => b[1] - a[1]);
-    return `<div class="card stack" style="text-align:center"><div class="score">${ses.total ? Math.round(ses.acertos / ses.total * 100) : 0}%</div>
+    return `<div class="study">${topo}<div class="card stack" style="text-align:center"><div class="score">${ses.total ? Math.round(ses.acertos / ses.total * 100) : 0}%</div>
       <div>Sessão encerrada: <b>${ses.acertos}</b> acertos em ${ses.total} questões · <b>+${ses.xp} XP</b></div>
       ${melhorou.length ? `<div class="muted">Você evoluiu em: ${melhorou.map(([t, d]) => `<b>${esc(t)}</b> (+${Math.round(d * 100)}%)`).join(", ")}</div>` : ""}
-      ${ses.erros ? `<div class="muted" style="font-size:13px">As questões que você errou foram salvas no baralho “🧠 Revisão de erros” (aba Flashcards).</div>` : ""}
-      <div class="row" style="justify-content:center"><button class="btn primary" data-act="smartIniciar">Nova sessão</button><button class="btn" data-act="sair">Ver progresso</button></div></div>`;
+      ${ses.erros ? `<div class="muted" style="font-size:13px">As questões que você errou foram salvas no baralho “🧠 Revisão de erros” (Flashcards).</div>` : ""}
+      <div class="row" style="justify-content:center"><button class="pill" data-act="smartIniciar">▶ Nova sessão</button><button class="btn" data-act="sair">Ver progresso</button></div></div></div>`;
   }
-  if (!it) return topo + `<div class="card empty"><span class="spin"></span><p>A IA está montando seu próximo bloco com base no seu desempenho…</p><p class="muted" style="font-size:13px">${esc(nomeIA())}</p></div>`;
+  if (!it) return `<div class="study">${topo}<div class="card empty"><span class="spin"></span><p>Montando suas próximas questões com base no seu desempenho…</p><p class="muted" style="font-size:13px">${esc(nomeIA())}</p></div></div>`;
   const dots = "●".repeat(it.dificuldade) + "○".repeat(3 - it.dificuldade);
-  const cab = `<div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="badge">${esc(it.topico)}</span><span class="muted" style="font-size:12px" title="dificuldade">${it.tipo === "licao" ? "📖 mini-lição" : it.tipo === "flashcard" ? "🃏 recordação ativa" : "dificuldade " + dots}</span></div>`;
-  let corpo;
+  const meta = `<div class="q-meta"><span>${esc(it.topico)}</span><span>${it.tipo === "licao" ? "📖 Mini-lição" : it.tipo === "flashcard" ? "🃏 Lembre a resposta" : `${ses.acertos}/${ses.total} ✔${ses.combo >= 2 ? ` · 🔥 ${ses.combo}` : ""} · ${dots}`}</span></div>`;
+  const avaliar = `<div class="r"><button class="thumb up" data-act="sNota" data-id="1" title="Boa questão">👍</button><button class="thumb down" data-act="sNota" data-id="0" title="Questão ruim — evitar parecidas">👎</button></div>`;
+  let corpo, pe;
   if (it.tipo === "licao") {
-    corpo = `<div class="md">${md(it.enunciado)}</div>${it.explicacao ? `<div class="expl md">${md(it.explicacao)}</div>` : ""}
-      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-act="sProx">Entendi, continuar →</button></div>`;
+    corpo = `<div class="md" style="font-size:16.5px">${md(it.enunciado)}</div>${it.explicacao ? `<div class="expl md">${md(it.explicacao)}</div>` : ""}`;
+    pe = `<div class="study-foot"><span class="l"></span><button class="pill" data-act="sProx">Entendi →</button><span class="r"></span></div>`;
   } else if (it.tipo === "flashcard") {
-    corpo = `<div class="md" style="font-size:18px;text-align:center;padding:20px 0">${md(it.enunciado)}</div>
-      ${p.virado ? `<div class="expl md">${md(it.explicacao)}</div>
-        ${p.confirmado ? `<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-act="sProx">Próxima →</button></div>` :
-        `<div class="rate"><button class="btn" style="border-color:var(--bad);color:var(--bad)" data-act="sAuto" data-id="0">Não sabia</button><button class="btn" style="border-color:var(--ok);color:var(--ok)" data-act="sAuto" data-id="1">Sabia!</button></div>`}`
-      : `<div class="row" style="justify-content:center"><button class="btn primary" data-act="sVirar">Pensei na resposta — mostrar</button></div>`}`;
+    corpo = `<div class="q-text" style="text-align:center;padding:16px 0">${md(it.enunciado)}</div>${p.virado ? `<div class="expl md">${md(it.explicacao)}</div>` : ""}`;
+    pe = p.confirmado ? `<div class="study-foot"><span class="l"></span><button class="pill" data-act="sProx">Continuar →</button>${avaliar}</div>`
+      : p.virado ? `<div class="rate"><button class="btn" style="border-color:var(--bad);color:var(--bad)" data-act="sAuto" data-id="0">Não sabia</button><button class="btn" style="border-color:var(--ok);color:var(--ok)" data-act="sAuto" data-id="1">Sabia!</button></div>`
+      : `<div class="study-foot"><button class="pill-dark l" data-act="sVirar">Mostrar resposta</button><button class="btn" data-act="sPular">Pular</button>${avaliar}</div>`;
   } else {
-    corpo = `<div class="md" style="font-size:17px;margin-bottom:14px">${md(it.enunciado)}</div>
-      ${it.alternativas.map((a, i) => { let cls = ""; if (p.confirmado) cls = i === it.correta ? "right" : i === p.escolha ? "wrong" : ""; else if (i === p.escolha) cls = "sel";
-        return `<button class="alt ${cls}" data-act="sAlt" data-id="${i}" ${p.confirmado ? "disabled" : ""}><b>${it.tipo === "vf" ? "" : LETRAS[i] + ")"}</b>${esc(a)}</button>`; }).join("")}
-      ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === it.correta ? "res-ok" : "res-bad"}">${p.escolha === it.correta ? "✔ Correto!" : "✘ Não foi dessa vez"}</p>${md(it.explicacao)}</div>` : ""}
-      <div class="row" style="justify-content:flex-end;margin-top:14px">${p.confirmado ? `<button class="btn primary" data-act="sProx">Próxima →</button>` : `<button class="btn primary" data-act="sConfirmar" ${p.escolha === null ? "disabled" : ""}>Confirmar</button>`}</div>`;
+    corpo = `<div class="q-text md">${md(it.enunciado)}</div>${altsHTML(it, p, "sAlt")}
+      ${p.confirmado ? `<div class="expl md"><p class="${p.escolha === it.correta ? "res-ok" : "res-bad"}">${p.escolha === it.correta ? "✔ Correto!" : p.escolha === null ? "Resposta certa: " + (it.correta + 1) : "✘ Não foi dessa vez"}</p>${md(it.explicacao)}</div>` : ""}`;
+    pe = p.confirmado ? `<div class="study-foot"><span class="l"></span><button class="pill" data-act="sProx">Continuar →</button>${avaliar}</div>`
+      : `<div class="study-foot"><button class="pill-dark l" data-act="sMostrar">Mostrar resposta</button><button class="btn" data-act="sPular">Pular</button>${avaliar}</div>`;
   }
-  return topo + `<div class="card">${cab}${corpo}</div>`;
+  return `<div class="study">${topo}<div class="card" style="padding:22px">${meta}${corpo}</div>${pe}
+    <p class="muted dica-teclado" style="text-align:center;font-size:12px;margin-top:14px">Atalhos: 1–4 responde · Enter continua</p></div>`;
 }
+
 async function smartCarregar(c) {
   const p = S.player;
   try {
@@ -1238,7 +1387,7 @@ document.addEventListener("click", async e => {
     case "avaliar": avaliar(+id); break;
     case "fazerQuiz": iniciarQuiz(id); break;
     case "refazerErros": iniciarQuiz(S.player.id, [...S.player.erros]); break;
-    case "escolher-alt": S.player.escolha = +id; render(); break;
+    case "escolher-alt": quizResponder(c, +id); break;
     case "confirmar": { const p = S.player, q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]]; p.confirmado = true; if (p.escolha === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]); render(); break; }
     case "proxima": { const p = S.player; p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
     case "fazerProva": iniciarProva(id); break;
@@ -1250,9 +1399,15 @@ document.addEventListener("click", async e => {
     case "fecharCfg": $("#dlgConfig").close(); break;
     case "salvarCfg": lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
-    case "smartIniciar": if (!ativos(c).length) return toast("Adicione materiais primeiro.", true); smartIniciar(c); break;
+    case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
+    case "inicio": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); S.atual = null; S.player = null; render(); break;
+    case "trocarIcone": { const i = ICONES_KIT.indexOf(c.icone || "📘"); c.icone = ICONES_KIT[(i + 1) % ICONES_KIT.length]; await salvar(c); render(); break; }
+    case "smartGear": S.player.gear = !S.player.gear; render(); if (S.player.gear) $("#smartAjuste")?.focus(); break;
+    case "sMostrar": S.player.escolha = null; smartResponder(c, false); break;
+    case "sPular": smartProx(c); break;
+    case "sNota": { const it = S.player.fila[S.player.i]; garantirSmart(c); if (id === "0") { (c.inteligente.ruins ||= []).push(it.enunciado.slice(0, 120)); c.inteligente.ruins = c.inteligente.ruins.slice(-30); await salvar(c); toast("Anotado: vou evitar questões parecidas."); if (!S.player.confirmado) smartProx(c); } else toast("Valeu! 👍"); break; }
     case "smartTopico": smartIniciar(c, id); break;
-    case "sAlt": S.player.escolha = +id; render(); break;
+    case "sAlt": { if (S.player.confirmado) break; const it = S.player.fila[S.player.i]; S.player.escolha = +id; smartResponder(c, +id === it.correta); break; }
     case "sConfirmar": { const it = S.player.fila[S.player.i]; smartResponder(c, S.player.escolha === it.correta); break; }
     case "sVirar": S.player.virado = true; render(); break;
     case "sAuto": smartResponder(c, id === "1"); break;
@@ -1281,6 +1436,18 @@ document.addEventListener("change", e => {
 document.addEventListener("keydown", e => {
   if (e.target.id === "pergunta" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); perguntar(e.target.value); return; }
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+  // Atalhos: 1–4 responde, Enter continua (estudo inteligente e quiz)
+  if (S.player?.tipo === "smart" || S.player?.tipo === "quiz") {
+    const smart = S.player.tipo === "smart";
+    const it = smart ? S.player.fila[S.player.i] : null;
+    if (/^[1-5]$/.test(e.key) && !S.player.confirmado && (!smart || (it && (it.tipo === "multipla" || it.tipo === "vf")))) {
+      const btn = document.querySelector(`[data-act="${smart ? "sAlt" : "escolher-alt"}"][data-id="${+e.key - 1}"]`);
+      if (btn) { e.preventDefault(); btn.click(); }
+    } else if (e.key === "Enter") {
+      const b = document.querySelector('[data-act="sProx"], [data-act="proxima"]'); if (b) { e.preventDefault(); b.click(); }
+    }
+    return;
+  }
   if (S.player?.tipo === "flash") {
     if (e.code === "Space") { e.preventDefault(); if (!S.player.virado && S.player.fila.length) { S.player.virado = true; render(); } }
     else if (S.player.virado && ["1", "2", "3"].includes(e.key)) avaliar(+e.key - 1);
