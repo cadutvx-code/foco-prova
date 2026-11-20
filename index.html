@@ -225,6 +225,18 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .mic.on{animation:pulso 1.2s infinite}
 @keyframes pulso{0%{box-shadow:0 0 0 0 rgba(255,94,122,.6)}70%{box-shadow:0 0 0 14px rgba(255,94,122,0)}100%{box-shadow:0 0 0 0 rgba(255,94,122,0)}}
 .nota-oral{font-size:44px;font-weight:900;line-height:1}
+.papeis{display:flex;flex-wrap:wrap;gap:8px}
+.papel{border:1.5px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 12px;cursor:pointer;font-weight:700;font-size:13.5px;text-align:left;max-width:100%}
+.papel:hover{border-color:var(--accent)}
+.papel-sorteado{margin:10px auto;max-width:520px;padding:26px 22px;border-radius:14px;background:#fffdf5;color:#2b2540;box-shadow:0 10px 30px rgba(0,0,0,.25);transform:rotate(-1.5deg);text-align:center;animation:vira .6s ease}
+.papel-sorteado small{display:block;color:#7a7390;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-bottom:6px}
+.papel-sorteado b{font-size:22px;line-height:1.3}
+@keyframes vira{from{transform:rotateY(90deg) rotate(-1.5deg);opacity:0}to{transform:rotateY(0) rotate(-1.5deg);opacity:1}}
+.relogio{font-size:54px;font-weight:900;font-variant-numeric:tabular-nums;text-align:center;line-height:1}
+.etapas{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
+.etapas span{font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px;background:var(--panel2);color:var(--muted)}
+.etapas span.on{background:var(--accent);color:#fff}
+.etapas span.ok{background:var(--ok-soft);color:var(--ok)}
 .oral-lista li{margin:3px 0}
 /* ---- materiais em lista ---- */
 .mlist{display:flex;flex-direction:column;gap:6px;max-width:640px}
@@ -361,6 +373,12 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
         <option value="high">Alto (mais cuidadoso)</option>
       </select>
     </label>
+    </div>
+    <div class="stack" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
+      <b style="font-size:14px">🔊 Voz do professor (leitura em voz alta)</b>
+      <div class="row"><label class="grow">Português<select id="cfgVozPt"></select></label><button class="btn small" data-act="testarVoz" data-id="pt">▶ Testar</button></div>
+      <div class="row"><label class="grow">Español<select id="cfgVozEs"></select></label><button class="btn small" data-act="testarVoz" data-id="es">▶ Probar</button></div>
+      <span class="muted" style="font-size:12px">As vozes “Natural” / “Online” (Edge) e “Google” (Chrome) soam bem mais humanas.</span>
     </div>
     <div class="row">
       <button class="btn" data-act="exportar">⬇️ Exportar backup</button>
@@ -1318,8 +1336,7 @@ function render() {
   $("#seqChip").textContent = `🔥 ${diasSeguidos()}`;
   desenharConta();
   $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : viewHome();
-  const po = S.player;
-  if (po?.tipo === "oral" && S.oralVoz && po.i < po.itens.length && !po.lidas[po.i] && !po.notas[po.i]) { po.lidas[po.i] = true; falar(po.itens[po.i].pergunta); }
+
 }
 
 const CORES_MATERIA = ["#f2a900", "#1d6ff2", "#12a36b", "#e0475e", "#7c4dff", "#f26b1d", "#0b9fa8", "#d6338a"];
@@ -1955,16 +1972,38 @@ function smartProx(c) {
   smartPrefetch(c); render(); window.scrollTo(0, 0);
 }
 
-/* ---------- Ateneo oral: a IA pergunta, você responde falando, a IA corrige ---------- */
-SCH.oral = obj({ perguntas: arr(obj({ pergunta: str, topico: str, pontos_chave: arr(str), resposta_modelo: str })) });
-SCH.oralNota = obj({ nota: num, acertou: arr(str), faltou: arr(str), comentario: str });
+/* ---------- Ateneo oral (formato real): sorteia um capítulo → tempo para pensar → você explica o capítulo → 2 perguntas do professor → nota ---------- */
+SCH.capitulos = obj({ capitulos: arr(obj({ numero: str, titulo: str })) });
+SCH.exposicao = obj({ nota: num, cobriu: arr(str), faltou: arr(str), comentario: str, perguntas: arr(str) });
+SCH.oralNota = obj({ nota: num, acertou: arr(str), faltou: arr(str), comentario: str, resposta_correta: str });
 S.oralVoz = lsGet("fp-oral-voz", true);
 let REC = null;
 const vozIdioma = c => idiomaCaderno(c) === "es" ? "es-ES" : "pt-BR";
-function falar(texto) {
-  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = vozIdioma(atual()); u.rate = 1; speechSynthesis.speak(u); } catch {}
+
+// Voz: escolhe a mais natural disponível (vozes "Natural"/"Online" do Edge, Google no Chrome) ou a que você escolheu em Ajustes
+function vozesDe(lang) {
+  const base = lang.slice(0, 2);
+  return (speechSynthesis.getVoices?.() || []).filter(v => v.lang?.toLowerCase().startsWith(base));
 }
-function fecharVoz() { try { REC?.stop(); } catch {} REC = null; try { speechSynthesis.cancel(); } catch {} }
+function melhorVoz(lang) {
+  const salva = lsGet("fp-voz", {})[lang.slice(0, 2)];
+  const vs = vozesDe(lang);
+  if (salva) { const v = vs.find(x => x.name === salva); if (v) return v; }
+  const nota = v => (/natural|neural/i.test(v.name) ? 6 : 0) + (/online/i.test(v.name) ? 3 : 0) + (/google/i.test(v.name) ? 2 : 0) + (v.lang?.toLowerCase() === lang.toLowerCase() ? 1 : 0) - (v.localService ? 0.5 : 0);
+  return vs.sort((a, b) => nota(b) - nota(a))[0] || null;
+}
+try { speechSynthesis.onvoiceschanged = () => {}; speechSynthesis.getVoices(); } catch {}
+function falar(texto, lang) {
+  try {
+    speechSynthesis.cancel();
+    lang ||= vozIdioma(atual());
+    const u = new SpeechSynthesisUtterance(texto);
+    u.lang = lang; const v = melhorVoz(lang); if (v) u.voice = v;
+    u.rate = 1; u.pitch = 1;
+    speechSynthesis.speak(u);
+  } catch {}
+}
+function fecharVoz() { try { REC?.stop(); } catch {} REC = null; try { speechSynthesis.cancel(); } catch {} clearInterval(S.timerOral); }
 function gravar() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return toast("Este navegador não reconhece voz. Use o Chrome ou o Edge, ou escreva a resposta.", true);
@@ -1979,109 +2018,191 @@ function gravar() {
     const ta = $("#oralResp"); if (ta) ta.value = p.resp + (parcial ? " " + parcial : "");
   };
   REC.onerror = e => { if (/not-allowed|service-not-allowed/.test(e.error)) toast("Permita o uso do microfone para responder falando.", true); else if (e.error === "no-speech") toast("Não ouvi nada. Tente de novo, mais perto do microfone."); };
-  REC.onend = () => { if (S.player === p) { p.gravando = false; render(); } };
+  // a fala longa (explicar um capítulo) às vezes é cortada pelo navegador: religa sozinho enquanto você não tocar em "Parar"
+  REC.onend = () => { if (S.player === p && p.gravando && !p.parouManual) { try { gravar(); return; } catch {} } if (S.player === p) { p.gravando = false; render(); } };
+  p.parouManual = false;
   REC.start(); p.gravando = true; render();
 }
+
+// Capítulos do material (identificados pela IA uma vez e guardados no caderno)
+async function identificarCapitulos(c, forcar = false) {
+  if ((c.capitulos?.length && !forcar) || S.buscandoCaps) return;
+  S.buscandoCaps = true; render();
+  try {
+    const r = await gerarJSON(c, `Liste os CAPÍTULOS (ou grandes temas, se não houver capítulos numerados) que aparecem nos materiais, na ordem em que aparecem. Para cada um: "numero" (ex.: "25"; vazio se não houver) e "titulo" (o título do capítulo, curto). Não invente capítulos que não estão no material.`,
+      SCH.capitulos, "", { maxTokens: cfg().provider === "anthropic" ? 8000 : 2000, rotulo: "Identificando os capítulos", urgente: true });
+    c.capitulos = (r.capitulos || []).filter(x => x?.titulo).map(x => ({ numero: String(x.numero || "").trim(), titulo: String(x.titulo).trim() })).slice(0, 60);
+    await salvar(c);
+  } catch (e) { toast("Não consegui identificar os capítulos: " + erroMsg(e), true); }
+  S.buscandoCaps = false; render();
+}
+const nomeCap = k => `${k.numero ? (idiomaCaderno(atual()) === "es" ? "Capítulo " : "Capítulo ") + k.numero + " – " : ""}${k.titulo}`;
+
 function viewOral(c) {
   if (S.player?.tipo === "oral") return playerOral(c);
   const sem = semMateriais(c); if (sem) return sem;
   c.ateneos ||= [];
-  const busy = S.ocupado === "oral";
+  if (!c.capitulos?.length && !S.buscandoCaps) setTimeout(() => identificarCapitulos(c), 0);
+  const caps = c.capitulos || [];
   return `<div class="stack">
     <div class="card stack">
       <div><h2 style="margin:0">🎤 Ateneo oral</h2>
-        <div class="muted" style="font-size:13.5px;margin-top:4px">Simule a prova oral: a IA faz perguntas abertas sobre definição, localização e função (como o professor), você responde <b>falando</b> ou escrevendo e recebe <b>nota de 0 a 10</b>, com o que acertou e o que faltou.</div></div>
+        <div class="muted" style="font-size:13.5px;margin-top:4px">Como na prova: você <b>tira um papel com um capítulo</b>, tem alguns minutos para pensar, <b>explica o que sabe</b> do capítulo e depois o professor faz <b>2 perguntas</b>. A IA corrige e dá a nota.</div></div>
       <div class="row">
-        <label style="width:130px">Perguntas<input type="number" id="oral-qtd" min="1" max="15" value="${S.form.oralQtd || 5}"></label>
-        <label class="grow">Foco (opcional)<input type="text" id="oral-foco" value="${esc(S.form.oralFoco || "")}" placeholder="ex.: equilíbrio ácido-básico, capítulo 25"></label>
+        <label style="width:190px">Tempo para pensar (min)<input type="number" id="oral-prep" min="0" max="15" value="${lsGet("fp-oral-prep", 3)}"></label>
+        <label class="inline" style="margin-bottom:8px"><input type="checkbox" id="oral-voz" ${S.oralVoz ? "checked" : ""}> Professor fala em voz alta</label>
       </div>
-      <label class="inline"><input type="checkbox" id="oral-voz" ${S.oralVoz ? "checked" : ""}> Ler as perguntas em voz alta</label>
-      <div><button class="pill" data-act="oralIniciar" ${S.ocupado ? "disabled" : ""}>${busy ? `<span class="spin"></span> Preparando o ateneo…` : "▶ Começar ateneo"}</button></div>
+      <div><button class="pill" data-act="oralSortear" ${caps.length ? "" : "disabled"}>🎲 Tirar um papel (sortear capítulo)</button></div>
     </div>
-    ${c.ateneos.length ? `<div class="card"><h3>Ateneos anteriores</h3>${c.ateneos.slice(0, 10).map(a => `<div class="mrow" style="margin-top:6px"><span class="fi">🎤</span><span class="nm">${fmtData(a.data)}<small>${a.itens.length} pergunta(s)</small></span><b style="font-size:18px;color:${a.media >= 7 ? "var(--ok)" : a.media >= 5 ? "var(--warn)" : "var(--bad)"}">${a.media.toFixed(1)}</b></div>`).join("")}</div>` : ""}
+    <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">Ou escolha o capítulo</h3>
+      <button class="btn small ghost" data-act="oralCaps" ${S.buscandoCaps ? "disabled" : ""}>↻ Reidentificar</button></div>
+      ${S.buscandoCaps ? `<p class="muted"><span class="spin"></span> Lendo o material e identificando os capítulos…</p>` :
+        caps.length ? `<div class="papeis">${caps.map((k, i) => `<button class="papel" data-act="oralEscolher" data-id="${i}">📄 ${esc(nomeCap(k))}</button>`).join("")}</div>`
+        : `<p class="muted">Nenhum capítulo identificado ainda.</p>`}
+    </div>
+    ${c.ateneos.length ? `<div class="card"><h3>Ateneos anteriores</h3>${c.ateneos.slice(0, 10).map(a => `<div class="mrow" style="margin-top:6px"><span class="fi">🎤</span><span class="nm">${esc(a.capitulo || "Ateneo")}<small>${fmtData(a.data)}</small></span><b style="font-size:18px;color:${a.media >= 7 ? "var(--ok)" : a.media >= 5 ? "var(--warn)" : "var(--bad)"}">${a.media.toFixed(1)}</b></div>`).join("")}</div>` : ""}
   </div>`;
 }
-function playerOral(c) {
-  const p = S.player, n = p.itens.length;
-  const es = idiomaCaderno(c) === "es";
-  if (p.i >= n) {
-    const notas = p.notas.filter(Boolean).map(x => x.nota), media = notas.length ? notas.reduce((a, b) => a + b, 0) / notas.length : 0;
-    return `<div class="study"><div class="card stack" style="text-align:center"><div class="muted">Média do ateneo</div>
-      <div class="nota-oral" style="color:${media >= 7 ? "var(--ok)" : media >= 5 ? "var(--warn)" : "var(--bad)"}">${media.toFixed(1)}</div>
-      <div class="stack" style="text-align:left">${p.itens.map((it, i) => `<div class="mrow"><span class="nm" style="white-space:normal">${esc(it.pergunta)}</span><b>${p.notas[i] ? p.notas[i].nota.toFixed(1) : "—"}</b></div>`).join("")}</div>
-      <div class="row" style="justify-content:center"><button class="pill" data-act="oralNovo">🎤 Novo ateneo</button><button class="btn" data-act="sair">Voltar</button></div></div></div>`;
-  }
-  const it = p.itens[p.i], nt = p.notas[p.i];
-  const corpo = nt ? `<div class="expl md">
-      <div class="row" style="align-items:center;gap:14px"><span class="nota-oral" style="color:${nt.nota >= 7 ? "var(--ok)" : nt.nota >= 5 ? "var(--warn)" : "var(--bad)"}">${nt.nota.toFixed(1)}</span><span>${md(nt.comentario)}</span></div>
-      ${nt.acertou.length ? `<p class="res-ok" style="margin-bottom:4px">✔ ${es ? "Acertaste" : "Você acertou"}:</p><ul class="oral-lista">${nt.acertou.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-      ${nt.faltou.length ? `<p class="res-bad" style="margin-bottom:4px">✘ ${es ? "Faltó o estuvo mal" : "Faltou ou ficou errado"}:</p><ul class="oral-lista">${nt.faltou.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
-      <details><summary>${es ? "Ver respuesta modelo" : "Ver resposta modelo"}</summary>${md(it.resposta_modelo)}</details>
-      <details><summary>${es ? "Tu respuesta" : "Sua resposta"}</summary><p>${esc(nt.resposta)}</p></details>
-    </div>
-    <div class="study-foot"><span class="l"></span><button class="pill" data-act="oralProx">${p.i + 1 < n ? "Próxima pergunta →" : "Ver resultado"}</button><span class="r"></span></div>`
-  : `<textarea id="oralResp" rows="6" placeholder="Toque em 🎙️ e responda falando, ou escreva aqui…" ${p.corrigindo ? "disabled" : ""}>${esc(p.resp || "")}</textarea>
-    <div class="study-foot">
-      <button class="mic l ${p.gravando ? "on" : ""}" data-act="${p.gravando ? "oralParar" : "oralGravar"}" ${p.corrigindo ? "disabled" : ""}>${p.gravando ? "⏹ Parar" : "🎙️ Responder falando"}</button>
-      <button class="pill" data-act="oralEnviar" ${p.corrigindo ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> Corrigindo…` : "Enviar resposta"}</button>
-      <span class="r"></span></div>
-    ${p.gravando ? `<p class="muted" style="text-align:center;margin-top:10px">🔴 Ouvindo… fale sua resposta e toque em “Parar” quando terminar.</p>` : ""}`;
-  return `<div class="study"><div class="study-top"><button class="icon-btn" data-act="sair" title="Sair">✕</button>
-      <div class="lvl"><div class="lvl-bar"><div style="width:${Math.round(p.i / n * 100)}%"></div><span>Ateneo · ${p.i + 1} de ${n}</span></div></div>
-      <button class="icon-btn" data-act="oralOuvir" title="Ouvir a pergunta">🔊</button></div>
-    <div class="card" style="padding:22px"><div class="q-meta"><span>${esc(it.topico)}</span><span>🎤 ${es ? "Pregunta oral" : "Pergunta oral"}</span></div>
-      <div class="oral-q">${esc(it.pergunta)}</div>${corpo}</div></div>`;
-}
-async function iniciarOral(c) {
-  const n = Math.max(1, Math.min(15, +($("#oral-qtd")?.value || 5)));
-  const foco = ($("#oral-foco")?.value || "").trim();
-  S.form.oralQtd = n; S.form.oralFoco = foco;
+
+function iniciarAteneo(c, idx, sorteado) {
+  fecharVoz();
   S.oralVoz = !!$("#oral-voz")?.checked; lsSet("fp-oral-voz", S.oralVoz);
-  S.ocupado = "oral"; render();
-  try {
-    const r = await gerarJSON(c, `Você é o professor de um ATENEO (exame oral universitário). Crie exatamente ${n} perguntas ABERTAS, como seriam faladas pelo professor, sobre definição, localização e função de mecanismos, órgãos, estruturas, hormônios e processos presentes no material. Varie os tópicos.${foco ? ` Concentre-se em: ${foco}.` : ""}
-Para cada pergunta: "pergunta" (curta e direta, 1 frase), "topico" (nome curto do assunto), "pontos_chave" (3 a 5 itens que uma resposta completa precisa mencionar) e "resposta_modelo" (a resposta ideal, em 3 a 5 frases).`,
-      SCH.oral, foco, { maxTokens: cfg().provider === "anthropic" ? 16000 : 3500, rotulo: "Preparando o ateneo" });
-    const itens = (r.perguntas || []).filter(x => x?.pergunta).slice(0, n).map(x => ({ ...x, topico: topicoValido(x.topico) ? x.topico : "Geral", pontos_chave: x.pontos_chave || [] }));
-    if (!itens.length) throw new Error("a IA não criou perguntas; tente de novo");
-    S.player = { tipo: "oral", itens, i: 0, resp: "", notas: [], gravando: false, corrigindo: false, lidas: {} };
-  } catch (e) { toast(erroMsg(e), true); }
-  S.ocupado = null; render();
+  const prep = Math.max(0, Math.min(15, +($("#oral-prep")?.value ?? 3)));
+  lsSet("fp-oral-prep", prep);
+  const cap = c.capitulos[idx];
+  S.player = { tipo: "oral", cap, etapa: sorteado ? "sorteio" : "preparo", fim: Date.now() + prep * 60000, prep, resp: "", gravando: false, corrigindo: false, exp: null, perguntas: [], k: 0, respostas: [] };
+  render();
+  if (sorteado) setTimeout(() => { if (S.player?.cap === cap && S.player.etapa === "sorteio") comecarPreparo(c); }, 2200);
+  else comecarPreparo(c);
 }
-async function corrigirOral(c) {
-  const p = S.player, it = p.itens[p.i];
+function comecarPreparo(c) {
+  const p = S.player; p.etapa = "preparo"; p.fim = Date.now() + p.prep * 60000;
+  if (S.oralVoz) falar(idiomaCaderno(c) === "es" ? `Te tocó: ${nomeCap(p.cap)}. Tienes ${p.prep} minutos para pensar.` : `Você tirou: ${nomeCap(p.cap)}. Você tem ${p.prep} minutos para pensar.`);
+  if (!p.prep) return comecarExposicao(c);
+  render();
+  clearInterval(S.timerOral);
+  S.timerOral = setInterval(() => {
+    if (S.player !== p || p.etapa !== "preparo") return clearInterval(S.timerOral);
+    const rest = p.fim - Date.now(), el = $("#relogioOral");
+    if (rest <= 0) { clearInterval(S.timerOral); toast("⏰ Tempo! Comece a explicar o capítulo."); comecarExposicao(c); return; }
+    if (el) el.textContent = `${String(Math.floor(rest / 60000)).padStart(2, "0")}:${String(Math.floor(rest % 60000 / 1000)).padStart(2, "0")}`;
+  }, 500);
+}
+function comecarExposicao(c) {
+  const p = S.player; clearInterval(S.timerOral); p.etapa = "exposicao"; p.resp = "";
+  render();
+  if (S.oralVoz) falar(idiomaCaderno(c) === "es" ? "Muy bien. Explícame todo lo que sabes sobre este capítulo." : "Muito bem. Me explique tudo o que você sabe sobre este capítulo.");
+}
+async function enviarOral(c) {
+  const p = S.player;
   const ta = $("#oralResp"); if (ta) p.resp = ta.value;
   const resp = (p.resp || "").trim();
-  if (!resp) return toast("Responda falando ou escrevendo primeiro.", true);
-  fecharVoz(); p.gravando = false; p.corrigindo = true; render();
+  if (!resp) return toast("Fale ou escreva sua resposta primeiro.", true);
+  p.parouManual = true; fecharVoz(); p.gravando = false; p.corrigindo = true; render();
+  const cap = nomeCap(p.cap), es = idiomaCaderno(c) === "es";
   try {
-    const r = await gerarJSON(c, `Você é o professor avaliando uma resposta de ATENEO (exame oral).
-Pergunta: ${it.pergunta}
-Pontos-chave esperados: ${it.pontos_chave.join("; ")}
-Resposta modelo: ${it.resposta_modelo}
-Resposta do estudante (transcrita da fala; ignore pequenos erros de reconhecimento de voz e de gramática): ${resp}
+    if (p.etapa === "exposicao") {
+      const r = await gerarJSON(c, `Você é o professor de um ATENEO (exame oral). O estudante tirou o capítulo "${cap}" e fez a exposição abaixo (transcrita da fala; ignore erros de reconhecimento de voz e de gramática).
+Exposição do estudante: ${resp}
 
-Avalie como um professor justo de ateneo. "nota": de 0 a 10. "acertou": os pontos que o estudante disse corretamente. "faltou": pontos importantes que faltaram ou estão errados (diga o certo). "comentario": 2 a 3 frases de feedback direto, falando com o estudante.`,
-      SCH.oralNota, it.topico, { maxTokens: cfg().provider === "anthropic" ? 6000 : 900, rotulo: "Corrigindo sua resposta", urgente: true });
-    const nota = Math.max(0, Math.min(10, +r.nota || 0));
-    p.notas[p.i] = { nota, acertou: r.acertou || [], faltou: r.faltou || [], comentario: r.comentario || "", resposta: resp };
-    // o resultado alimenta o domínio por tópico e o XP do estudo inteligente
-    garantirSmart(c);
-    const d = c.dominio[it.topico] ||= { score: 0, tentativas: 0, acertos: 0 };
-    d.tentativas++; d.score = d.score * 0.7 + (nota / 10) * 0.3; if (nota >= 6) d.acertos++;
-    if (!c.inteligente.topicos.includes(it.topico)) c.inteligente.topicos.push(it.topico);
-    c.inteligente.xp += Math.round(nota * 2);
+Com base no conteúdo desse capítulo nos materiais:
+- "nota" de 0 a 10 para a exposição (abrangência, correção dos conceitos — definição, localização, função —, organização).
+- "cobriu": os pontos importantes que ele explicou bem.
+- "faltou": os pontos importantes do capítulo que ele não mencionou ou errou (diga o correto).
+- "comentario": 2 a 3 frases de feedback, falando com o estudante.
+- "perguntas": exatamente 2 perguntas que o professor faria em seguida, curtas e diretas como faladas, sobre ESTE capítulo — priorize o que faltou ou ficou superficial na exposição.`,
+        SCH.exposicao, cap, { maxTokens: cfg().provider === "anthropic" ? 8000 : 1500, rotulo: "O professor está avaliando", urgente: true });
+      p.exp = { nota: Math.max(0, Math.min(10, +r.nota || 0)), cobriu: r.cobriu || [], faltou: r.faltou || [], comentario: r.comentario || "", resposta: resp };
+      p.perguntas = (r.perguntas || []).filter(Boolean).slice(0, 2);
+      if (p.perguntas.length < 2) p.perguntas.push(es ? `¿Qué más puede decir sobre ${p.cap.titulo}?` : `O que mais você pode dizer sobre ${p.cap.titulo}?`);
+      p.etapa = "avaliacao";
+    } else if (p.etapa === "pergunta") {
+      const perg = p.perguntas[p.k];
+      const r = await gerarJSON(c, `Você é o professor de um ATENEO (exame oral) sobre o capítulo "${cap}".
+Pergunta do professor: ${perg}
+Resposta do estudante (transcrita da fala; ignore erros de reconhecimento de voz): ${resp}
+
+Avalie com base no material: "nota" de 0 a 10, "acertou" (o que ele disse certo), "faltou" (o que faltou ou errou, dizendo o correto), "comentario" (1 a 2 frases ao estudante) e "resposta_correta" (a resposta ideal em 2 a 4 frases).`,
+        SCH.oralNota, `${perg} ${cap}`, { maxTokens: cfg().provider === "anthropic" ? 6000 : 900, rotulo: "O professor está corrigindo", urgente: true });
+      p.respostas[p.k] = { nota: Math.max(0, Math.min(10, +r.nota || 0)), acertou: r.acertou || [], faltou: r.faltou || [], comentario: r.comentario || "", correta: r.resposta_correta || "", resposta: resp };
+      p.etapa = "respondida";
+    }
     contarResposta();
   } catch (e) { toast(erroMsg(e), true); }
-  p.corrigindo = false; await salvar(c); render();
+  p.corrigindo = false; render();
 }
-function proxOral(c) {
-  const p = S.player; p.i++; p.resp = ""; p.gravando = false; fecharVoz();
-  if (p.i >= p.itens.length) {
-    const notas = p.notas.filter(Boolean).map(x => x.nota);
-    if (notas.length) { c.ateneos ||= []; c.ateneos.unshift({ id: uid(), data: Date.now(), media: notas.reduce((a, b) => a + b, 0) / notas.length, itens: p.itens.map((it, i) => ({ pergunta: it.pergunta, nota: p.notas[i]?.nota ?? null })) }); salvar(c); }
+function proximaEtapaOral(c) {
+  const p = S.player; fecharVoz(); p.resp = ""; p.gravando = false;
+  if (p.etapa === "avaliacao") p.k = 0;
+  else if (p.etapa === "respondida") p.k++;
+  if (p.k >= 2) return finalizarAteneo(c);
+  p.etapa = "pergunta"; render(); window.scrollTo(0, 0);
+  if (S.oralVoz) falar(p.perguntas[p.k]);
+}
+async function finalizarAteneo(c) {
+  const p = S.player; p.etapa = "fim";
+  const q = p.respostas.map(r => r?.nota ?? 0);
+  p.final = (p.exp?.nota ?? 0) * 0.5 + (q[0] ?? 0) * 0.25 + (q[1] ?? 0) * 0.25;
+  c.ateneos ||= [];
+  c.ateneos.unshift({ id: uid(), data: Date.now(), capitulo: nomeCap(p.cap), media: p.final, exposicao: p.exp?.nota ?? 0, perguntas: q });
+  // o resultado alimenta o domínio e o XP do estudo inteligente
+  garantirSmart(c);
+  const t = p.cap.titulo, d = c.dominio[t] ||= { score: 0, tentativas: 0, acertos: 0 };
+  d.tentativas++; d.score = d.score * 0.6 + (p.final / 10) * 0.4; if (p.final >= 6) d.acertos++;
+  if (!c.inteligente.topicos.includes(t)) c.inteligente.topicos.push(t);
+  c.inteligente.xp += Math.round(p.final * 5);
+  await salvar(c); render(); window.scrollTo(0, 0);
+  if (S.oralVoz) falar(idiomaCaderno(c) === "es" ? `Tu nota final es ${p.final.toFixed(1).replace(".", ",")}.` : `Sua nota final é ${p.final.toFixed(1).replace(".", ",")}.`);
+}
+
+function blocoNota(r, es, tipo) {
+  const cor = r.nota >= 7 ? "var(--ok)" : r.nota >= 5 ? "var(--warn)" : "var(--bad)";
+  const bons = tipo === "exp" ? r.cobriu : r.acertou;
+  return `<div class="expl md">
+    <div class="row" style="align-items:center;gap:14px"><span class="nota-oral" style="color:${cor}">${r.nota.toFixed(1)}</span><span>${md(r.comentario)}</span></div>
+    ${bons?.length ? `<p class="res-ok" style="margin-bottom:4px">✔ ${es ? "Lo que explicaste bien" : "O que você explicou bem"}:</p><ul class="oral-lista">${bons.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${r.faltou?.length ? `<p class="res-bad" style="margin-bottom:4px">✘ ${es ? "Faltó o estuvo mal" : "Faltou ou ficou errado"}:</p><ul class="oral-lista">${r.faltou.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${r.correta ? `<details><summary>${es ? "Respuesta correcta" : "Resposta correta"}</summary>${md(r.correta)}</details>` : ""}
+    <details><summary>${es ? "Tu respuesta" : "Sua resposta"}</summary><p>${esc(r.resposta)}</p></details></div>`;
+}
+function playerOral(c) {
+  const p = S.player, es = idiomaCaderno(c) === "es";
+  const etapas = [["preparo", es ? "Pensar" : "Pensar"], ["exposicao", es ? "Explicar" : "Explicar"], ["q1", "Pergunta 1"], ["q2", "Pergunta 2"], ["fim", "Nota"]];
+  const atualE = p.etapa === "sorteio" || p.etapa === "preparo" ? 0 : p.etapa === "exposicao" || p.etapa === "avaliacao" ? 1 : p.etapa === "fim" ? 4 : 2 + p.k;
+  const trilha = `<div class="etapas">${etapas.map(([, n], i) => `<span class="${i === atualE ? "on" : i < atualE ? "ok" : ""}">${n}</span>`).join("")}</div>`;
+  const topo = `<div class="study-top"><button class="icon-btn" data-act="sair" title="Sair">✕</button>
+      <div class="lvl"><div class="lvl-bar"><div style="width:${atualE * 25}%"></div><span>${esc(nomeCap(p.cap))}</span></div></div>
+      <button class="icon-btn" data-act="oralOuvir" title="Ouvir de novo">🔊</button></div>${trilha}`;
+  const papel = `<div class="papel-sorteado"><small>${es ? "Ateneo · tema sorteado" : "Ateneo · tema sorteado"}</small><b>${esc(nomeCap(p.cap))}</b></div>`;
+  const responder = (placeholder) => `<textarea id="oralResp" rows="${p.etapa === "exposicao" ? 9 : 6}" placeholder="${placeholder}" ${p.corrigindo ? "disabled" : ""}>${esc(p.resp || "")}</textarea>
+    <div class="study-foot">
+      <button class="mic l ${p.gravando ? "on" : ""}" data-act="${p.gravando ? "oralParar" : "oralGravar"}" ${p.corrigindo ? "disabled" : ""}>${p.gravando ? "⏹ Parar" : "🎙️ Falar"}</button>
+      <button class="pill" data-act="oralEnviar" ${p.corrigindo ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> O professor está avaliando…` : (p.etapa === "exposicao" ? "Terminei de explicar" : "Enviar resposta")}</button>
+      <span class="r"></span></div>
+    ${p.gravando ? `<p class="muted" style="text-align:center;margin-top:10px">🔴 Ouvindo… fale à vontade e toque em “Parar” quando terminar.</p>` : ""}`;
+  let corpo = "";
+  if (p.etapa === "sorteio") corpo = `<p class="muted" style="text-align:center">🎲 ${es ? "Sacando un papel de la mesa…" : "Tirando um papel da mesa…"}</p>${papel}`;
+  else if (p.etapa === "preparo") {
+    const rest = Math.max(0, p.fim - Date.now());
+    corpo = `${papel}<p class="muted" style="text-align:center;margin-top:16px">${es ? "Tiempo para pensar" : "Tempo para pensar"}</p>
+      <div class="relogio" id="relogioOral">${String(Math.floor(rest / 60000)).padStart(2, "0")}:${String(Math.floor(rest % 60000 / 1000)).padStart(2, "0")}</div>
+      <div class="study-foot"><span class="l"></span><button class="pill" data-act="oralPronto">${es ? "Estoy listo →" : "Estou pronto →"}</button><span class="r"></span></div>`;
+  } else if (p.etapa === "exposicao") corpo = `<div class="oral-q">${es ? "Explica todo lo que sabes sobre:" : "Explique tudo o que você sabe sobre:"} ${esc(nomeCap(p.cap))}</div>${responder(es ? "Toca en 🎙️ y explica el capítulo hablando, o escribe aquí…" : "Toque em 🎙️ e explique o capítulo falando, ou escreva aqui…")}`;
+  else if (p.etapa === "avaliacao") corpo = `<div class="oral-q">${es ? "Evaluación de tu exposición" : "Avaliação da sua explicação"}</div>${blocoNota(p.exp, es, "exp")}
+      <div class="study-foot"><span class="l"></span><button class="pill" data-act="oralProx">${es ? "Preguntas del profesor →" : "Perguntas do professor →"}</button><span class="r"></span></div>`;
+  else if (p.etapa === "pergunta") corpo = `<div class="q-meta"><span>${es ? "Pregunta del profesor" : "Pergunta do professor"} ${p.k + 1} de 2</span><span>🎤</span></div><div class="oral-q">${esc(p.perguntas[p.k])}</div>${responder(es ? "Responde hablando (🎙️) o escribe…" : "Responda falando (🎙️) ou escreva…")}`;
+  else if (p.etapa === "respondida") corpo = `<div class="q-meta"><span>${es ? "Pregunta del profesor" : "Pergunta do professor"} ${p.k + 1} de 2</span></div><div class="oral-q">${esc(p.perguntas[p.k])}</div>${blocoNota(p.respostas[p.k], es, "q")}
+      <div class="study-foot"><span class="l"></span><button class="pill" data-act="oralProx">${p.k === 0 ? (es ? "Siguiente pregunta →" : "Próxima pergunta →") : (es ? "Ver nota final →" : "Ver nota final →")}</button><span class="r"></span></div>`;
+  else if (p.etapa === "fim") {
+    const cor = p.final >= 7 ? "var(--ok)" : p.final >= 5 ? "var(--warn)" : "var(--bad)";
+    corpo = `<div style="text-align:center"><div class="muted">${es ? "Nota final del ateneo" : "Nota final do ateneo"}</div><div class="nota-oral" style="color:${cor};font-size:60px">${p.final.toFixed(1)}</div></div>
+      <div class="stack" style="margin-top:14px">
+        <div class="mrow"><span class="nm">${es ? "Exposición (50%)" : "Explicação (50%)"}</span><b>${(p.exp?.nota ?? 0).toFixed(1)}</b></div>
+        ${p.perguntas.map((q, i) => `<div class="mrow"><span class="nm" style="white-space:normal">${es ? "Pregunta" : "Pergunta"} ${i + 1} (25%): ${esc(q)}</span><b>${(p.respostas[i]?.nota ?? 0).toFixed(1)}</b></div>`).join("")}
+      </div>
+      <div class="study-foot"><span class="l"></span><button class="pill" data-act="oralNovo">🎲 ${es ? "Otro ateneo" : "Novo ateneo"}</button><button class="btn r" data-act="sair">${es ? "Volver" : "Voltar"}</button></div>`;
   }
-  render(); window.scrollTo(0, 0);
+  return `<div class="study">${topo}<div class="card" style="padding:22px">${corpo}</div></div>`;
 }
 
 /* ---------- Tutor ---------- */
@@ -2329,7 +2450,16 @@ async function criarCaderno() {
 }
 
 /* ================= config ================= */
+function preencherVozes() {
+  const salvas = lsGet("fp-voz", {});
+  for (const [id, lang] of [["#cfgVozPt", "pt-BR"], ["#cfgVozEs", "es-ES"]]) {
+    const vs = vozesDe(lang), melhor = melhorVoz(lang);
+    $(id).innerHTML = `<option value="">Automática (${esc(melhor?.name || "padrão")})</option>` + vs.map(v => `<option value="${esc(v.name)}">${esc(v.name)}</option>`).join("");
+    $(id).value = salvas[lang.slice(0, 2)] || "";
+  }
+}
 function abrirConfig() {
+  setTimeout(preencherVozes, 0);
   const s = cfg();
   $("#cfgKey").value = s.apiKey; $("#cfgModel").value = s.model; $("#cfgEffort").value = s.effort;
   $("#cfgProvider").value = s.provider; $("#cfgOUrl").value = s.ollamaUrl; $("#cfgOCtx").value = String(s.ollamaCtx);
@@ -2372,13 +2502,16 @@ document.addEventListener("click", async e => {
   switch (act) {
     case "novo": abrirNovo(); break;
     case "metaDia": e.preventDefault(); { const q = sequencia(); pedirTexto("Meta diária (perguntas por dia)", String(q.meta), v => { const n = Math.max(1, Math.min(500, parseInt(v) || q.meta)); lsSet("fp-sequencia", { ...sequencia(), meta: n }); render(); toast(`Meta diária: ${n} perguntas.`); }); break; }
-    case "oralIniciar": iniciarOral(c); break;
-    case "oralNovo": S.player = null; render(); break;
+    case "oralSortear": { const n = c.capitulos?.length || 0; if (n) iniciarAteneo(c, Math.floor(Math.random() * n), true); break; }
+    case "oralEscolher": iniciarAteneo(c, +id, false); break;
+    case "oralCaps": identificarCapitulos(c, true); break;
+    case "oralPronto": comecarExposicao(c); break;
+    case "oralNovo": fecharVoz(); S.player = null; render(); break;
     case "oralGravar": gravar(); break;
-    case "oralParar": try { REC?.stop(); } catch {} break;
-    case "oralEnviar": corrigirOral(c); break;
-    case "oralProx": proxOral(c); break;
-    case "oralOuvir": falar(S.player.itens[S.player.i].pergunta); break;
+    case "oralParar": S.player.parouManual = true; try { REC?.stop(); } catch {} break;
+    case "oralEnviar": enviarOral(c); break;
+    case "oralProx": proximaEtapaOral(c); break;
+    case "oralOuvir": { const p = S.player; const t = p.etapa === "pergunta" || p.etapa === "respondida" ? p.perguntas[p.k] : p.etapa === "exposicao" ? nomeCap(p.cap) : nomeCap(p.cap); falar(t); break; }
     case "entrar": entrarGoogle(); break;
     case "menuConta": NUVEM.menu = !NUVEM.menu; desenharConta(); break;
     case "syncAgora": NUVEM.menu = false; sincronizarTudo(); break;
@@ -2428,7 +2561,8 @@ document.addEventListener("click", async e => {
     case "limparChat": if (confirm("Apagar a conversa com o tutor?")) { c.chat = []; await salvar(c); render(); } break;
     case "config": abrirConfig(); break;
     case "fecharCfg": $("#dlgConfig").close(); break;
-    case "salvarCfg": lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
+    case "testarVoz": { const v = $(id === "pt" ? "#cfgVozPt" : "#cfgVozEs").value; const salvas = lsGet("fp-voz", {}); lsSet("fp-voz", { ...salvas, [id]: v }); falar(id === "pt" ? "Olá! Eu sou o professor do seu ateneo. Me explique o capítulo de líquidos corporais." : "¡Hola! Soy el profesor de tu ateneo. Explícame el capítulo de los líquidos corporales.", id === "pt" ? "pt-BR" : "es-ES"); break; }
+    case "salvarCfg": lsSet("fp-voz", { ...lsGet("fp-voz", {}), pt: $("#cfgVozPt").value, es: $("#cfgVozEs").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
     case "inicio": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
