@@ -295,9 +295,9 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <div class="stack">
     <label>Qual IA usar
       <select id="cfgProvider">
-        <option value="anthropic">Claude (nuvem, API da Anthropic) — melhor qualidade</option>
-        <option value="webllm">IA do navegador — grátis, roda no aparelho (celular ou PC)</option>
-        <option value="ollama">IA local (Ollama) — grátis, roda no seu PC</option>
+        <option value="gemini">Gemini (nuvem do Google) — grátis, rápido, recomendado</option>
+        <option value="webllm">IA do navegador — grátis, roda no aparelho, sem internet</option>
+        <option value="anthropic">Claude (nuvem) — precisa de chave própria da Anthropic</option>
       </select>
     </label>
     <div id="cfgWeb" class="stack">
@@ -434,6 +434,7 @@ Regras:
 // Quantos caracteres de material cabem no contexto da IA escolhida (IA local/navegador têm pouco espaço)
 function limiteMateriais() {
   const s = cfg();
+  if (s.provider === "gemini" && GEMINI_OK()) return 120000;
   if (s.provider === "webllm") return (WL.modo === "cpu" || !navigator.gpu) ? 2500 : ((MODELOS_WEB[s.webModel]?.ctx || 8192) - 3600) * 3;
   if (s.provider === "ollama") return (Math.max(+s.ollamaCtx || 16384, 4096) - 3600) * 3;
   return Infinity;
@@ -594,7 +595,11 @@ async function chamarCPU(s, { system, messages, schema, maxTokens, rotulo, aoPar
 async function chamarWebGPU(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo }) {
   const modelo = s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC";
   const eng = await motorWebLLM(modelo);
-  const msgs = [{ role: "system", content: textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
+  let sysTxt = textoDoSystem(system);
+  // material maior que o contexto da IA do navegador (ex.: preparado para o Gemini): usa só o começo
+  const orcamento = ((MODELOS_WEB[modelo]?.ctx || 8192) - 3200) * 3;
+  if (sysTxt.length > orcamento) sysTxt = sysTxt.slice(0, orcamento) + "\n…\n</materiais>";
+  const msgs = [{ role: "system", content: sysTxt + (schema ? "\n\nResponda SOMENTE com JSON válido no formato pedido." : "") }];
   for (const m of messages.slice(-7)) {
     if (typeof m.content !== "string") throw new Error("A IA do navegador só lê texto. Para PDFs escaneados e fotos, cole o texto na aba Materiais.");
     msgs.push({ role: m.role, content: m.content });
@@ -731,20 +736,77 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
   return schema ? limparJSON(texto) : texto.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 }
 
+/* ---------- Gemini na nuvem (Firebase AI Logic, plano grátis) ---------- */
+// Do mais capaz ao mais leve: se um atingir o limite grátis, tenta o próximo
+const MODELOS_GEMINI = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+const GEM = { ai: null, AI: null, carregando: null };
+async function motorGemini() {
+  if (GEM.ai) return GEM;
+  return GEM.carregando ||= (async () => {
+    const app = await appFirebase();
+    GEM.AI = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-ai.js`);
+    GEM.ai = GEM.AI.getAI(app, { backend: new GEM.AI.GoogleAIBackend() });
+    return GEM;
+  })().finally(() => { GEM.carregando = null; });
+}
+function partesGemini(content) {
+  if (typeof content === "string") return [{ text: content }];
+  return content.map(b => b.type === "text" ? { text: b.text }
+    : b.type === "image" ? { inlineData: { mimeType: b.source.media_type, data: b.source.data } }
+    : b.type === "document" ? { inlineData: { mimeType: "application/pdf", data: b.source.data } }
+    : { text: "" });
+}
+async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo }) {
+  const { ai, AI } = await motorGemini();
+  const sys = textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido que siga exatamente este esquema JSON:\n" + JSON.stringify(schema) : "");
+  const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: partesGemini(m.content) }));
+  const limite = Math.min(maxTokens || 8192, 32768);
+  let ultimoErro;
+  for (const [i, nome] of MODELOS_GEMINI.entries()) {
+    const prog = fundo ? () => {} : progressoEscrita(Math.min(limite, 3000), rotulo);
+    try {
+      const modelo = AI.getGenerativeModel(ai, {
+        model: nome, systemInstruction: sys,
+        generationConfig: { maxOutputTokens: limite, temperature: schema ? 0.6 : 0.8, ...(schema ? { responseMimeType: "application/json" } : {}) }
+      });
+      const r = await modelo.generateContentStream({ contents });
+      let texto = "";
+      for await (const pedaco of r.stream) {
+        if (sinal?.aborted) throw new Error("interrompido");
+        const t = pedaco.text?.() || "";
+        if (t) { texto += t; prog(texto); aoParcial?.(texto); }
+      }
+      if (!fundo) progressoIA("", null);
+      return schema ? limparJSON(texto) : texto.trim();
+    } catch (e) {
+      if (!fundo) progressoIA("", null);
+      ultimoErro = e;
+      const msg = String(e?.message || e);
+      // limite grátis do modelo atingido ou modelo indisponível: tenta o próximo
+      if (/429|quota|exhausted|rate|not.?found|404|unavailable|503|overloaded/i.test(msg) && i < MODELOS_GEMINI.length - 1) continue;
+      break;
+    }
+  }
+  const msg = String(ultimoErro?.message || ultimoErro);
+  const err = new Error(/429|quota|exhausted|rate/i.test(msg) ? "o limite grátis do Gemini acabou por hoje" : /app.?check|recaptcha|403|permission/i.test(msg) ? "a proteção do Gemini (App Check) recusou o acesso" : /network|fetch|offline/i.test(msg) ? "sem internet" : msg.slice(0, 160));
+  err.reserva = true; // pode usar a IA do navegador no lugar
+  throw err;
+}
+
 async function chamar(opts) {
   const s = cfg();
-  if (s.provider === "ollama") return umPorVez(sinal => chamarOllama(s, { ...opts, sinal }), opts.urgente, opts.fundo);
-  if (s.provider === "webllm") return umPorVez(async sinal => {
-    try { return await chamarWebLLM(s, { ...opts, sinal }); }
-    catch (e) {
-      if (!/carregar a IA do navegador|placa de vídeo/i.test(e?.message || "")) throw e;
-      const achou = await acharOllama(1);
-      if (!achou) throw e;
-      lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: achou, ollamaCtx: 8192, escolhaManual: false });
-      toast(`A IA do navegador não carregou; usando a IA local (${achou}).`); render();
-      return chamarOllama(cfg(), { ...opts, sinal });
+  if (s.provider === "ollama") s.provider = "webllm"; // o Ollama foi removido
+  if (s.provider === "gemini") {
+    if (GEMINI_OK()) {
+      try { return await chamarGemini(s, opts); }
+      catch (e) {
+        if (!e.reserva) throw e;
+        if (!S.avisouReserva) { S.avisouReserva = true; toast(`Gemini indisponível agora (${e.message}). Usando a IA do navegador.`, true); }
+      }
     }
-  }, opts.urgente, opts.fundo);
+    s.provider = "webllm";
+  }
+  if (s.provider === "webllm") return umPorVez(sinal => chamarWebLLM(s, { ...opts, sinal }), opts.urgente, opts.fundo);
   const { system, messages, schema, maxTokens = 32000 } = opts;
   if (!s.apiKey) { abrirConfig(); throw new Error("Configure sua chave da API da Anthropic primeiro."); }
   const client = new Anthropic({ apiKey: s.apiKey, dangerouslyAllowBrowser: true });
@@ -1338,7 +1400,7 @@ function viewMateriais(c) {
         const off = m.ativo === false;
         const meta = [m.extra, m.texto ? m.texto.length.toLocaleString("pt-BR") + " caracteres" : "sem texto", off ? "não usado no estudo" : ""].filter(Boolean).join(" · ");
         const escaneado = m.poucoTexto ? (m.transcrevendo ? `<span class="badge warn"><span class="spin"></span> lendo…</span>`
-          : (m.b64 || m.arquivo) ? `<button class="btn small primary" data-act="ocr" data-id="${m.id}">🔍 Ler texto</button>${cfg().provider === "anthropic" && cfg().apiKey ? `<button class="mini" data-act="transcrever" data-id="${m.id}" title="Transcrever com Claude">✨</button>` : ""}`
+          : (m.b64 || m.arquivo) ? `<button class="btn small primary" data-act="ocr" data-id="${m.id}">🔍 Ler texto</button>${(cfg().provider === "anthropic" && cfg().apiKey) || (cfg().provider === "gemini" && GEMINI_OK()) ? `<button class="mini" data-act="transcrever" data-id="${m.id}" title="Transcrever com IA na nuvem (melhor qualidade)">✨</button>` : ""}`
           : `<span class="badge warn" title="Remova e adicione o arquivo de novo">reenvie o arquivo</span>`) : "";
         return `<div class="mrow ${off ? "off" : ""}"><span class="fi">${iconeMat(m)}</span>
           <span class="nm">${esc(m.nome)}<small>${esc(meta)}</small></span>
@@ -1651,7 +1713,7 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
   let bruto = "";
   const r = await chamar({
     system: local
-      ? [{ type: "text", text: (cpu ? "Você cria perguntas de estudo a partir do material abaixo." : SYS_BASE) + linhaIdioma(c) }, { type: "text", text: materialFixo(c, cpu ? 1800 : cfg().provider === "webllm" ? 3000 : 6000) }]
+      ? [{ type: "text", text: (cpu ? "Você cria perguntas de estudo a partir do material abaixo." : SYS_BASE) + linhaIdioma(c) }, { type: "text", text: materialFixo(c, cpu ? 1800 : cfg().provider === "webllm" ? 3000 : cfg().provider === "gemini" ? 40000 : 6000) }]
       : [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
     messages, schema: (cpu || leve) ? SCH.smartLeve : SCH.smart,
     rotulo: "Preparando suas perguntas", fundo,
@@ -1874,6 +1936,22 @@ async function perguntar(txt) {
 /* ================= conta e nuvem (Firebase) ================= */
 // Configuração pública do projeto Firebase (não é senha: só identifica o projeto)
 const FB_CONFIG = null;
+// Chave do site do reCAPTCHA v3 (pública) — protege o uso do Gemini (App Check)
+const RECAPTCHA_SITE_KEY = null;
+const GEMINI_OK = () => !!(FB_CONFIG && RECAPTCHA_SITE_KEY);
+let appFirebaseP = null;
+function appFirebase() {
+  return appFirebaseP ||= (async () => {
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const { initializeApp } = await import(base + "firebase-app.js");
+    const app = initializeApp(FB_CONFIG);
+    if (RECAPTCHA_SITE_KEY) {
+      const AC = await import(base + "firebase-app-check.js");
+      AC.initializeAppCheck(app, { provider: new AC.ReCaptchaV3Provider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+    }
+    return app;
+  })();
+}
 const FB_VER = "13.3.0";
 const NUVEM = { A: null, F: null, auth: null, db: null, user: null, estado: "", menu: false, pendentes: new Set(), timer: null, ultimaBaixa: 0, ocupada: false };
 const G_ICON = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
@@ -1896,8 +1974,7 @@ async function iniciarNuvem() {
   if (!FB_CONFIG) return;
   try {
     const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
-    const [{ initializeApp }, A, F] = await Promise.all([import(base + "firebase-app.js"), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
-    const app = initializeApp(FB_CONFIG);
+    const [app, A, F] = await Promise.all([appFirebase(), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
     Object.assign(NUVEM, { A, F, auth: A.getAuth(app), db: F.getFirestore(app) });
     A.getRedirectResult(NUVEM.auth).catch(() => {});
     A.onAuthStateChanged(NUVEM.auth, async u => {
@@ -2077,7 +2154,7 @@ function abrirConfig() {
 }
 function mostrarProvedor() {
   const v = $("#cfgProvider").value;
-  $("#cfgOllama").style.display = v === "ollama" ? "" : "none";
+  $("#cfgOllama").style.display = "none"; // o Ollama foi removido
   $("#cfgAnth").style.display = v === "anthropic" ? "" : "none";
   $("#cfgWeb").style.display = v === "webllm" ? "" : "none";
 }
@@ -2092,7 +2169,7 @@ async function detectarModelos() {
     toast(models.length ? `${models.length} modelo(s) encontrado(s).` : "Ollama está rodando, mas sem modelos baixados.");
   } catch { toast("Não encontrei o Ollama nesse endereço. Ele está instalado e aberto?", true); }
 }
-const nomeIA = () => { const s = cfg(); return s.provider === "ollama" ? `IA local: ${s.ollamaModel || "sem modelo"}` : s.provider === "webllm" ? (WL.modo === "cpu" ? "IA do navegador (processador)" : `IA do navegador: ${(MODELOS_WEB[s.webModel]?.nome || "").split(" ")[0] || "Completa"}`) : `Claude: ${s.model.replace("claude-", "")}`; };
+const nomeIA = () => { const s = cfg(); return (s.provider === "gemini" && GEMINI_OK()) ? "Gemini (nuvem)" : s.provider === "webllm" ? (WL.modo === "cpu" ? "IA do navegador (processador)" : `IA do navegador: ${(MODELOS_WEB[s.webModel]?.nome || "").split(" ")[0] || "Completa"}`) : `Claude: ${s.model.replace("claude-", "")}`; };
 function aplicarTema() {
   const t = lsGet("fp-tema", null);
   if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
@@ -2266,43 +2343,17 @@ navigator.serviceWorker?.getRegistrations?.().then(regs => {
   if (velhos.length) Promise.all(velhos.map(r => r.unregister())).then(() => { if (crossOriginIsolated) location.reload(); });
 }).catch(() => {});
 setTimeout(detectarPendentes, 1500);
-// Procura o Ollama algumas vezes (ao abrir o PC ele leva alguns segundos para ligar)
-async function acharOllama(tentativas = 1) {
-  const url = (cfg().ollamaUrl || "http://localhost:11434").replace(/\/$/, "");
-  for (let i = 0; i < tentativas; i++) {
-    try {
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2000);
-      const { models = [] } = await (await fetch(url + "/api/tags", { signal: ctl.signal })).json(); clearTimeout(t);
-      const nomes = models.map(m => m.name);
-      if (nomes.length) return ["qwen3:4b-instruct", "qwen3:4b", "qwen3:8b"].find(n => nomes.includes(n)) || nomes[0];
-    } catch {}
-    if (i < tentativas - 1) await new Promise(r => setTimeout(r, 2000));
-  }
-  return null;
-}
-// Detecta a IA local automaticamente quando não há chave do Claude configurada
+// Ao abrir: o Gemini é a IA padrão (quando configurado); senão, a IA do navegador
 (async () => {
   const s = cfg();
-  // Troca o qwen3 "que sempre pensa" (lento) pela versão instruct, se estiver instalada
-  if (s.provider === "ollama" && /^qwen3:(4b|8b)$/.test(s.ollamaModel || "")) {
-    try {
-      const { models = [] } = await (await fetch(s.ollamaUrl.replace(/\/$/, "") + "/api/tags")).json();
-      if (models.some(m => m.name === "qwen3:4b-instruct")) { lsSet("fp-config", { ...lsGet("fp-config", {}), ollamaModel: "qwen3:4b-instruct", ollamaCtx: 8192 }); render(); toast("IA local atualizada para qwen3:4b-instruct (bem mais rápida)."); }
-    } catch {}
-  }
-  // Pré-carrega a IA local na memória ao abrir o app (a primeira pergunta sai mais rápido)
-  { const s2 = cfg(); if (s2.provider === "ollama" && s2.ollamaModel) fetch(s2.ollamaUrl.replace(/\/$/, "") + "/api/generate", { method: "POST", body: JSON.stringify({ model: s2.ollamaModel, keep_alive: "30m", options: { num_ctx: s2.ollamaCtx || 8192 } }) }).catch(() => {}); }
-  if (s.apiKey || (s.provider === "ollama" && s.ollamaModel)) return;
-  if (s.provider === "webllm" && s.escolhaManual) return; // você escolheu a IA do navegador em Ajustes
-  const achou = await acharOllama(s.provider === "webllm" ? 6 : 8);
-  if (achou) {
-    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "ollama", ollamaModel: achou, ollamaCtx: 8192 });
-    render(); toast(`IA local (Ollama) ativada: ${achou}`);
-    fetch(cfg().ollamaUrl.replace(/\/$/, "") + "/api/generate", { method: "POST", body: JSON.stringify({ model: achou, keep_alive: "30m", options: { num_ctx: 8192 } }) }).catch(() => {});
+  if (s.provider === "ollama") lsSet("fp-config", { ...lsGet("fp-config", {}), provider: GEMINI_OK() ? "gemini" : "webllm", escolhaManual: false });
+  const s2 = cfg();
+  if (GEMINI_OK()) {
+    if (s2.provider !== "gemini" && !s2.escolhaManual) { lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "gemini" }); render(); }
     return;
   }
-  if (s.provider === "webllm") return;
-  // Sem Ollama: usa a IA grátis que roda no próprio navegador (celular ou PC)
+  if (s2.provider === "webllm" || s2.apiKey) return;
+  // Sem Gemini: usa a IA grátis que roda no próprio navegador (celular ou PC)
   if (navigator.gpu) {
     const celular = matchMedia("(pointer: coarse)").matches || (navigator.deviceMemory && navigator.deviceMemory <= 4);
     const fraco = navigator.deviceMemory && navigator.deviceMemory <= 3;
@@ -2310,9 +2361,8 @@ async function acharOllama(tentativas = 1) {
     lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: modelo });
     render(); toast("Usando a IA grátis do navegador. Na primeira geração ela é baixada uma vez.");
   } else {
-    // Sem WebGPU (iPhone, celulares e navegadores antigos): a IA roda no processador
     lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC" });
-    WL.modo = "cpu"; render(); toast("Usando a IA grátis no processador deste aparelho. Na primeira geração ela é baixada uma vez (~400 MB).");
+    WL.modo = "cpu"; render(); toast("Usando a IA grátis no processador deste aparelho. Na primeira geração ela é baixada uma vez (~1 GB).");
   }
 })();
 </script>
