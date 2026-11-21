@@ -1,14 +1,16 @@
 {
-  "name": "Foco Prova",
-  "short_name": "Foco Prova",
-  "description": "Estude para provas com resumos, flashcards, quizzes e provas simuladas criados por IA a partir dos seus materiais.",
+  "name": "Hipocampo Study",
+  "short_name": "Hipocampo",
+  "description": "Estude com IA a partir dos seus materiais: resumos, flashcards, quizzes, provas simuladas, tutor e o Ateneo oral de Fisiologia.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#121119",
-  "theme_color": "#6246ea",
+  "background_color": "#110b2e",
+  "theme_color": "#5b4dff",
   "lang": "pt-BR",
   "icons": [
-    { "src": "icone.png", "sizes": "256x256", "type": "image/png", "purpose": "any" }
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

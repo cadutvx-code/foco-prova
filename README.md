@@ -1,4 +1,4 @@
-﻿# Foco Prova
+# Hipocampo Study
 
 Estude para provas com resumos, flashcards, quizzes, provas simuladas e estudo inteligente criados por IA a partir dos seus materiais.
 

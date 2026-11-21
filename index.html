@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Foco Prova</title>
-<link rel="icon" href="icone.png">
+<title>Hipocampo Study</title>
+<link rel="icon" href="icone-32.png" sizes="32x32">
+<link rel="icon" href="icone-192.png" sizes="192x192">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icone.png">
+<link rel="apple-touch-icon" href="icone-180.png">
 <meta name="theme-color" content="#6246ea">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <script src="lib/pdf.min.js"></script>
@@ -40,7 +41,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ---- estrutura: barra do topo + trilho lateral + conteúdo ---- */
 .topbar{position:sticky;top:0;z-index:20;height:58px;display:flex;align-items:center;gap:12px;padding:0 18px;background:var(--rail);border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:20px;letter-spacing:-.02em;background:none;border:none;cursor:pointer;padding:0}
-.brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;display:grid;place-items:center;font-size:15px}
+.brand .logo{width:32px;height:32px;border-radius:9px;display:block}
+.brand .nome b{font-weight:600;opacity:.75;margin-left:4px}
 .topbar .sp{flex:1}
 .ia-chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--muted);max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ia-chip i{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
@@ -284,7 +286,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 </head>
 <body>
 <header class="topbar">
-  <button class="brand" data-act="inicio"><span class="logo">✦</span><span>Foco Prova</span></button>
+  <button class="brand" data-act="inicio"><img class="logo" src="icone-192.png" alt=""><span class="nome">Hipocampo<b>Study</b></span></button>
   <div class="sp"></div>
   <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
   <div class="conta" id="conta"></div>
@@ -1404,7 +1406,7 @@ function viewHome() {
         <button data-act="excluirKit" data-id="${c.id}" style="color:var(--bad)">🗑 Excluir</button></div>` : ""}
     </div>`;
   };
-  const avisoEndereco = location.hostname.endsWith("github.io") ? `<div class="aviso-nuvem">🏠 O Foco Prova mudou de endereço: <a href="https://focoprova.web.app" style="color:var(--accent);font-weight:800">focoprova.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
+  const avisoEndereco = (location.hostname.endsWith("github.io") || location.hostname.startsWith("focoprova")) ? `<div class="aviso-nuvem">🐴 O Foco Prova agora se chama <b>Hipocampo Study</b> e mudou de endereço: <a href="https://hipocampo.web.app" style="color:var(--accent);font-weight:800">hipocampo.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
   return `${avisoEndereco}${cartaoPlano()}${cartaoMeta()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
@@ -2637,7 +2639,7 @@ function desenharConta() {
   if (!u) { el.innerHTML = `<button class="btn-google" data-act="entrar">${G_ICON}<span>Entrar com Google</span></button>`; return; }
   const pro = ACESSO.liberado, ped = ACESSO.pedidos || 0;
   el.innerHTML = `<span class="sync" title="Sincronização com a nuvem">${esc(NUVEM.estado || "☁ Sincronizado")}</span>
-    ${pro ? `<span class="pro-chip" title="Você está no Foco Prova Pro">👑 Pro</span>` : ""}
+    ${pro ? `<span class="pro-chip" title="Você está no Hipocampo Study Pro">👑 Pro</span>` : ""}
     <span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<button class="avatar" data-act="menuConta" title="${esc(u.email || "")}" style="${pro ? "border-color:#f5a623" : ""}">${avatarHTML(34)}</button>${ACESSO.admin && ped ? `<span style="position:absolute;top:-4px;right:-6px;background:var(--bad);color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px">${ped}</span>` : ""}</span>
     ${NUVEM.menu ? `<div class="conta-menu">
       <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap"><span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<span class="avatar" style="width:46px;height:46px;cursor:default;${pro ? "border-color:#f5a623" : ""}">${avatarHTML(46)}</span></span>
@@ -2825,7 +2827,7 @@ function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
   const acabou = tipo === "ateneo" ? `Você já fez os <b>${p.ateneos} Ateneos grátis</b>.` : tipo ? `Você usou as <b>${p.limite} interações grátis</b> com a IA.` : "";
   const renovar = ACESSO.liberado || ACESSO.vencido;
-  const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Foco Prova 👑 (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
+  const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Hipocampo Study 👑 (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
   const num = String(p.whats || "").replace(/\D/g, "");
   if (ACESSO.admin) {
     $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Você está no Pro!</h2><p class="muted" style="margin:0">Como administrador, seu acesso completo não tem prazo.</p><div class="row" style="justify-content:flex-end"><button class="pill" data-act="fecharPagar">Fechar</button></div>`;
@@ -2834,7 +2836,7 @@ function abrirPagamento(tipo) {
   const estado = ACESSO.liberado && ACESSO.expira
     ? `<p class="aviso-nuvem" style="margin:0">👑 Você está no Pro até <b>${dataCurta(ACESSO.expira)}</b> (${diasRestam(ACESSO.expira) === 1 ? "falta 1 dia" : `faltam ${diasRestam(ACESSO.expira)} dias`}). Renovando agora, os 30 dias novos são somados ao que ainda falta.</p>`
     : ACESSO.vencido && ACESSO.expira ? `<p class="aviso-nuvem" style="margin:0">⏰ Seu Pro venceu em <b>${dataCurta(ACESSO.expira)}</b>. Renove para voltar a ter acesso completo.</p>` : "";
-  $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Foco Prova Pro</h2>
+  $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Hipocampo Study Pro</h2>
     ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}${estado}
     <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${reais(p.preco)} por mês servem só para ajudar a manter o site e a IA funcionando para todo mundo. <b>Sem fidelidade:</b> cada pagamento vale 30 dias e você renova só se quiser. Avisamos ${AVISO_DIAS} dias antes de acabar.</div>
     <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${reais(p.preco)}/mês</b>: perguntas${ATENEO_ATIVO ? ", Ateneos" : ""}, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
@@ -3237,7 +3239,7 @@ document.addEventListener("click", async e => {
     case "tema": { const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); lsSet("fp-tema", cur === "dark" ? "light" : "dark"); aplicarTema(); break; }
     case "exportar": {
       const blob = new Blob([JSON.stringify({ app: "foco-prova", versao: 1, cadernos: S.cadernos }, null, 1)], { type: "application/json" });
-      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `foco-prova-backup-${new Date().toISOString().slice(0, 10)}.json` });
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `hipocampo-study-backup-${new Date().toISOString().slice(0, 10)}.json` });
       a.click(); URL.revokeObjectURL(a.href); break;
     }
     case "importar": $("#backupIn").click(); break;
@@ -3282,7 +3284,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0359";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -3291,7 +3293,7 @@ async function checarVersao() {
     const t = await (await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" })).text();
     const v = t.match(/VERSAO_APP\s*=\s*"([\w-]+)";/)?.[1];
     if (v && v !== VERSAO_APP) {
-      if (S.player || S.ocupado || document.querySelector("dialog[open]")) { toast("✨ Nova versão do Foco Prova disponível. Ela entra quando você recarregar a página."); return; }
+      if (S.player || S.ocupado || document.querySelector("dialog[open]")) { toast("✨ Nova versão do Hipocampo Study disponível. Ela entra quando você recarregar a página."); return; }
       location.reload();
     }
   } catch {}
