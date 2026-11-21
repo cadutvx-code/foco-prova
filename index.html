@@ -18,25 +18,30 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#f2f3fa; --panel:#ffffff; --panel2:#eceef8; --rail:#f8f8fd; --text:#1b1d33; --muted:#6c6f8a; --line:#e2e4f0;
-  --accent:#4f46e5; --accent2:#8b5cf6; --accent-soft:#e8e7fd; --navy:#24214f;
-  --ok:#15955a; --ok-soft:#e1f5ea; --bad:#d9364a; --bad-soft:#fde8eb; --warn:#c27c0e; --warn-soft:#fdf2dc;
-  --star:#f5b301; --shadow:0 1px 2px rgba(25,22,70,.05),0 6px 20px rgba(25,22,70,.05); --r:14px;
+  /* modo claro: lavanda pastel com textura de papel, nada de branco puro */
+  --bg:#e9e4f2; --panel:#f8f5fb; --panel2:#ebe5f4; --rail:#e2dbee; --text:#1e1838; --muted:#57507a; --line:#d3c9e5;
+  --elev:#f0ebf7; /* botões, capítulos e alternativas dentro dos cartões */
+  --accent:#5040d6; --accent2:#8452ee; --accent-soft:#dfd8f7; --navy:#2a2160;
+  --ok:#13824f; --ok-soft:#d9eee2; --bad:#c42d42; --bad-soft:#f5dfe3; --warn:#a96a08; --warn-soft:#f4e7cc;
+  --star:#e0a100; --shadow:0 1px 2px rgba(45,28,100,.08),0 6px 22px rgba(45,28,100,.09); --r:14px;
+  --textura:radial-gradient(1200px 600px at 10% -10%, rgba(132,82,238,.10), transparent 60%), radial-gradient(900px 500px at 110% 10%, rgba(80,64,214,.08), transparent 60%), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .55 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#110b2e; --panel:#1b1446; --panel2:#251d5c; --rail:#0c0824; --text:#ffffff; --muted:#c4c0ec; --line:#342b74;
     --accent:#4d8dff; --accent2:#8b6bff; --accent-soft:#22357a; --navy:#2a2170;
     --ok:#3fd18c; --ok-soft:#123a2e; --bad:#ff6b7c; --bad-soft:#47203a; --warn:#ffc35a; --warn-soft:#3d3018; --shadow:0 4px 18px rgba(0,0,0,.25);
+    --elev:#1b1446; --textura:none;
   }
 }
 :root[data-theme="dark"]{
   --bg:#110b2e; --panel:#1b1446; --panel2:#251d5c; --rail:#0c0824; --text:#ffffff; --muted:#c4c0ec; --line:#342b74;
   --accent:#4d8dff; --accent2:#8b6bff; --accent-soft:#22357a; --navy:#2a2170;
   --ok:#3fd18c; --ok-soft:#123a2e; --bad:#ff6b7c; --bad-soft:#47203a; --warn:#ffc35a; --warn-soft:#3d3018; --shadow:0 4px 18px rgba(0,0,0,.25);
+  --elev:#1b1446; --textura:none;
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 "Nunito","Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+html,body{margin:0;background:var(--bg);background-image:var(--textura);background-attachment:fixed;color:var(--text);font:15px/1.55 "Nunito","Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
 button,input,select,textarea{font:inherit;color:inherit}
 /* ---- estrutura: barra do topo + trilho lateral + conteúdo ---- */
 .topbar{position:sticky;top:0;z-index:20;height:58px;display:flex;align-items:center;gap:12px;padding:0 18px;background:var(--rail);border-bottom:1px solid var(--line)}
@@ -111,7 +116,7 @@ h3{font-size:16px;margin:0 0 6px}
 .detectando{font-size:12px;color:var(--muted);font-weight:700;display:inline-flex;gap:6px;align-items:center}
 .kit.novo{border-style:dashed;align-items:center;justify-content:center;color:var(--accent);font-weight:800;min-height:150px;box-shadow:none;background:transparent}
 /* ---- componentes ---- */
-.btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-weight:700}
+.btn{border:1px solid var(--line);background:var(--elev);padding:8px 14px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-weight:700}
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.primary:hover{filter:brightness(1.08)}
@@ -159,7 +164,7 @@ textarea{resize:vertical;min-height:90px}
 .q-meta{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:12.5px;color:var(--muted);font-weight:700}
 .q-text{font-size:19px;font-weight:700;margin:4px 0 18px}
 .alts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.alt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--panel);cursor:pointer;font-weight:600;min-height:58px;transition:.12s}
+.alt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--panel);cursor:pointer;font-weight:600;min-height:58px;transition:.12s;background:var(--elev)}
 .alt:hover:not(:disabled){border-color:var(--accent);transform:translateY(-1px)}
 .alt .num{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;background:var(--panel2);color:var(--muted)}
 .alt.sel{border-color:var(--accent);background:var(--accent-soft)}
@@ -237,7 +242,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 @keyframes pulso{0%{box-shadow:0 0 0 0 rgba(255,94,122,.6)}70%{box-shadow:0 0 0 14px rgba(255,94,122,0)}100%{box-shadow:0 0 0 0 rgba(255,94,122,0)}}
 .nota-oral{font-size:44px;font-weight:900;line-height:1}
 .papeis{display:flex;flex-wrap:wrap;gap:8px}
-.papel{border:1.5px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 12px;cursor:pointer;font-weight:700;font-size:13.5px;text-align:left;max-width:100%}
+.papel{border:1.5px solid var(--line);background:var(--elev);border-radius:12px;padding:9px 12px;cursor:pointer;font-weight:700;font-size:13.5px;text-align:left;max-width:100%}
 .papel:hover{border-color:var(--accent)}
 .papel-sorteado{margin:10px auto;max-width:520px;padding:26px 22px;border-radius:14px;background:#fffdf5;color:#2b2540;box-shadow:0 10px 30px rgba(0,0,0,.25);transform:rotate(-1.5deg);text-align:center;animation:vira .6s ease}
 .papel-sorteado small{display:block;color:#7a7390;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-bottom:6px}
@@ -3339,7 +3344,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1342";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
