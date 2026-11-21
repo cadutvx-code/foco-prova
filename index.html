@@ -46,7 +46,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ---- estrutura: barra do topo + trilho lateral + conteúdo ---- */
 .topbar{position:sticky;top:0;z-index:20;height:58px;display:flex;align-items:center;gap:12px;padding:0 18px;background:var(--rail);border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:20px;letter-spacing:-.02em;background:none;border:none;cursor:pointer;padding:0}
-.brand .logo{width:32px;height:32px;border-radius:9px;display:block}
+.brand .logo{width:34px;height:34px;display:block}
 .brand .nome b{font-weight:600;opacity:.75;margin-left:4px}
 .topbar .sp{flex:1}
 .ia-chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--muted);max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -319,7 +319,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 </head>
 <body>
 <header class="topbar">
-  <button class="brand" data-act="inicio"><img class="logo" src="icone-192.png" alt=""><span class="nome">Hipocampo<b>Study</b></span></button>
+  <button class="brand" data-act="inicio"><img class="logo" src="favicon.svg" alt=""><span class="nome">Hipocampo<b>Study</b></span></button>
   <div class="sp"></div>
   <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
   <button class="ia-chip" id="seqChip" data-act="metaDia" title="Dias seguidos estudando — clique para mudar a meta diária">🔥 0</button>
@@ -3617,7 +3617,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1426";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
