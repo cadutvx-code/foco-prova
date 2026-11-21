@@ -2042,19 +2042,33 @@ const VOZES_GEMINI = [["Charon", "Charon — masculina, calma (professor)"], ["K
 const AUDIO_CACHE = new Map(); let audioAtual = null; S.falaId = 0;
 const vozGemini = () => lsGet("fp-voz-gemini", "Charon");
 const usarVozGemini = () => cfg().provider === "gemini" && GEMINI_OK() && vozGemini() !== "navegador";
+// As falas do Gemini ficam guardadas no aparelho: frase repetida nunca gasta a cota grátis de novo
+const CACHE_VOZ = "fp-voz-v1";
+const urlVoz = chave => "https://voz.focoprova/" + encodeURIComponent(chave);
+async function vozGuardada(chave) { try { const r = await (await caches.open(CACHE_VOZ)).match(urlVoz(chave)); return r ? URL.createObjectURL(await r.blob()) : null; } catch { return null; } }
+async function guardarVoz(chave, blob) { try { await (await caches.open(CACHE_VOZ)).put(urlVoz(chave), new Response(blob, { headers: { "Content-Type": blob.type } })); } catch {} }
+const TTS_MODELOS = ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"];
 function audioGemini(texto, lang) {
   const voz = vozGemini(), chave = voz + "|" + texto;
   if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
   const pr = (async () => {
+    const salva = await vozGuardada(chave); if (salva) return salva;
     const { ai, AI } = await motorGemini();
-    if (GEM.ttsPausa > Date.now()) throw new Error("voz do Gemini em pausa");
-    for (const nome of ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"]) {
+    GEM.ttsPausa ||= {};
+    const livres = TTS_MODELOS.filter(n => !(GEM.ttsPausa[n] > Date.now()));
+    if (!livres.length) throw new Error("voz do Gemini sem cota agora");
+    for (const nome of livres) {
       try {
         const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } } });
         const r = await prazo(m.generateContent(texto), 20000);
         const part = r.response.candidates?.[0]?.content?.parts?.find(x => x.inlineData);
-        if (part) return `data:${part.inlineData.mimeType || "audio/wav"};base64,${part.inlineData.data}`;
-      } catch (e) { if (/429|quota|exhausted/i.test(String(e?.message))) { GEM.ttsPausa = Date.now() + 30 * 60000; break; } }
+        if (part) {
+          const bytes = Uint8Array.from(atob(part.inlineData.data), ch => ch.charCodeAt(0));
+          const blob = new Blob([bytes], { type: part.inlineData.mimeType || "audio/wav" });
+          guardarVoz(chave, blob);
+          return URL.createObjectURL(blob);
+        }
+      } catch (e) { if (/429|quota|exhausted/i.test(String(e?.message))) GEM.ttsPausa[nome] = Date.now() + 30 * 60000; }
     }
     throw new Error("sem áudio");
   })();
@@ -2063,7 +2077,7 @@ function audioGemini(texto, lang) {
   return pr;
 }
 // Gera o áudio antes (as perguntas do professor tocam na hora)
-function prepararFala(texto, lang) { if (usarVozGemini() && texto) audioGemini(texto, lang || vozIdioma(atual())).catch(() => {}); }
+function prepararFala(texto, lang) { if (S.oralVoz && usarVozGemini() && texto) audioGemini(texto, lang || vozIdioma(atual())).catch(() => {}); }
 function pararAudio() { try { audioAtual?.pause(); } catch {} audioAtual = null; try { speechSynthesis.cancel(); } catch {} }
 function falar(texto, lang) {
   lang ||= vozIdioma(atual());
@@ -3246,7 +3260,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0343";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
