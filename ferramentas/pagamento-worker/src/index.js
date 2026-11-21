@@ -44,11 +44,33 @@ async function emailDoLogin(env, idToken) {
 async function mp(env, caminho, opcoes = {}) {
   const r = await fetch("https://api.mercadopago.com" + caminho, { ...opcoes, headers: { "Authorization": `Bearer ${env.MP_TOKEN}`, "Content-Type": "application/json", ...(opcoes.headers || {}) } });
   const t = await r.text(); let d = {}; try { d = JSON.parse(t); } catch {}
-  if (!r.ok) throw new Error(`Mercado Pago ${r.status}: ${(d.message || d.errors?.[0]?.message || t).toString().slice(0, 200)}`);
+  if (!r.ok) {
+    console.log("Mercado Pago", r.status, caminho, t.slice(0, 1500));
+    const motivo = [d.message, ...(d.errors || []).map(x => [x.code, x.message, ...(x.details || [])].filter(Boolean).join(" - ")), d.cause?.[0]?.description].filter(Boolean).join(" | ") || t || "(sem detalhe)";
+    throw new Error(`Mercado Pago ${r.status}: ${motivo.slice(0, 300)}`);
+  }
   return d;
 }
 
 async function criarPix(env, email) {
+  try { return await criarPixOrders(env, email); }
+  catch (e) { console.log("Orders recusou, tentando Pagamentos:", e.message); return await criarPixPagamento(env, email); }
+}
+async function criarPixPagamento(env, email) {
+  const preco = Math.round(Number(env.PRECO || "9.99") * 100) / 100;
+  const vence = new Date(Date.now() + 30 * 60000).toISOString().replace("Z", "-00:00");
+  const p = await mp(env, "/v1/payments", {
+    method: "POST",
+    headers: { "X-Idempotency-Key": crypto.randomUUID() },
+    body: JSON.stringify({
+      transaction_amount: preco, description: "Hipocampo Study Pro - 30 dias", payment_method_id: "pix",
+      external_reference: email, date_of_expiration: vence, payer: { email }
+    })
+  });
+  const td = p.point_of_interaction?.transaction_data || {};
+  return { id: "pay_" + p.id, status: p.status, qr_code: td.qr_code, qr_code_base64: td.qr_code_base64, ticket_url: td.ticket_url, valor: preco.toFixed(2) };
+}
+async function criarPixOrders(env, email) {
   const preco = Number(env.PRECO || "9.99").toFixed(2);
   const pedido = await mp(env, "/v1/orders", {
     method: "POST",
@@ -69,11 +91,17 @@ const pago = p => p?.status === "processed" || p?.status_detail === "accredited"
 
 async function conferir(env, id, emailPedido) {
   if (!id || !/^[A-Za-z0-9_-]{4,64}$/.test(id)) throw new Error("pedido inválido");
-  const pedido = await mp(env, "/v1/orders/" + encodeURIComponent(id));
-  const email = String(pedido.external_reference || "").toLowerCase();
+  let email, ok, status, ref = id;
+  if (id.startsWith("pay_")) {
+    const p = await mp(env, "/v1/payments/" + encodeURIComponent(id.slice(4)));
+    email = String(p.external_reference || "").toLowerCase(); ok = p.status === "approved"; status = p.status;
+  } else {
+    const pedido = await mp(env, "/v1/orders/" + encodeURIComponent(id));
+    email = String(pedido.external_reference || "").toLowerCase(); ok = pago(pedido); status = pedido.status; ref = pedido.id;
+  }
   if (emailPedido && email !== emailPedido) throw new Error("este pagamento é de outra conta");
-  if (!pago(pedido)) return { pago: false, status: pedido.status, detalhe: pedido.status_detail };
-  const expira = await liberar(env, email, pedido.id);
+  if (!ok) return { pago: false, status };
+  const expira = await liberar(env, email, ref);
   return { pago: true, expira };
 }
 
@@ -81,8 +109,10 @@ async function conferir(env, id, emailPedido) {
 async function webhook(req, env) {
   const corpo = await req.json().catch(() => ({}));
   const url = new URL(req.url);
-  const id = corpo?.data?.id || url.searchParams.get("data.id") || url.searchParams.get("id");
-  if (id) { try { await conferir(env, String(id), null); } catch (e) { console.log("webhook", id, e.message); } }
+  const bruto = corpo?.data?.id || url.searchParams.get("data.id") || url.searchParams.get("id");
+  const tipo = corpo?.type || url.searchParams.get("type") || url.searchParams.get("topic") || "";
+  const id = bruto ? (/payment/i.test(tipo) || /^\d+$/.test(String(bruto)) ? "pay_" + bruto : String(bruto)) : null;
+  if (id) { try { await conferir(env, id, null); } catch (e) { console.log("webhook", id, e.message); } }
   return new Response("ok", { status: 200 });
 }
 
