@@ -4014,7 +4014,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2032";
+const VERSAO_APP = "2026-11-21-2034";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4402,15 +4402,57 @@ const UI_ES = {
   "Vozes Piper: rodam no seu aparelho, grátis e sem limite. Na primeira vez a voz é baixada (cerca de 60 MB) e fica guardada.": "Voces Piper: funcionan en tu dispositivo, gratis y sin límite. La primera vez la voz se descarga (unos 60 MB) y queda guardada.",
   "O microfone está muito baixo: não consegui ouvir sua voz. Fale mais perto ou confira qual microfone o navegador está usando.": "El micrófono está muy bajo: no pude oír tu voz. Habla más cerca o revisa qué micrófono está usando el navegador.",
   "Termine na aba do Mercado Pago; quando a 1ª cobrança for aprovada, seu Pro é liberado aqui sozinho (pode levar alguns minutos).": "Termina en la pestaña de Mercado Pago; cuando se apruebe el 1.er cobro, tu Pro se libera aquí solo (puede tardar unos minutos).",
-  "🦁 O Brave entregou o microfone mudo (sem som nenhum). Escolha outro microfone em Ajustes → Microfone (tem um botão Testar), use o Chrome/Edge, ou desative os escudos (leão) para este site.": "🦁 Brave entregó el micrófono mudo (sin ningún sonido). Elige otro micrófono en Ajustes → Micrófono (tiene un botón Probar), usa Chrome/Edge, o desactiva los escudos (león) para este sitio."
+  "🦁 O Brave entregou o microfone mudo (sem som nenhum). Escolha outro microfone em Ajustes → Microfone (tem um botão Testar), use o Chrome/Edge, ou desative os escudos (leão) para este site.": "🦁 Brave entregó el micrófono mudo (sin ningún sonido). Elige otro micrófono en Ajustes → Micrófono (tiene un botón Probar), usa Chrome/Edge, o desactiva los escudos (león) para este sitio.",
+  "perguntas  ·": "preguntas  ·",
+  "perguntas ·": "preguntas ·",
+  "Tire um capítulo, explique e responda às 2 perguntas do professor. A IA corrige e dá a nota.": "Saca un capítulo, explícalo y responde las 2 preguntas del profesor. La IA corrige y pone la nota.",
+  "Crie um caderno": "Crea un cuaderno",
+  "A IA identifica a matéria": "La IA identifica la materia",
+  "Clique em “Empezar a estudiar”:": "Haz clic en “Empezar a estudiar”:",
+  "Clique em “Começar a estudar”:": "Haz clic en “Empezar a estudiar”:",
+  "perguntas que focam nos seus pontos fracos.": "preguntas que se enfocan en tus puntos débiles.",
+  "Ateneo oral de Fisiologia": "Ateneo oral de Fisiología",
+  "Fisiologia 1 · 3º semestre": "Fisiología 1 · 3.er semestre",
+  "Fisiologia 2 · 4º semestre": "Fisiología 2 · 4.º semestre",
+  "Em breve": "Próximamente",
+  ": abra o app do seu banco e": ": abre la app de tu banco y",
+  "aponte a câmera para o QR Code": "apunta la cámara al código QR",
+  ", ou toque em": ", o toca en",
+  "Toque em": "Toca en",
+  "e cole na área Pix do app do banco (Pix → Copia e cola). Esse código é só seu e o Pro é liberado sozinho.": "y pégalo en el área Pix de la app del banco (Pix → Copia y pega). Ese código es solo tuyo y el Pro se libera solo.",
+  "Ou pague pela chave Pix (nesse caso a liberação é manual, pelo comprovante):": "O paga con la clave Pix (en ese caso la liberación es manual, con el comprobante):",
+  "Caso o seu Pro": "Si tu Pro",
+  "não seja liberado automaticamente": "no se libera automáticamente",
+  "que faremos a liberação.": "y haremos la liberación.",
+  "Fechar": "Cerrar",
+  "Excluir caderno": "Eliminar cuaderno",
+  "Idioma das perguntas, respostas e explicações": "Idioma de las preguntas, respuestas y explicaciones",
+  "Os materiais marcados como ativos são usados para criar o estudo": "Los materiales marcados como activos se usan para crear el estudio",
+  "Não usar no estudo": "No usar en el estudio",
+  "A IA acompanha o que você domina, foca nos seus pontos fracos e aumenta a dificuldade conforme você evolui — com perguntas de múltipla escolha e a explicação de cada resposta.": "La IA sigue lo que dominas, se enfoca en tus puntos débiles y aumenta la dificultad a medida que avanzas — con preguntas de opción múltiple y la explicación de cada respuesta.",
+  "Na primeira sessão a IA identifica os tópicos dos seus materiais e faz um diagnóstico.": "En la primera sesión la IA identifica los temas de tus materiales y hace un diagnóstico.",
+  "ex.: questões no estilo da minha professora, mais cálculos, foco no capítulo 4, questões mais difíceis…": "ej.: preguntas al estilo de mi profesora, más cálculos, foco en el capítulo 4, preguntas más difíciles…",
+  "média": "media",
+  "Faça uma pergunta sobre o conteúdo… (Ctrl+Enter envia)": "Haz una pregunta sobre el contenido… (Ctrl+Enter envía)",
+  "Perguntas de múltipla escolha com explicação de cada resposta": "Preguntas de opción múltiple con la explicación de cada respuesta",
+  "Escreva sua resposta…": "Escribe tu respuesta…",
+  "Fale ou escreva sua resposta primeiro.": "Habla o escribe tu respuesta primero.",
+  "Gere um guia ou um resumo dos seus materiais": "Genera una guía o un resumen de tus materiales",
+  "Este navegador não grava áudio. Escreva a resposta.": "Este navegador no graba audio. Escribe la respuesta.",
+  "Não consegui iniciar a gravação neste navegador. Escreva a resposta.": "No pude iniciar la grabación en este navegador. Escribe la respuesta.",
+  "Saíram do Pro sozinhos ao completar 30 dias. Se pagarem de novo, toque em \"+30 dias\".": "Salieron del Pro solos al completar 30 días. Si pagan de nuevo, toca en \"+30 días\".",
+  "Pessoas que tocaram em \"Já paguei\". Confira o Pix e o comprovante no WhatsApp antes de autorizar.": "Personas que tocaron en \"Ya pagué\". Revisa el Pix y el comprobante en WhatsApp antes de autorizar.",
+  "Conta todo mundo que abre o site, com ou sem login (sem guardar dados pessoais). \"Aparelhos\" = pessoas diferentes, aproximadamente.": "Cuenta a todos los que abren el sitio, con o sin login (sin guardar datos personales). \"Dispositivos\" = personas distintas, aproximadamente.",
+  "Os R$": "Los R$",
+  "” criado e salvo.": "” creado y guardado."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"]
 ];
 const IGNORAR_TRAD = "textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
-const pedacosUI = () => PEDACOS_UI ||= Object.keys(UI_ES).filter(k => k.length >= 12).sort((a, b) => b.length - a.length);
+const pedacosUI = () => PEDACOS_UI ||= Object.keys(UI_ES).filter(k => k.length >= 12 || k.includes("R$")).sort((a, b) => b.length - a.length);
 function traduzirNo(raiz) {
   if (lsGet("fp-ui", "pt") !== "es" || !raiz) return;
   if (raiz.nodeType === 3) raiz = raiz.parentElement; if (!raiz) return;
