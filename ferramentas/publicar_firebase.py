@@ -20,7 +20,7 @@ for raiz, _, nomes in os.walk(pasta):
     for n in nomes:
         caminho = os.path.join(raiz, n)
         rel = "/" + os.path.relpath(caminho, pasta).replace(os.sep, "/")
-        if rel.startswith("/.git") or rel.startswith("/ferramentas/") or rel in ("/README.md", "/.nojekyll"): continue
+        if rel.startswith("/.git") or rel.startswith("/ferramentas/") or rel in ("/README.md", "/.nojekyll", "/CLAUDE.md", "/.gitignore"): continue
         gz = gzip.compress(open(caminho, "rb").read(), mtime=0)
         h = hashlib.sha256(gz).hexdigest()
         arquivos[rel] = h; por_hash[h] = gz
