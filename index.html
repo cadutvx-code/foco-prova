@@ -848,7 +848,8 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
     }
   }
   const msg = String(ultimoErro?.message || ultimoErro);
-  const err = new Error(/429|quota|exhausted|rate.?limit/i.test(msg) ? "o limite grátis do Gemini acabou por agora" : /50[0-4]|high demand|overload/i.test(msg) ? "os servidores do Gemini estão sobrecarregados agora" : /app.?check|recaptcha|403|permission/i.test(msg) ? "a proteção do Gemini (App Check) recusou o acesso" : /network|fetch|offline/i.test(msg) ? "sem internet" : msg.slice(0, 160));
+  console.warn("Gemini:", msg);
+  const err = new Error(/network|fetch|offline/i.test(msg) ? "Parece que a internet caiu. Confira a conexão e tente de novo." : "A IA está um pouco ocupada agora. Tente de novo em alguns segundos.");
   err.reserva = true; // pode usar a IA do navegador no lugar
   throw err;
 }
@@ -861,7 +862,7 @@ async function chamar(opts) {
       try { return await chamarGemini(s, opts); }
       catch (e) {
         if (!e.reserva) throw e;
-        if (!S.avisouReserva) { S.avisouReserva = true; toast(`Gemini indisponível agora (${e.message}). Usando a IA do navegador.`, true); }
+        console.warn("Gemini falhou, usando a reserva:", e.message); // troca em silêncio: o resultado continua saindo
       }
     }
     s.provider = "webllm";
@@ -1285,7 +1286,7 @@ async function completarExplicacao(c, q, escolha) {
     });
     if (r.certa?.trim()) q.explicacao = r.certa.trim();
     if (marcou && r.errada?.trim()) { q.explicacoes ||= q.alternativas.map(() => ""); q.explicacoes[escolha] = r.errada.trim(); }
-  } catch (e) { toast("Não consegui gerar a explicação: " + erroMsg(e), true); }
+  } catch (e) { console.warn("explicação extra não gerada:", e); } // tarefa de fundo: não assusta o aluno
   delete q._explicando; render(); salvar(c);
 }
 /* ================= sequência de dias e meta diária ================= */
@@ -2518,7 +2519,8 @@ function desenharConta() {
     ${NUVEM.menu ? `<div class="conta-menu">
       <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap"><span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<span class="avatar" style="width:46px;height:46px;cursor:default;${pro ? "border-color:#f5a623" : ""}">${avatarHTML(46)}</span></span>
         <div style="min-width:0"><b>${esc(nomeUser())}</b><div class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis">${esc(u.email || "")}</div></div></div>
-      ${pro ? `<span class="pro-chip" style="align-self:flex-start;margin:4px 0">👑 Você está no Pro${ACESSO.admin ? " · Administrador" : ""}</span>` : `<span style="font-size:12.5px;margin:4px 0">🎁 Plano grátis</span>`}
+      ${pro ? `<span class="pro-chip" style="align-self:flex-start;margin:4px 0">👑 Você está no Pro${ACESSO.admin ? " · Administrador" : ACESSO.expira ? ` até ${dataCurta(ACESSO.expira)}` : ""}</span>` : `<span style="font-size:12.5px;margin:4px 0">🎁 Plano grátis${ACESSO.vencido ? " · Pro vencido" : ""}</span>`}
+      ${pro && !ACESSO.admin && ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS ? `<button data-act="pagar">⏳ Renovar o Pro</button>` : ""}
       <button data-act="perfil">🎨 Editar perfil (foto, nome, avatar)</button>
       ${ACESSO.admin ? `<button data-act="admin">🛡️ Painel do administrador${ped ? ` <b style="color:var(--bad)">(${ped} pedido${ped > 1 ? "s" : ""})</b>` : ""}</button>` : pro ? "" : `<button data-act="pagar">👑 Quero o Pro</button>`}
       <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar.</span>
@@ -2562,9 +2564,21 @@ async function sairConta() {
 
 /* ================= acesso: plano grátis com limite + liberação manual (Pix) ================= */
 // liberados/{email} = acesso completo (só o administrador grava) · config/pagamento = chave Pix, WhatsApp, preço e limites
-const ACESSO = { liberado: false, admin: false, verificado: false, pag: { pix: "", whats: "", preco: 10, limite: 30, ateneos: 2, ...lsGet("fp-pag", {}) } };
+const ACESSO = { liberado: false, admin: false, verificado: false, expira: null, vencido: false, pag: { pix: "", whats: "", preco: 5, limite: 30, ateneos: 2, ...lsGet("fp-pag", {}) } };
 const emailUser = () => (NUVEM.user?.email || "").trim().toLowerCase();
-{ const a = lsGet("fp-acesso", null); if (a?.liberado) ACESSO.liberado = true; }
+// O Pro dura 30 dias a partir da aprovação; depois sai sozinho e a pessoa renova
+const DIA_MS = 86400000, MES_MS = 30 * DIA_MS, AVISO_DIAS = 3;
+const dataCurta = t => new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+const diasRestam = t => Math.max(0, Math.ceil((t - Date.now()) / DIA_MS));
+const expiraDe = d => d?.expira || ((d?.data || 0) + MES_MS);
+{ const a = lsGet("fp-acesso", null); if (a?.liberado && (!a.expira || a.expira > Date.now())) { ACESSO.liberado = true; ACESSO.expira = a.expira || null; } }
+// confere a validade na hora de usar (a aba pode ficar aberta além do vencimento)
+function conferirValidade() {
+  if (ACESSO.liberado && !ACESSO.admin && ACESSO.expira && ACESSO.expira <= Date.now()) {
+    ACESSO.liberado = false; ACESSO.vencido = true; lsSet("fp-acesso", { email: emailUser(), liberado: false, expira: ACESSO.expira });
+    desenharConta(); toast("⏰ Seu Pro venceu. Renove para continuar com acesso completo.", true);
+  }
+}
 const uso = () => ({ n: 0, ateneos: 0, ...lsGet("fp-uso", {}) });
 
 // ---- perfil: foto real, avatar pronto ou a foto do Google; nome personalizado
@@ -2633,15 +2647,22 @@ async function verificarAcesso() {
   if (!u) { ACESSO.liberado = ACESSO.admin = ACESSO.pedido = false; ACESSO.pedidos = 0; PERFIL = {}; lsSet("fp-perfil", {}); lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
   if (PERFIL.uid && PERFIL.uid !== u.uid) PERFIL = {};
   const F = NUVEM.F, db = NUVEM.db;
-  try { await F.getDocs(F.query(F.collection(db, "liberados"), F.limit(1))); ACESSO.admin = true; } catch (e) { ACESSO.admin = false; if (!/permission/i.test(e?.code + e?.message)) console.warn("verificar admin", e); }
-  let lib = ACESSO.admin;
-  if (!lib) { try { lib = (await F.getDoc(F.doc(db, "liberados/" + emailUser()))).exists(); } catch { lib = false; } }
-  ACESSO.liberado = lib; ACESSO.verificado = true;
-  lsSet("fp-acesso", { email: emailUser(), liberado: lib });
+  // administradores ficam numa lista própria (admins/), separada dos membros Pro (liberados/)
+  try { ACESSO.admin = (await F.getDoc(F.doc(db, "admins/" + emailUser()))).exists(); } catch (e) { ACESSO.admin = false; if (!/permission/i.test(e?.code + e?.message)) console.warn("verificar admin", e); }
+  let lib = ACESSO.admin, expira = null, vencido = false;
+  if (!lib) {
+    try {
+      const d = await F.getDoc(F.doc(db, "liberados/" + emailUser()));
+      if (d.exists()) { expira = expiraDe(d.data()); lib = expira > Date.now(); vencido = !lib; }
+    } catch { lib = false; }
+  }
+  ACESSO.liberado = lib; ACESSO.expira = expira; ACESSO.vencido = vencido; ACESSO.verificado = true;
+  lsSet("fp-acesso", { email: emailUser(), liberado: lib, expira });
+  if (lib && expira && diasRestam(expira) <= AVISO_DIAS && !S.avisouPro) { S.avisouPro = true; setTimeout(() => toast(`⏳ Seu Pro acaba em ${diasRestam(expira)} dia(s), no dia ${dataCurta(expira)}. Renove para não perder o acesso.`), 1500); }
   // perfil (nome, foto ou avatar) e pedidos de Pro
   try { const d = await F.getDoc(F.doc(db, `${caminhoUser()}/conta/perfil`)); PERFIL = d.exists() ? d.data() : {}; lsSet("fp-perfil", { uid: u.uid, ...PERFIL }); } catch {}
   if (ACESSO.admin) await contarPedidos();
-  else if (!lib) { try { ACESSO.pedido = (await F.getDoc(F.doc(db, "solicitacoes/" + emailUser()))).exists(); } catch { ACESSO.pedido = false; } }
+  else { try { ACESSO.pedido =(await F.getDoc(F.doc(db, "solicitacoes/" + emailUser()))).exists(); } catch { ACESSO.pedido = false; } }
   // o contador do plano grátis acompanha a conta (vale o maior entre o aparelho e a nuvem)
   try {
     const ref = F.doc(db, `${caminhoUser()}/conta/uso`), d = await F.getDoc(ref), nv = d.exists() ? d.data() : {}, lo = uso();
@@ -2652,6 +2673,7 @@ async function verificarAcesso() {
 }
 // Confere o limite antes de usar a IA. tipo: "ia" (perguntas, tutor, geração) ou "ateneo"
 function podeUsar(tipo = "ia") {
+  conferirValidade();
   if (ACESSO.liberado) return true;
   const u = uso(), p = ACESSO.pag;
   if (tipo === "ateneo" ? u.ateneos < p.ateneos : u.n < p.limite) return true;
@@ -2665,23 +2687,33 @@ function gastar(tipo = "ia", qtd = 1) {
   const chip = $("#planoChip"); if (chip) chip.outerHTML = cartaoPlano();
 }
 function cartaoPlano() {
-  if (ACESSO.liberado) return "";
   const u = uso(), p = ACESSO.pag;
-  return `<div class="aviso-nuvem" id="planoChip">🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 Quero o Pro (R$ ${p.preco}, vitalício)</a></div>`;
+  if (ACESSO.liberado) {
+    if (ACESSO.admin || !ACESSO.expira) return "";
+    const n = diasRestam(ACESSO.expira);
+    if (n > AVISO_DIAS) return "";
+    return `<div class="aviso-nuvem" id="planoChip" style="border-color:#f5a623;background:rgba(245,166,35,.12)">⏳ <b>Seu Pro acaba ${n <= 0 ? "hoje" : n === 1 ? "amanhã" : `em ${n} dias`}</b> (${dataCurta(ACESSO.expira)}). <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Renovar por mais 30 dias (R$ ${p.preco})</a></div>`;
+  }
+  const venceu = ACESSO.vencido && ACESSO.expira ? `⏰ <b>Seu Pro venceu em ${dataCurta(ACESSO.expira)}.</b> ` : "";
+  return `<div class="aviso-nuvem" id="planoChip">${venceu}🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 ${venceu ? "Renovar" : "Quero"} o Pro (R$ ${p.preco}/mês)</a></div>`;
 }
 function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
   const acabou = tipo === "ateneo" ? `Você já fez os <b>${p.ateneos} Ateneos grátis</b>.` : tipo ? `Você usou as <b>${p.limite} interações grátis</b> com a IA.` : "";
-  const msg = `Olá! Estou tentando ganhar a autorização Pro do Foco Prova 👑\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix de R$ ${p.preco}:`;
+  const renovar = ACESSO.liberado || ACESSO.vencido;
+  const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Foco Prova 👑 (R$ ${p.preco}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
   const num = String(p.whats || "").replace(/\D/g, "");
-  if (ACESSO.liberado) {
-    $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Você está no Pro!</h2><p class="muted" style="margin:0">Acesso completo e vitalício liberado. Bons estudos!</p><div class="row" style="justify-content:flex-end"><button class="pill" data-act="fecharPagar">Fechar</button></div>`;
+  if (ACESSO.admin) {
+    $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Você está no Pro!</h2><p class="muted" style="margin:0">Como administrador, seu acesso completo não tem prazo.</p><div class="row" style="justify-content:flex-end"><button class="pill" data-act="fecharPagar">Fechar</button></div>`;
     const d = $("#dlgPagar"); if (!d.open) d.showModal(); return;
   }
+  const estado = ACESSO.liberado && ACESSO.expira
+    ? `<p class="aviso-nuvem" style="margin:0">👑 Você está no Pro até <b>${dataCurta(ACESSO.expira)}</b> (${diasRestam(ACESSO.expira) === 1 ? "falta 1 dia" : `faltam ${diasRestam(ACESSO.expira)} dias`}). Renovando agora, os 30 dias novos são somados ao que ainda falta.</p>`
+    : ACESSO.vencido && ACESSO.expira ? `<p class="aviso-nuvem" style="margin:0">⏰ Seu Pro venceu em <b>${dataCurta(ACESSO.expira)}</b>. Renove para voltar a ter acesso completo.</p>` : "";
   $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Foco Prova Pro</h2>
-    ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}
-    <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${p.preco} servem só para ajudar a manter o site e a IA funcionando para todo mundo. É uma <b>taxa única e vitalícia</b>: sem mensalidade e sem cobrança escondida.</div>
-    <p class="muted" style="margin:0">Acesso <b>completo e vitalício</b> por <b>R$ ${p.preco}</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
+    ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}${estado}
+    <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${p.preco} por mês servem só para ajudar a manter o site e a IA funcionando para todo mundo. <b>Sem fidelidade:</b> cada pagamento vale 30 dias e você renova só se quiser. Avisamos ${AVISO_DIAS} dias antes de acabar.</div>
+    <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${p.preco}/mês</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
     ${ACESSO.pedido ? `<p class="aviso-nuvem" style="margin:0">📨 <b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado. Toque em "Verificar" para conferir.</p>` : ""}
     ${!p.pix ? `<p class="aviso-nuvem" style="margin:0">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</p>` : `
     <ol style="margin:0;padding-left:20px;display:grid;gap:12px">
@@ -2699,7 +2731,8 @@ async function abrirAdmin() {
   const d = $("#dlgAdmin"); if (!d.open) d.showModal();
   let lista = [], pedidos = [];
   try {
-    lista = (await F.getDocs(F.collection(db, "liberados"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (b.data || 0) - (a.data || 0));
+    lista = (await F.getDocs(F.collection(db, "liberados"))).docs.map(x => ({ email: x.id, ...x.data() }))
+      .map(x => ({ ...x, semPrazo: x.nota === "administrador", exp: expiraDe(x) })).sort((a, b) => (b.semPrazo - a.semPrazo) || (a.exp - b.exp));
     pedidos = (await F.getDocs(F.collection(db, "solicitacoes"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (a.data || 0) - (b.data || 0));
     ACESSO.pedidos = pedidos.length; desenharConta();
   }
@@ -2715,14 +2748,22 @@ async function abrirAdmin() {
       <div class="muted" style="font-size:13px">Se a pessoa te mandou o e-mail direto, digite o Gmail que ela usa para entrar.</div>
       <div class="row"><input type="email" id="admEmail" placeholder="pessoa@gmail.com" style="flex:1;min-width:200px"><input type="text" id="admNota" placeholder="observação (opcional)" style="flex:1;min-width:140px"><button class="pill" data-act="admLiberar">✅ Liberar</button></div>
     </div>
-    <div class="card" style="margin:0"><h3 style="margin:0 0 8px">Liberados (${lista.length})</h3>
-      ${lista.length ? lista.map(x => `<div class="mrow" style="margin-top:6px"><span class="fi">✅</span><span class="nm">${esc(x.email)}<small>${x.data ? fmtData(x.data) : ""}${x.nota ? " · " + esc(x.nota) : ""}</small></span><button class="btn small ghost" data-act="admRemover" data-id="${esc(x.email)}" style="color:var(--bad)">Remover</button></div>`).join("") : `<p class="muted" style="margin:0">Ninguém liberado ainda.</p>`}
-    </div>
+    ${(() => {
+      const agora = Date.now(), ativos = lista.filter(x => x.semPrazo || x.exp > agora), vencidos = lista.filter(x => !x.semPrazo && x.exp <= agora);
+      const linha = x => {
+        const n = diasRestam(x.exp), perto = !x.semPrazo && x.exp > agora && n <= AVISO_DIAS;
+        const info = x.semPrazo ? "sem prazo (administrador)" : x.exp > agora ? `aprovado em ${dataCurta(x.data || x.inicio)} · <b style="color:${perto ? "var(--warn)" : "var(--ok)"}">expira ${dataCurta(x.exp)} (${n === 1 ? "1 dia" : n + " dias"})</b>` : `<b style="color:var(--bad)">venceu em ${dataCurta(x.exp)}</b>`;
+        return `<div class="mrow" style="margin-top:6px;align-items:center"><span class="fi">${x.semPrazo ? "🛡️" : x.exp > agora ? (perto ? "⏳" : "👑") : "⏰"}</span><span class="nm">${esc(x.email)}<small>${info}${x.renovacoes ? ` · ${x.renovacoes} renovação(ões)` : ""}${x.nota && !x.semPrazo ? " · " + esc(x.nota) : ""}</small></span>
+          ${x.semPrazo ? "" : `<button class="btn small" data-act="admAutorizar" data-id="${esc(x.email)}" title="Soma 30 dias">+30 dias</button>`}<button class="btn small ghost" data-act="admRemover" data-id="${esc(x.email)}" style="color:var(--bad)">Remover</button></div>`;
+      };
+      return `<div class="card" style="margin:0"><h3 style="margin:0 0 8px">👑 Membros Pro ativos (${ativos.length})</h3>${ativos.length ? ativos.map(linha).join("") : `<p class="muted" style="margin:0">Ninguém no Pro agora.</p>`}</div>
+        ${vencidos.length ? `<div class="card" style="margin:0"><h3 style="margin:0 0 8px">⏰ Pro vencido (${vencidos.length})</h3><div class="muted" style="font-size:13px">Saíram do Pro sozinhos ao completar 30 dias. Se pagarem de novo, toque em "+30 dias".</div>${vencidos.map(linha).join("")}</div>` : ""}`;
+    })()}
     <div class="card stack" style="margin:0"><h3 style="margin:0">Pagamento e plano grátis</h3>
       <label>Chave Pix<input type="text" id="admPix" value="${esc(p.pix || "")}" placeholder="CPF, e-mail, telefone ou chave aleatória"></label>
       <label>WhatsApp para o comprovante (com DDD e país)<input type="tel" id="admWhats" value="${esc(p.whats || "")}" placeholder="+55 11 91234-5678"></label>
       <div class="row">
-        <label style="flex:1">Preço (R$)<input type="number" id="admPreco" min="1" value="${p.preco}"></label>
+        <label style="flex:1">Preço por mês (R$)<input type="number" id="admPreco" min="1" value="${p.preco}"></label>
         <label style="flex:1">Interações grátis<input type="number" id="admLimite" min="0" value="${p.limite}"></label>
         <label style="flex:1">Ateneos grátis<input type="number" id="admAteneos" min="0" value="${p.ateneos}"></label>
       </div>
@@ -2735,9 +2776,13 @@ async function admLiberar(emailPedido) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Digite um e-mail válido.", true);
   const F = NUVEM.F, db = NUVEM.db;
   try {
-    await F.setDoc(F.doc(db, "liberados/" + email), { data: Date.now(), nota: emailPedido ? "pedido pelo app" : ($("#admNota").value || "").trim().slice(0, 120), por: emailUser() });
+    // 30 dias a partir de agora; se ainda estiver no Pro, soma aos dias que faltam
+    const ref = F.doc(db, "liberados/" + email), atual = await F.getDoc(ref), ant = atual.exists() ? atual.data() : null;
+    const agora = Date.now(), base = ant && expiraDe(ant) > agora ? expiraDe(ant) : agora, expira = base + MES_MS;
+    const nota = emailPedido ? (ant ? "renovado pelo app" : "pedido pelo app") : ($("#admNota")?.value || "").trim().slice(0, 120) || ant?.nota || "";
+    await F.setDoc(ref, { inicio: ant?.inicio || ant?.data || agora, data: agora, expira, renovacoes: (ant?.renovacoes || 0) + (ant ? 1 : 0), nota, por: emailUser() });
     await F.deleteDoc(F.doc(db, "solicitacoes/" + email)).catch(() => {});
-    toast(`👑 ${email} agora é Pro!`); abrirAdmin();
+    toast(`👑 ${email} é Pro até ${dataCurta(expira)}!`); abrirAdmin();
   } catch (e) { toast("Não consegui liberar: " + e.message, true); }
 }
 async function admRecusar(email) {
@@ -2984,7 +3029,7 @@ document.addEventListener("click", async e => {
     case "pagar": e.preventDefault(); NUVEM.menu = false; desenharConta(); abrirPagamento(null); break;
     case "fecharPagar": $("#dlgPagar").close(); break;
     case "copiarPix": navigator.clipboard?.writeText(ACESSO.pag.pix).then(() => toast("📋 Chave Pix copiada!"), () => toast("Copie a chave manualmente.", true)); break;
-    case "jaLiberado": await verificarAcesso(); if (ACESSO.liberado) { $("#dlgPagar").close(); toast("🎉 Acesso completo liberado! Bons estudos."); } else toast("Ainda não foi liberado. Assim que o administrador confirmar o Pix, toque de novo.", true); break;
+    case "jaLiberado": await verificarAcesso(); if (ACESSO.liberado && !ACESSO.pedido) { $("#dlgPagar").close(); toast(`🎉 Pro liberado${ACESSO.expira ? ` até ${dataCurta(ACESSO.expira)}` : ""}! Bons estudos.`); } else toast("Ainda não foi liberado. Assim que o administrador confirmar o Pix, toque de novo.", true); break;
     case "admin": NUVEM.menu = false; desenharConta(); abrirAdmin(); break;
     case "fecharAdmin": $("#dlgAdmin").close(); break;
     case "admLiberar": admLiberar(); break;
@@ -3118,7 +3163,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0258";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;

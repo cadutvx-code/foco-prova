@@ -4,7 +4,11 @@ service cloud.firestore {
     function logado() { return request.auth != null; }
     function admin() {
       return logado() && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in ['cadutvx@gmail.com'];
+        && exists(/databases/$(database)/documents/admins/$(request.auth.token.email.lower()));
+    }
+    // lista de administradores: cada um só confirma o próprio; ninguém grava pelo app (só pelo console)
+    match /admins/{email} {
+      allow get: if logado() && request.auth.token.email.lower() == email;
     }
     match /users/{uid}/{document=**} {
       allow read, write: if logado() && request.auth.uid == uid;
