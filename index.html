@@ -1511,7 +1511,7 @@ function contarResposta(qtd = 1) {
 function cartaoMeta() {
   const q = sequencia(), feitas = q.dias[hojeStr()] || 0, pct = Math.min(100, Math.round(feitas / q.meta * 100)), seq = diasSeguidos();
   const ult = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d; });
-  const letra = d => d.toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 1).toUpperCase();
+  const letra = d => d.toLocaleDateString(UI_ESP() ? "es" : "pt-BR", { weekday: "short" }).slice(0, 1).toUpperCase();
   return `<div class="meta-dia"><span class="fogo">🔥</span>
     <div class="info"><b>${seq ? `${seq} dia${seq > 1 ? "s" : ""} seguido${seq > 1 ? "s" : ""}` : "Comece sua sequência hoje!"}</b>
       <div class="muted" style="font-size:13px;margin:2px 0 6px">Meta de hoje: <b>${feitas}/${q.meta}</b> perguntas ${feitas >= q.meta ? "✅" : ""} · <a href="#" data-act="metaDia" style="color:var(--accent)">mudar meta</a></div>
@@ -2642,13 +2642,14 @@ const ATENEOS = [
   { id: "fisio2", nome: "Ateneo 2", sub: "Fisiologia 2 · 4º semestre", pronto: true, arquivo: "ateneos/fisio2.json", tam: "0,5 MB" }
 ];
 const cadernoAteneo = id => S.cadernos.find(c => c.oficial === id);
+const UI_ESP = () => lsGet("fp-ui", "pt") === "es";
 function cartaoAteneos() {
   return `<div class="card" style="margin-bottom:16px"><div class="row" style="align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:30px">🎤</span>
       <div><h2 style="margin:0">Ateneo oral de Fisiologia</h2><div class="muted" style="font-size:13px">Tire um capítulo, explique e responda às 2 perguntas do professor. A IA corrige e dá a nota.</div></div></div>
     <div class="row" style="gap:10px">${ATENEOS.map(a => {
       const c = cadernoAteneo(a.id), ok = c && ativos(c).length;
       return `<button class="papel" data-act="ateneoAbrir" data-id="${a.id}" ${a.pronto ? "" : "disabled"} style="flex:1;min-width:190px;text-align:left;padding:12px 14px;${a.pronto ? "" : "opacity:.55;cursor:not-allowed"}">
-        <b style="font-size:16px">${a.nome}</b><br><small class="muted">${a.sub}</small><br><small style="color:${ok ? "var(--ok)" : "var(--accent)"};font-weight:700">${!a.pronto ? "Em breve" : ok ? "✅ Material pronto" : "⬇️ Baixar material"}</small></button>`;
+        <b style="font-size:16px">${a.nome}</b><br><small class="muted">${UI_ESP() ? (UI_ES[a.sub] || a.sub) : a.sub}</small><br><small style="color:${ok ? "var(--ok)" : "var(--accent)"};font-weight:700">${UI_ESP() ? (!a.pronto ? "Próximamente" : ok ? "✅ Material listo" : "⬇️ Descargar material") : (!a.pronto ? "Em breve" : ok ? "✅ Material pronto" : "⬇️ Baixar material")}</small></button>`;
     }).join("")}</div></div>`;
 }
 function cartaoBaixarAteneo(id) {
@@ -3548,7 +3549,7 @@ async function abrirPublico() {
     const novas7 = contas.filter(c => Date.now() - (c.primeiro || 0) < 7 * DIA).length;
     const maior = Math.max(1, ...porDia.map(d => d.aparelhos));
     const caixa = (num, rot, sub = "") => `<div class="card" style="margin:0;padding:12px 14px;flex:1;min-width:130px"><div style="font-size:26px;font-weight:900;line-height:1.1">${num}</div><div style="font-weight:700;font-size:13px">${rot}</div>${sub ? `<div class="muted" style="font-size:12px">${sub}</div>` : ""}</div>`;
-    const semana = d => new Date(d + "T12:00").toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 3);
+    const semana = d => new Date(d + "T12:00").toLocaleDateString(UI_ESP() ? "es" : "pt-BR", { weekday: "short" }).slice(0, 3);
     $("#publicoCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">📊 Público</h2><div class="row" style="gap:6px"><button class="btn small ghost" data-act="publico">🔄 Atualizar</button><button class="btn small" data-act="fecharPublico">Fechar</button></div></div>
       <h3 style="margin:4px 0 0">Visitas ao site</h3>
       <div class="muted" style="font-size:12.5px">Conta todo mundo que abre o site, com ou sem login (sem guardar dados pessoais). "Aparelhos" = pessoas diferentes, aproximadamente.</div>
@@ -4014,7 +4015,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2036";
+const VERSAO_APP = "2026-11-21-2037";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4449,7 +4450,7 @@ const UI_ES = {
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
