@@ -2564,7 +2564,8 @@ async function sairConta() {
 
 /* ================= acesso: plano grátis com limite + liberação manual (Pix) ================= */
 // liberados/{email} = acesso completo (só o administrador grava) · config/pagamento = chave Pix, WhatsApp, preço e limites
-const ACESSO = { liberado: false, admin: false, verificado: false, expira: null, vencido: false, pag: { pix: "", whats: "", preco: 5, limite: 30, ateneos: 2, ...lsGet("fp-pag", {}) } };
+const ACESSO = { liberado: false, admin: false, verificado: false, expira: null, vencido: false, pag: { pix: "", whats: "", preco: 9.99, limite: 30, ateneos: 2, ...lsGet("fp-pag", {}) } };
+const reais = v => (Math.round(+v * 100) / 100).toLocaleString("pt-BR", { minimumFractionDigits: Number.isInteger(+v) ? 0 : 2, maximumFractionDigits: 2 });
 const emailUser = () => (NUVEM.user?.email || "").trim().toLowerCase();
 // O Pro dura 30 dias a partir da aprovação; depois sai sozinho e a pessoa renova
 const DIA_MS = 86400000, MES_MS = 30 * DIA_MS, AVISO_DIAS = 3;
@@ -2692,16 +2693,16 @@ function cartaoPlano() {
     if (ACESSO.admin || !ACESSO.expira) return "";
     const n = diasRestam(ACESSO.expira);
     if (n > AVISO_DIAS) return "";
-    return `<div class="aviso-nuvem" id="planoChip" style="border-color:#f5a623;background:rgba(245,166,35,.12)">⏳ <b>Seu Pro acaba ${n <= 0 ? "hoje" : n === 1 ? "amanhã" : `em ${n} dias`}</b> (${dataCurta(ACESSO.expira)}). <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Renovar por mais 30 dias (R$ ${p.preco})</a></div>`;
+    return `<div class="aviso-nuvem" id="planoChip" style="border-color:#f5a623;background:rgba(245,166,35,.12)">⏳ <b>Seu Pro acaba ${n <= 0 ? "hoje" : n === 1 ? "amanhã" : `em ${n} dias`}</b> (${dataCurta(ACESSO.expira)}). <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Renovar por mais 30 dias (R$ ${reais(p.preco)})</a></div>`;
   }
   const venceu = ACESSO.vencido && ACESSO.expira ? `⏰ <b>Seu Pro venceu em ${dataCurta(ACESSO.expira)}.</b> ` : "";
-  return `<div class="aviso-nuvem" id="planoChip">${venceu}🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 ${venceu ? "Renovar" : "Quero"} o Pro (R$ ${p.preco}/mês)</a></div>`;
+  return `<div class="aviso-nuvem" id="planoChip">${venceu}🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 ${venceu ? "Renovar" : "Quero"} o Pro (R$ ${reais(p.preco)}/mês)</a></div>`;
 }
 function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
   const acabou = tipo === "ateneo" ? `Você já fez os <b>${p.ateneos} Ateneos grátis</b>.` : tipo ? `Você usou as <b>${p.limite} interações grátis</b> com a IA.` : "";
   const renovar = ACESSO.liberado || ACESSO.vencido;
-  const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Foco Prova 👑 (R$ ${p.preco}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
+  const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Foco Prova 👑 (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
   const num = String(p.whats || "").replace(/\D/g, "");
   if (ACESSO.admin) {
     $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Você está no Pro!</h2><p class="muted" style="margin:0">Como administrador, seu acesso completo não tem prazo.</p><div class="row" style="justify-content:flex-end"><button class="pill" data-act="fecharPagar">Fechar</button></div>`;
@@ -2712,13 +2713,13 @@ function abrirPagamento(tipo) {
     : ACESSO.vencido && ACESSO.expira ? `<p class="aviso-nuvem" style="margin:0">⏰ Seu Pro venceu em <b>${dataCurta(ACESSO.expira)}</b>. Renove para voltar a ter acesso completo.</p>` : "";
   $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Foco Prova Pro</h2>
     ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}${estado}
-    <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${p.preco} por mês servem só para ajudar a manter o site e a IA funcionando para todo mundo. <b>Sem fidelidade:</b> cada pagamento vale 30 dias e você renova só se quiser. Avisamos ${AVISO_DIAS} dias antes de acabar.</div>
-    <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${p.preco}/mês</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
+    <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${reais(p.preco)} por mês servem só para ajudar a manter o site e a IA funcionando para todo mundo. <b>Sem fidelidade:</b> cada pagamento vale 30 dias e você renova só se quiser. Avisamos ${AVISO_DIAS} dias antes de acabar.</div>
+    <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${reais(p.preco)}/mês</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
     ${ACESSO.pedido ? `<p class="aviso-nuvem" style="margin:0">📨 <b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado. Toque em "Verificar" para conferir.</p>` : ""}
     ${!p.pix ? `<p class="aviso-nuvem" style="margin:0">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</p>` : `
     <ol style="margin:0;padding-left:20px;display:grid;gap:12px">
       <li>${NUVEM.user ? `Você está entrando como <b>${esc(email)}</b>. É esse e-mail que será liberado.` : `<b>Entre com sua conta Google</b> (é ela que será liberada).<br><button class="btn-google" data-act="entrar" style="margin-top:6px">${G_ICON}<span>Entrar com Google</span></button>`}</li>
-      <li>Faça um <b>Pix de R$ ${p.preco}</b> para a chave:<div class="row" style="margin-top:6px;align-items:center"><code style="font-size:15px;padding:6px 10px;border-radius:8px;background:var(--panel2,rgba(255,255,255,.08));word-break:break-all">${esc(p.pix)}</code><button class="btn small" data-act="copiarPix">📋 Copiar</button></div></li>
+      <li>Faça um <b>Pix de R$ ${reais(p.preco)}</b> para a chave:<div class="row" style="margin-top:6px;align-items:center"><code style="font-size:15px;padding:6px 10px;border-radius:8px;background:var(--panel2,rgba(255,255,255,.08));word-break:break-all">${esc(p.pix)}</code><button class="btn small" data-act="copiarPix">📋 Copiar</button></div></li>
       <li>Envie o <b>comprovante</b> e o <b>seu e-mail</b>${num ? ` pelo WhatsApp <b>${esc(p.whats)}</b>` : ""}:${num ? `<div style="margin-top:6px"><a class="pill" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">💬 Enviar pelo WhatsApp</a></div>` : ""}</li>
       <li>Toque em <b>"Já paguei, pedir o Pro"</b>. Seu pedido chega na hora para o administrador liberar.</li>
     </ol>`}
@@ -2763,7 +2764,7 @@ async function abrirAdmin() {
       <label>Chave Pix<input type="text" id="admPix" value="${esc(p.pix || "")}" placeholder="CPF, e-mail, telefone ou chave aleatória"></label>
       <label>WhatsApp para o comprovante (com DDD e país)<input type="tel" id="admWhats" value="${esc(p.whats || "")}" placeholder="+55 11 91234-5678"></label>
       <div class="row">
-        <label style="flex:1">Preço por mês (R$)<input type="number" id="admPreco" min="1" value="${p.preco}"></label>
+        <label style="flex:1">Preço por mês (R$)<input type="number" id="admPreco" min="1" step="0.01" value="${p.preco}"></label>
         <label style="flex:1">Interações grátis<input type="number" id="admLimite" min="0" value="${p.limite}"></label>
         <label style="flex:1">Ateneos grátis<input type="number" id="admAteneos" min="0" value="${p.ateneos}"></label>
       </div>
@@ -2797,7 +2798,7 @@ async function admRemover(email) {
 }
 async function admSalvarPag() {
   const n = (id, min) => Math.max(min, parseInt($(id).value) || 0);
-  const pag = { pix: $("#admPix").value.trim(), whats: $("#admWhats").value.trim(), preco: n("#admPreco", 1), limite: n("#admLimite", 0), ateneos: n("#admAteneos", 0) };
+  const pag = { pix: $("#admPix").value.trim(), whats: $("#admWhats").value.trim(), preco: Math.max(1, Math.round((parseFloat(String($("#admPreco").value).replace(",", ".")) || 0) * 100) / 100), limite: n("#admLimite", 0), ateneos: n("#admAteneos", 0) };
   try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, "config/pagamento"), pag); Object.assign(ACESSO.pag, pag); lsSet("fp-pag", ACESSO.pag); toast("💾 Salvo!"); render(); }
   catch (e) { toast("Não consegui salvar: " + e.message, true); }
 }
@@ -3163,7 +3164,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0304";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
