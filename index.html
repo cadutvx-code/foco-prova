@@ -3021,14 +3021,14 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21c";
+const VERSAO_APP = "2026-11-21-0237";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
   ultimaChecagem = Date.now();
   try {
     const t = await (await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" })).text();
-    const v = t.match(/const VERSAO_APP = "([^"]+)"/)?.[1];
+    const v = t.match(/const VERSAO_APP = "2026-11-21-0237"]+)"/)?.[1];
     if (v && v !== VERSAO_APP) {
       if (S.player || S.ocupado || document.querySelector("dialog[open]")) { toast("✨ Nova versão do Foco Prova disponível. Ela entra quando você recarregar a página."); return; }
       location.reload();
