@@ -1206,6 +1206,7 @@ function sobreposicao(a, b, porMenor) {
 // mesma resposta + pergunta parecida, ou quase as mesmas palavras no total
 function mesmoFato(a, b) {
   if (a.r.size && b.r.size && sobreposicao(a.r, b.r, true) >= 0.6 && sobreposicao(a.q, b.q, true) > 0.5) return true;
+  if (a.q.size >= 3 && b.q.size >= 3 && sobreposicao(a.q, b.q) >= 0.6) return true;
   const ta = new Set([...a.q, ...a.r]), tb = new Set([...b.q, ...b.r]);
   return ta.size >= 3 && tb.size >= 3 && sobreposicao(ta, tb) >= 0.6;
 }
@@ -2096,7 +2097,14 @@ function playerSmart(c) {
 }
 
 // Coloca a pergunta na sessão (aparece na hora se você estiver esperando) ou guarda no banco
+// já foi perguntada (nesta sessão, no histórico ou guardada)? lotes gerados ao mesmo tempo não se enxergam, então confere aqui
+function jaTem(c, it, p) {
+  const I = c.inteligente || {};
+  const lista = [...(I.historico || []).slice(-250), ...(I.banco || []), ...(p?.fila || [])].filter(x => x !== it);
+  return repetida(it, lista.map(fatoDe));
+}
 function empurrar(c, p, it) {
+  if (it.tipo !== "licao" && jaTem(c, it, S.player === p ? p : null)) return; // repetida: descarta
   if (S.player === p && !p.fim) {
     const esperando = p.i >= p.fila.length;
     p.fila.push(it);
@@ -2159,8 +2167,10 @@ function smartIniciar(c, focoTopico = null) {
   const I = c.inteligente;
   const inicioDominio = {}; for (const t of I.topicos) inicioDominio[t] = c.dominio[t]?.score || 0;
   const banco = I.banco || [];
-  const usar = focoTopico ? banco.filter(it => it.topico === focoTopico) : banco.slice();
-  I.banco = banco.filter(it => !usar.includes(it));
+  const anteriores = (I.historico || []).slice(-250).map(fatoDe), limpas = [];
+  for (const it of banco) { if (it.tipo === "licao" || !repetida(it, anteriores)) { limpas.push(it); anteriores.push(fatoDe(it)); } }
+  const usar = focoTopico ? limpas.filter(it => it.topico === focoTopico) : limpas.slice();
+  I.banco = limpas.filter(it => !usar.includes(it));
   S.player = { tipo: "smart", fila: usar, i: 0, escolha: null, confirmado: false, virado: false, focoTopico, proximo: null, inicioDominio, sessao: { acertos: 0, total: 0, xp: 0, combo: 0, erros: 0 } };
   const p = S.player;
   render(); salvar(c);
@@ -3204,6 +3214,54 @@ async function pagarCartao() {
     if (aviso) aviso.innerHTML = `<small class="muted">O pagamento com cartão não abriu agora (${esc(String(e.message).slice(0, 120))}). Tente de novo em instantes ou pague pelo Pix.</small>`;
   }
 }
+// Assinatura mensal no cartão de crédito
+async function assinar() {
+  const aba = window.open("", "_blank");
+  const aviso = $("#cartaoAviso");
+  if (aviso) aviso.innerHTML = `<small class="muted"><span class="spin"></span> Abrindo o Mercado Pago…</small>`;
+  try {
+    const d = await pagAuto("/assinar");
+    if (d.jaAtiva) { aba?.close(); desenharAssinatura(d); if (aviso) aviso.innerHTML = ""; return toast("Você já tem uma assinatura ativa. 👑"); }
+    if (!d.url) throw new Error("sem link");
+    if (aba) aba.location.href = d.url; else location.href = d.url;
+    lsSet("fp-assinatura-pendente", { email: emailUser(), ate: Date.now() + 24 * 3600000 });
+    if (aviso) aviso.innerHTML = `<div class="aviso-nuvem" style="margin:0"><span class="spin"></span> <b>Aguardando a assinatura…</b> Termine na aba do Mercado Pago; quando a 1ª cobrança for aprovada, seu Pro é liberado aqui sozinho (pode levar alguns minutos).</div>`;
+    clearInterval(S.cartaoTimer); const ini = Date.now();
+    S.cartaoTimer = setInterval(async () => {
+      if (!$("#dlgPagar")?.open || Date.now() - ini > 30 * 60000) return clearInterval(S.cartaoTimer);
+      try { const s2 = await pagAuto("/assinatura"); if (s2.pago && s2.ativa) { clearInterval(S.cartaoTimer); lsSet("fp-assinatura-pendente", null); lsSet("fp-assinante", emailUser()); pixConfirmado(s2.expira, null); } } catch {}
+    }, 8000);
+  } catch (e) {
+    aba?.close();
+    if (aviso) aviso.innerHTML = `<small class="muted">A assinatura não abriu agora (${esc(String(e.message).slice(0, 120))}). Tente de novo em instantes ou pague pelo Pix.</small>`;
+  }
+}
+function desenharAssinatura(sit) {
+  const el = $("#assinaturaSit"); if (!el) return;
+  if (!sit?.ativa) { el.innerHTML = ""; return; }
+  const prox = sit.proxima ? new Date(sit.proxima).toLocaleDateString("pt-BR") : "";
+  el.innerHTML = `<div class="aviso-nuvem" style="margin:0">👑 <span style="flex:1;min-width:180px"><b>Assinatura ativa</b>${prox ? ` · próxima cobrança em <b>${prox}</b>` : ""}.</span><button class="btn small ghost" data-act="cancelarAssinatura" style="color:var(--bad)">Cancelar assinatura</button></div>`;
+  $("#caixaCartao [data-act='assinar']")?.closest("div")?.setAttribute("hidden", "");
+}
+async function verAssinatura() {
+  if (!NUVEM.user) return;
+  try {
+    const sit = await pagAuto("/assinatura");
+    if (sit.ativa) lsSet("fp-assinante", emailUser()); else if (lsGet("fp-assinante", "") === emailUser()) lsSet("fp-assinante", null);
+    desenharAssinatura(sit);
+    if (sit.pago && sit.expira && sit.expira > (ACESSO.expira || 0) + 60000) await verificarAcesso(), render();
+    return sit;
+  } catch { return null; }
+}
+async function cancelarAssinaturaSite() {
+  if (!confirm("Cancelar a assinatura? Não haverá novas cobranças, e seu Pro continua até o fim do mês já pago.")) return;
+  try {
+    const r = await pagAuto("/cancelar-assinatura");
+    lsSet("fp-assinante", null); desenharAssinatura(null);
+    toast(r.cancelada ? "Assinatura cancelada. Seu Pro continua até o fim do período já pago." : "Não encontrei assinatura ativa para cancelar.");
+    abrirPagamento(null);
+  } catch (e) { toast("Não consegui cancelar agora: " + e.message, true); }
+}
 // Ao abrir o site: se ficou um Pix pendente (a pessoa fechou a tela antes de cair), confere
 async function conferirPixPendente() {
   if (!NUVEM.user) return;
@@ -3214,6 +3272,14 @@ async function conferirPixPendente() {
   if ((cp && cp.ate > Date.now() && cp.email === emailUser()) || /pago=cartao/.test(location.search)) {
     try { const s = await pagAuto("/status-cartao"); if (s.pago) { lsSet("fp-cartao-pendente", null); return pixConfirmado(s.expira, null); } } catch {}
     if (/pago=cartao/.test(location.search)) toast("Recebemos seu pagamento no cartão. Assim que o Mercado Pago aprovar, seu Pro é liberado — pode levar alguns minutos.");
+  }
+  const ap = lsGet("fp-assinatura-pendente", null), assinante = lsGet("fp-assinante", "") === emailUser();
+  const ultimaVez = lsGet("fp-assinatura-vista", 0);
+  if ((ap && ap.ate > Date.now() && ap.email === emailUser()) || /pago=assinatura/.test(location.search) || (assinante && Date.now() - ultimaVez > 12 * 3600000)) {
+    lsSet("fp-assinatura-vista", Date.now());
+    const sit = await verAssinatura();
+    if (sit?.pago && sit.ativa && ap) { lsSet("fp-assinatura-pendente", null); return pixConfirmado(sit.expira, null); }
+    if (/pago=assinatura/.test(location.search)) toast("Assinatura recebida! Assim que o Mercado Pago aprovar a 1ª cobrança, seu Pro é liberado — pode levar alguns minutos.");
   }
   if (/pago=falhou/.test(location.search)) toast("O pagamento no cartão não foi aprovado. Tente outro cartão ou pague pelo Pix.", true);
   if (/pago=/.test(location.search)) history.replaceState(null, "", location.pathname);
@@ -3259,10 +3325,17 @@ function abrirPagamento(tipo) {
         </div></li>
       <li>Caso o seu Pro <b>não seja liberado automaticamente</b> em alguns minutos, envie o <b>comprovante</b>${num ? ` para o WhatsApp <b>${esc(p.whats)}</b>` : ""} que faremos a liberação.${num ? `<div style="margin-top:6px"><a class="btn small" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">💬 Enviar comprovante pelo WhatsApp</a></div>` : ""}</li>
     </ol>
-    ${NUVEM.user ? `<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--line)"><b>💳 Prefere cartão de crédito ou débito?</b><div class="muted" style="font-size:13px;margin:4px 0 8px">Abre a página segura do Mercado Pago. Assim que for aprovado, seu Pro é liberado sozinho.</div><button class="pill" data-act="pagarCartao">💳 Pagar com cartão</button><div id="cartaoAviso" style="margin-top:6px"></div></div>` : ""}`}
+    ${NUVEM.user ? `<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--line)" id="caixaCartao"><b>💳 Prefere cartão?</b>
+      <div id="assinaturaSit" style="margin:6px 0"></div>
+      <div class="stack" style="gap:10px;margin-top:6px">
+        <div><button class="pill" data-act="assinar">👑 Assinar no cartão de crédito — renova sozinho todo mês</button><div class="muted" style="font-size:12.5px;margin-top:4px">R$ ${reais(p.preco)} por mês, cobrados automaticamente. Cancele quando quiser, aqui mesmo: o Pro continua até o fim do mês já pago.</div></div>
+        <div><button class="btn small" data-act="pagarCartao">💳 Pagar só 1 mês no cartão (crédito ou débito)</button></div>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:6px">Abre a página segura do Mercado Pago (o número do cartão não passa pelo nosso site).</div>
+      <div id="cartaoAviso" style="margin-top:6px"></div></div>` : ""}`}
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${!NUVEM.user || !p.pix ? "" : ACESSO.pedido ? `<button class="pill" data-act="jaLiberado">🔄 Verificar se já liberou</button>` : `<button class="pill" data-act="pedirPro">📨 Já paguei, pedir o Pro</button>`}</div>`;
   const d = $("#dlgPagar"); if (!d.open) d.showModal();
-  if (NUVEM.user) iniciarPixAuto();
+  if (NUVEM.user) { iniciarPixAuto(); verAssinatura(); }
   else if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(email) }); desenharQRPix(S.pixCodigo); }
 }
 async function abrirAdmin() {
@@ -3687,6 +3760,8 @@ document.addEventListener("click", async e => {
     case "pagar": e.preventDefault(); NUVEM.menu = false; desenharConta(); abrirPagamento(null); break;
     case "fecharPagar": $("#dlgPagar").close(); break;
     case "pagarCartao": pagarCartao(); break;
+    case "assinar": assinar(); break;
+    case "cancelarAssinatura": cancelarAssinaturaSite(); break;
     case "copiarPixCodigo": navigator.clipboard?.writeText(S.pixCodigo || "").then(() => toast("📋 Pix copia e cola copiado! Cole na área Pix do app do seu banco."), () => toast("Não consegui copiar. Use o QR Code.", true)); break;
     case "copiarPix": navigator.clipboard?.writeText(ACESSO.pag.pix).then(() => toast("📋 Chave Pix copiada!"), () => toast("Copie a chave manualmente.", true)); break;
     case "jaLiberado": await verificarAcesso(); if (ACESSO.liberado && !ACESSO.pedido) { $("#dlgPagar").close(); toast(`🎉 Pro liberado${ACESSO.expira ? ` até ${dataCurta(ACESSO.expira)}` : ""}! Bons estudos.`); } else toast("Ainda não foi liberado. Assim que o administrador confirmar o Pix, toque de novo.", true); break;
@@ -3845,7 +3920,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1904";
+const VERSAO_APP = "2026-11-21-1911";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;

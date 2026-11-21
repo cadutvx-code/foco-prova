@@ -3,6 +3,9 @@
 //         POST /status  { idToken, id }        → confere no Mercado Pago; se pago, libera DIAS de Pro
 //         POST /cartao  { idToken }            → cria um link do Checkout do Mercado Pago (cartão) para o e-mail logado
 //         POST /status-cartao { idToken }      → procura pagamento aprovado desse e-mail feito pelo checkout; se achar, libera
+//         POST /assinar { idToken }            → cria uma ASSINATURA mensal no cartão de crédito (Mercado Pago) e devolve o link
+//         POST /assinatura { idToken }         → situação da assinatura; libera os meses já cobrados que ainda não foram somados
+//         POST /cancelar-assinatura { idToken } → cancela a renovação (o Pro vai até o fim do que já foi pago)
 //         POST /webhook (aviso do Mercado Pago) → confere o pedido e libera
 // Segredos (wrangler secret put): MP_TOKEN (Access Token do Mercado Pago), SA_JSON (chave da conta de serviço do Firebase)
 
@@ -29,6 +32,9 @@ export default {
       if (rota === "/status") return json(req, await conferir(env, corpo.id, email));
       if (rota === "/cartao") return json(req, await criarCheckout(env, email));
       if (rota === "/status-cartao") return json(req, await conferirCheckout(env, email));
+      if (rota === "/assinar") return json(req, await criarAssinatura(env, email));
+      if (rota === "/assinatura") return json(req, await situacaoAssinatura(env, email));
+      if (rota === "/cancelar-assinatura") return json(req, await cancelarAssinatura(env, email));
       return json(req, { erro: "rota desconhecida" }, 404);
     } catch (e) {
       return json(req, { erro: String(e?.message || e).slice(0, 300) }, 500);
@@ -163,6 +169,10 @@ async function webhook(req, env) {
   const url = new URL(req.url);
   const bruto = corpo?.data?.id || url.searchParams.get("data.id") || url.searchParams.get("id");
   const tipo = corpo?.type || url.searchParams.get("type") || url.searchParams.get("topic") || "";
+  if (/subscription|preapproval/i.test(tipo)) {
+    try { if (bruto) await avisoAssinatura(env, tipo, String(bruto)); } catch (e) { console.log("webhook assinatura", tipo, bruto, e.message); }
+    return new Response("ok", { status: 200 });
+  }
   const id = bruto ? (/payment/i.test(tipo) || /^\d+$/.test(String(bruto)) ? "pay_" + bruto : String(bruto)) : null;
   if (id) { try { await conferir(env, id, null); } catch (e) { console.log("webhook", id, e.message); } }
   return new Response("ok", { status: 200 });
@@ -172,7 +182,7 @@ async function webhook(req, env) {
 let tokenCache = { valor: "", ate: 0 };
 async function tokenGoogle(env) {
   if (tokenCache.valor && Date.now() < tokenCache.ate) return tokenCache.valor;
-  const sa = JSON.parse(env.SA_JSON);
+  const sa = JSON.parse(String(env.SA_JSON).replace(/^﻿/, "").trim()); // a chave pode vir com BOM (caractere invisível) do PowerShell
   const b64 = o => btoa(typeof o === "string" ? o : JSON.stringify(o)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
   const agora = Math.floor(Date.now() / 1000);
   const base = b64({ alg: "RS256", typ: "JWT" }) + "." + b64({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/datastore", aud: "https://oauth2.googleapis.com/token", iat: agora, exp: agora + 3600 });
@@ -190,7 +200,7 @@ const DOCS = env => `https://firestore.googleapis.com/v1/projects/${env.FB_PROJE
 const int = v => ({ integerValue: String(Math.round(v)) });
 const txt = v => ({ stringValue: String(v) });
 
-async function liberar(env, email, pedidoId) {
+async function liberar(env, email, pedidoId, nota = "pago pelo Pix (automático)") {
   const tok = await tokenGoogle(env), H = { Authorization: "Bearer " + tok, "Content-Type": "application/json" };
   const url = `${DOCS(env)}/liberados/${encodeURIComponent(email)}`;
   const r = await fetch(url, { headers: H });
@@ -203,11 +213,86 @@ async function liberar(env, email, pedidoId) {
   const campos = {
     inicio: atual.inicio || int(Number(atual.data?.integerValue) || agora), data: int(agora), expira: int(expira),
     renovacoes: int(Number(atual.renovacoes?.integerValue || 0) + (r.ok ? 1 : 0)),
-    nota: txt("pago pelo Pix (automático)"), por: txt("pagamento automático"),
+    nota: txt(nota), por: txt("pagamento automático"),
     pedidosPagos: { arrayValue: { values: [...pagos.slice(-30), pedidoId].map(txt) } }
   };
   const w = await fetch(url, { method: "PATCH", headers: H, body: JSON.stringify({ fields: campos }) });
   if (!w.ok) throw new Error("não consegui gravar o Pro: " + (await w.text()).slice(0, 150));
   await fetch(`${DOCS(env)}/solicitacoes/${encodeURIComponent(email)}`, { method: "DELETE", headers: H }).catch(() => {});
   return expira;
+}
+
+/* ---------- Assinatura mensal no cartão de crédito (API de assinaturas do Mercado Pago) ---------- */
+// Os ids das assinaturas de cada e-mail ficam em assinaturas/{email} (só o servidor lê e grava)
+async function idsAssinatura(env, email) {
+  const tok = await tokenGoogle(env);
+  const r = await fetch(`${DOCS(env)}/assinaturas/${encodeURIComponent(email)}`, { headers: { Authorization: "Bearer " + tok } });
+  if (!r.ok) return [];
+  return ((await r.json()).fields?.ids?.arrayValue?.values || []).map(v => v.stringValue);
+}
+async function guardarIdAssinatura(env, email, id) {
+  const ids = [...(await idsAssinatura(env, email)).filter(x => x !== id), id].slice(-10);
+  const tok = await tokenGoogle(env);
+  await fetch(`${DOCS(env)}/assinaturas/${encodeURIComponent(email)}`, { method: "PATCH", headers: { Authorization: "Bearer " + tok, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { ids: { arrayValue: { values: ids.map(txt) } }, atualizado: int(Date.now()) } }) });
+}
+async function criarAssinatura(env, email) {
+  if (await contaDeTeste(env)) throw new Error("pagamento automático em manutenção");
+  // se já tem uma ativa, não cria outra (evita cobrar 2 vezes por mês)
+  const sit = await situacaoAssinatura(env, email);
+  if (sit.ativa) return { jaAtiva: true, ...sit };
+  const preco = Math.round(Number(env.PRECO || "9.99") * 100) / 100;
+  const a = await mp(env, "/preapproval", {
+    method: "POST",
+    body: JSON.stringify({
+      reason: "Hipocampo Study Pro (mensal)",
+      external_reference: refDe(email),
+      payer_email: email,
+      back_url: SITE + "/?pago=assinatura",
+      auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: preco, currency_id: "BRL" },
+      status: "pending"
+    })
+  });
+  await guardarIdAssinatura(env, email, a.id);
+  return { url: a.init_point, id: a.id };
+}
+// Libera cada cobrança aprovada da assinatura (o liberar() ignora as que já foram somadas)
+async function liberarCobrancas(env, email, preId) {
+  let expira = 0;
+  const r = await mp(env, `/authorized_payments/search?preapproval_id=${encodeURIComponent(preId)}&limit=50`).catch(() => ({ results: [] }));
+  const pagos = (r.results || []).filter(x => x.payment?.status === "approved" && x.payment?.id).reverse();
+  for (const x of pagos) expira = await liberar(env, email, "pay_" + x.payment.id, "assinatura no cartão");
+  return expira;
+}
+async function situacaoAssinatura(env, email) {
+  const ids = await idsAssinatura(env, email);
+  let ativa = null, expira = 0;
+  for (const id of ids) {
+    const a = await mp(env, "/preapproval/" + encodeURIComponent(id)).catch(() => null);
+    if (!a || emailDaRef(a.external_reference) !== email) continue;
+    const e = await liberarCobrancas(env, email, id); if (e) expira = e;
+    if (a.status === "authorized") ativa = { id, proxima: a.next_payment_date || null, valor: a.auto_recurring?.transaction_amount };
+  }
+  return { ativa: !!ativa, ...(ativa || {}), pago: !!expira, expira };
+}
+async function cancelarAssinatura(env, email) {
+  let n = 0;
+  for (const id of await idsAssinatura(env, email)) {
+    const a = await mp(env, "/preapproval/" + encodeURIComponent(id)).catch(() => null);
+    if (!a || emailDaRef(a.external_reference) !== email || !["authorized", "paused", "pending"].includes(a.status)) continue;
+    await mp(env, "/preapproval/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) });
+    n++;
+  }
+  return { cancelada: n > 0 };
+}
+// Aviso do Mercado Pago sobre assinatura: confere tudo direto na API (não confia no conteúdo do aviso)
+async function avisoAssinatura(env, tipo, id) {
+  let preId = id;
+  if (/authorized_payment/i.test(tipo)) { const ap = await mp(env, "/authorized_payments/" + encodeURIComponent(id)); preId = ap.preapproval_id; }
+  if (!preId) return;
+  const a = await mp(env, "/preapproval/" + encodeURIComponent(preId));
+  const email = emailDaRef(a.external_reference);
+  if (!email || !email.includes("@")) return;
+  await guardarIdAssinatura(env, email, preId);
+  await liberarCobrancas(env, email, preId);
 }
