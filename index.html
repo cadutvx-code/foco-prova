@@ -1264,39 +1264,54 @@ function normalizarMultipla(q) {
   if (Array.isArray(q.explicacoes) && q.explicacoes.length === idx.length) q.explicacoes = idx.map(i => q.explicacoes[i]); else delete q.explicacoes;
   q.correta = idx.indexOf(c);
 }
-// Explicação depois de responder: por que a certa está certa e por que a marcada (errada) está errada
+// Explicação depois de responder: por que a marcada está errada e por que a certa está certa (detalhada, escrita na hora)
 function explicacaoHTML(q, escolha) {
   const es = idiomaCaderno(atual()) === "es";
   const acertou = escolha === q.correta;
+  const marcouErrada = escolha !== null && escolha >= 0 && !acertou;
   const porQue = i => (q.explicacoes?.[i] || "").trim().replace(ROTULO_RESPOSTA, "");
-  const certa = (q.explicacao || "").trim() || porQue(q.correta);
-  const errada = escolha !== null && escolha >= 0 && !acertou ? porQue(escolha) : "";
-  const carregando = `<span class="muted"><span class="spin"></span> ${es ? "escribiendo la explicación…" : "escrevendo a explicação…"}</span>`;
+  const det = q.det || {}, agora = explicandoAgora(q);
+  const carregando = `<p class="muted"><span class="spin"></span> ${es ? "el profesor está escribiendo la explicación…" : "o professor está escrevendo a explicação…"}</p>`;
+  // a explicação curta só aparece se a detalhada não puder ser feita
+  const certa = det.certa || (agora ? "" : (q.explicacao || "").trim() || porQue(q.correta));
+  const errada = marcouErrada ? (det.erradas?.[escolha] || (agora ? "" : porQue(escolha))) : "";
   const n1 = q.correta + 1, n2 = escolha + 1;
   let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `La respuesta correcta es la ${n1}.` : `A resposta certa é a ${n1}.`) : (es ? `✘ Incorrecto — la correcta es la ${n1}.` : `✘ Errado — a certa é a ${n1}.`)}</p>`;
-  if (!acertou && escolha !== null && escolha >= 0) h += `<p><b>${es ? `Por qué la ${n2} es incorrecta:` : `Por que a ${n2} está errada:`}</b> ${errada ? esc(errada) : explicandoAgora(q) ? carregando : ""}</p>`;
-  h += `<p><b>${es ? `Por qué la ${n1} es correcta:` : `Por que a ${n1} está certa:`}</b></p>${certa ? md(certa) : explicandoAgora(q) ? `<p>${carregando}</p>` : ""}`;
+  if (marcouErrada) h += `<p style="margin-bottom:4px"><b>${es ? `❌ Por qué la ${n2} es incorrecta` : `❌ Por que a ${n2} está errada`}</b></p>${errada ? md(errada) : carregando}`;
+  h += `<p style="margin:12px 0 4px"><b>${es ? `✅ Por qué la ${n1} es correcta` : `✅ Por que a ${n1} está certa`}</b></p>${certa ? md(certa) : carregando}`;
   return `<div class="expl md">${h}</div>`;
 }
-// Explicação curta/ausente? Pede na hora para a IA (passa na frente da fila)
-const explicacaoFraca = t => !t || t.trim().length < 25;
+// Ao responder, o professor escreve na hora a explicação completa (passa na frente da fila)
 const explicandoAgora = q => q._explicando && Date.now() - q._explicando < 90000;
 async function completarExplicacao(c, q, escolha) {
-  const precisaCerta = explicacaoFraca(q.explicacao) && explicacaoFraca(q.explicacoes?.[q.correta]);
-  const precisaErrada = escolha !== null && escolha >= 0 && escolha !== q.correta && explicacaoFraca(q.explicacoes?.[escolha]);
+  q.det ||= {};
+  const marcouErrada = escolha !== null && escolha >= 0 && escolha !== q.correta;
+  const precisaCerta = !q.det.certa;
+  const precisaErrada = marcouErrada && !q.det.erradas?.[escolha];
   if ((!precisaCerta && !precisaErrada) || explicandoAgora(q)) return;
   q._explicando = Date.now(); render();
   try {
     const alts = q.alternativas.map((a, i) => `${i + 1}) ${a}`).join("\n");
-    const marcou = precisaErrada ? escolha + 1 : null;
+    const n1 = q.correta + 1, n2 = marcouErrada ? escolha + 1 : null;
     const r = await chamar({
-      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê é um professor explicando a correção de uma questão. Seja específico: cite o conceito do material que justifica a resposta." }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.topico || ""}`, cfg().provider === "webllm" ? 1500 : 4000) }],
-      messages: [{ role: "user", content: `Questão: ${q.enunciado}\nAlternativas:\n${alts}\nA correta é a ${q.correta + 1}.${marcou ? ` O estudante marcou a ${marcou}.` : ""}\n\n${idiomaCaderno(c) === "es" ? "Responda em espanhol.\n" : ""}Em "certa": explique em 2 a 3 frases POR QUE a alternativa ${q.correta + 1} está correta, com base no conteúdo.\nEm "errada": ${marcou ? `explique em 1 a 2 frases POR QUE a alternativa ${marcou} está errada (qual é o erro dela ou o que ela confunde).` : `deixe vazio.`}` }],
-      schema: obj({ certa: str, errada: str }), maxTokens: cfg().provider === "anthropic" ? 6000 : 260, rotulo: "Explicando a resposta", urgente: true
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + `
+Você é um professor de medicina corrigindo uma questão de prova, falando direto com o aluno.
+- Explique o CONTEÚDO de verdade: o conceito, o mecanismo fisiológico, causa e efeito. Nada de frases vagas como "isso é importante para o funcionamento do organismo".
+- NUNCA use expressões como "segundo o material", "o livro diz", "de acordo com o texto", "conforme o material" ou "o material menciona": afirme os fatos diretamente, como um professor.
+- Use **negrito** nos termos-chave. Não repita o enunciado nem as alternativas inteiras.` }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.alternativas.join(" ")} ${q.topico || ""}`, cfg().provider === "webllm" ? 1500 : 5000) }],
+      messages: [{ role: "user", content: `Questão: ${q.enunciado}
+Alternativas:
+${alts}
+A correta é a ${n1}.${n2 ? ` O aluno marcou a ${n2}.` : ""}
+
+Responda em JSON:
+- "errada": ${n2 ? `por que a alternativa ${n2} está ERRADA, em 3 a 5 frases: o que exatamente ela afirma de errado, qual é o fato correto no lugar dela e o mecanismo por trás. Se ela confunde dois conceitos, diga qual é a confusão.` : `deixe vazio ("").`}
+- "certa": por que a alternativa ${n1} está CERTA, em 4 a 6 frases: explique o mecanismo ou conceito passo a passo (causa → efeito) mostrando por que ela responde a pergunta. Depois, em um parágrafo separado (pule uma linha), escreva "💡" seguido de uma dica curta para memorizar, no mesmo idioma da resposta e sem a palavra "Dica".` }],
+      schema: obj({ errada: str, certa: str }), maxTokens: cfg().provider === "anthropic" ? 6000 : 1100, rotulo: "Explicando a resposta", urgente: true
     });
-    if (r.certa?.trim()) q.explicacao = r.certa.trim();
-    if (marcou && r.errada?.trim()) { q.explicacoes ||= q.alternativas.map(() => ""); q.explicacoes[escolha] = r.errada.trim(); }
-  } catch (e) { console.warn("explicação extra não gerada:", e); } // tarefa de fundo: não assusta o aluno
+    if (r.certa?.trim()) q.det.certa = r.certa.trim();
+    if (n2 && r.errada?.trim()) (q.det.erradas ||= {})[escolha] = r.errada.trim();
+  } catch (e) { console.warn("explicação detalhada não gerada:", e); } // se falhar, fica a explicação curta
   delete q._explicando; render(); salvar(c);
 }
 /* ================= sequência de dias e meta diária ================= */
@@ -1412,7 +1427,7 @@ function viewHome() {
   return `${avisoEndereco}${cartaoPlano()}${cartaoMeta()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
-        ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}
+        ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}<button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
       </div>
       <div class="mkits">${grupos[m].sort((a, b) => b.atualizado - a.atualizado).map(cartao).join("")}</div>
     </section>`).join("")}
@@ -1797,7 +1812,7 @@ Regras de adaptação:
 - Cerca de 60% das perguntas nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
 - TODAS são de múltipla escolha com EXATAMENTE 4 alternativas plausíveis e só uma correta ("correta" = índice 0 a 3 da certa). Varie a posição da certa.
-- "explicacao" (OBRIGATÓRIO, nunca vazio): por que a correta está certa, em 1 a 2 frases que citem o conceito do material.
+- "explicacao" (OBRIGATÓRIO, nunca vazio): por que a correta está certa, em 1 a 2 frases com o conceito em si (sem dizer "segundo o material" ou "o livro diz").
 - "explicacoes" (OBRIGATÓRIO): 4 textos MUITO curtos (até 12 palavras cada), um por alternativa NA MESMA ORDEM. Comece cada uma com "Correta:" ou "Errada:" (só UMA pode ser "Correta:", a mesma de "correta"); nas erradas, diga o erro concreto (ex.: "Errada: quem produz ATP é a mitocôndria, não o ribossomo"). Evite perguntas com mais de uma resposta defensável.
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar novos).
 - Não repita estas perguntas:
@@ -3005,12 +3020,24 @@ async function apagarMaterialRemoto(id) {
   await F.deleteDoc(F.doc(db, `${base}/materiais/${id}`));
 }
 // Apagar um caderno: deixa uma marca "apagado" para os outros aparelhos também apagarem
+// Cadernos apagados neste aparelho: a sincronização nunca os traz de volta
+const apagados = () => lsGet("fp-apagados", {});
+function lembrarApagado(id) { const a = apagados(); a[id] = Date.now(); lsSet("fp-apagados", a); }
 async function apagarCadernoRemoto(c) {
   if (!NUVEM.user) return;
   try {
-    for (const m of c.materiais) await apagarMaterialRemoto(m.id);
     await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/cadernos/${c.id}`), { apagado: true, atualizado: Date.now(), dados: "" });
+    for (const m of c.materiais) if (!m.oficial) await apagarMaterialRemoto(m.id).catch(() => {});
   } catch (e) { console.warn(e); }
+}
+// Apaga um caderno de vez: neste aparelho e na nuvem
+async function apagarCaderno(c) {
+  lembrarApagado(c.id);
+  NUVEM.pendentes?.delete(c.id);
+  S.cadernos = S.cadernos.filter(x => x.id !== c.id);
+  if (S.atual === c.id) { fecharVoz(); S.atual = null; S.player = null; }
+  try { await dbDel(c.id); } catch {}
+  apagarCadernoRemoto(c);
 }
 // Junta o que está na nuvem com o que está neste aparelho (vence a versão mais nova de cada caderno)
 async function sincronizarTudo() {
@@ -3025,6 +3052,8 @@ async function sincronizarTudo() {
     for (const d of cs.docs) {
       const r = d.data(); vistos.add(d.id);
       const local = S.cadernos.find(x => x.id === d.id);
+      // apagado neste aparelho e a nuvem ainda não sabe: avisa a nuvem e não baixa de volta
+      if (!r.apagado && apagados()[d.id] && apagados()[d.id] >= (r.atualizado || 0)) { apagarCadernoRemoto({ id: d.id, materiais: (JSON.parse(r.dados || "{}").materiais || []).map(id => ({ id })) }); continue; }
       if (r.apagado) {
         if (local && (local.atualizado || 0) <= r.atualizado) { S.cadernos = S.cadernos.filter(x => x.id !== d.id); await dbDel(d.id); if (S.atual === d.id) { S.atual = null; S.player = null; } }
         continue;
@@ -3190,7 +3219,14 @@ document.addEventListener("click", async e => {
     case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; k.materiaAuto = false; k.materiaTentada = true; await salvar(k); render(); }); break; }
     case "renomearKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Renomear caderno", k.nome, async v => { if (v) { k.nome = v; await salvar(k); render(); } }); break; }
     case "detectarKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; detectarMateria(k, true); break; }
-    case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { apagarCadernoRemoto(k); await dbDel(k.id); S.cadernos = S.cadernos.filter(x => x.id !== k.id); } render(); break; }
+    case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await apagarCaderno(k); toast("🗑 Caderno apagado."); } render(); break; }
+    case "apagarMateria": {
+      const lista = S.cadernos.filter(k => !k.oficial && (k.materia || SEM_MATERIA) === id);
+      const nMat = lista.reduce((s, k) => s + k.materiais.length, 0);
+      if (!lista.length || !confirm(`Apagar a matéria "${id}" inteira?\n\n${lista.length} caderno(s) e ${nMat} material(is) serão apagados deste aparelho e da nuvem. Isso não pode ser desfeito.`)) break;
+      for (const k of lista) await apagarCaderno(k);
+      toast(`🗑 Matéria "${id}" apagada (${lista.length} caderno(s)).`); render(); break;
+    }
     case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo)) { k.materia = v; await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; lsSet("fp-materias", m); } render(); }); break; }
     case "corMateria": { const m = materiasCfg(), atualCor = corMateria(id); m[id] = { ...(m[id] || {}), cor: CORES_MATERIA[(CORES_MATERIA.indexOf(atualCor) + 1) % CORES_MATERIA.length] }; lsSet("fp-materias", m); render(); break; }
     case "txtCancelar": $("#dlgTexto").close(); break;
@@ -3204,7 +3240,7 @@ document.addEventListener("click", async e => {
     case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; guardarRestantes(c, S.player); S.atual = id; S.player = null; S.verDeck = null; render(); prepararBanco(atual()); break;
     case "aba": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
     case "renomear": pedirTexto("Renomear caderno", c.nome, async v => { if (v) { c.nome = v; await salvar(c); render(); } }); break;
-    case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { apagarCadernoRemoto(c); await dbDel(c.id); S.cadernos = S.cadernos.filter(x => x.id !== c.id); S.atual = null; render(); } break;
+    case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await apagarCaderno(c); toast("🗑 Caderno apagado."); render(); } break;
     case "escolher": $("#arquivo").click(); break;
     case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); break; }
     case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = m.ativo === false; await salvar(c); render(); break; }
@@ -3303,7 +3339,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1335";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
