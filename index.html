@@ -2053,25 +2053,109 @@ function falarNavegador(texto, lang) {
     speechSynthesis.speak(u);
   } catch {}
 }
-function fecharVoz() { try { REC?.stop(); } catch {} REC = null; S.falaId++; pararAudio(); clearInterval(S.timerOral); }
-function gravar() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return toast("Este navegador não reconhece voz. Use o Chrome ou o Edge, ou escreva a resposta.", true);
+let GRAV = null; // gravação do microfone (áudio que o Gemini transcreve quando o navegador não transcreve sozinho)
+function fecharVoz() { try { REC?.stop(); } catch {} REC = null; descartarGravacao(); S.falaId++; pararAudio(); clearInterval(S.timerOral); }
+function descartarGravacao() { const g = GRAV; GRAV = null; if (!g) return; g.descartar = true; try { g.mr.state !== "inactive" && g.mr.stop(); } catch {} g.stream.getTracks().forEach(t => t.stop()); }
+// O Brave (e alguns celulares) dizem ter reconhecimento de voz, mas o serviço não funciona: nesses casos só o áudio gravado vale
+const srConfiavel = () => !!(window.SpeechRecognition || window.webkitSpeechRecognition) && !navigator.brave;
+async function gravar() {
   const c = atual(), p = S.player;
-  try { speechSynthesis.cancel(); } catch {}
-  REC = new SR(); REC.lang = vozIdioma(c); REC.continuous = true; REC.interimResults = true;
-  const base = p.resp ? p.resp.trim() + " " : "";
-  REC.onresult = ev => {
-    let fim = "", parcial = "";
-    for (let i = 0; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) fim += r[0].transcript; else parcial += r[0].transcript; }
-    p.resp = (base + fim).trim();
-    const ta = $("#oralResp"); if (ta) ta.value = p.resp + (parcial ? " " + parcial : "");
-  };
-  REC.onerror = e => { if (/not-allowed|service-not-allowed/.test(e.error)) toast("Permita o uso do microfone para responder falando.", true); else if (e.error === "no-speech") toast("Não ouvi nada. Tente de novo, mais perto do microfone."); };
-  // a fala longa (explicar um capítulo) às vezes é cortada pelo navegador: religa sozinho enquanto você não tocar em "Parar"
-  REC.onend = () => { if (S.player === p && p.gravando && !p.parouManual) { try { gravar(); return; } catch {} } if (S.player === p) { p.gravando = false; render(); } };
-  p.parouManual = false;
-  REC.start(); p.gravando = true; render();
+  if (!p || p.gravando || p.transcrevendo) return;
+  try { speechSynthesis.cancel(); } catch {} pararAudio();
+  const ta0 = $("#oralResp"); if (ta0) p.resp = ta0.value;
+  p.base = p.resp ? p.resp.trim() + " " : ""; p.ouvido = ""; p.parcial = ""; p.parouManual = false;
+  // 1) grava o áudio (funciona em qualquer navegador)
+  if (navigator.mediaDevices?.getUserMedia && window.MediaRecorder) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const tipo = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4", "audio/webm"].find(t => MediaRecorder.isTypeSupported?.(t)) || "";
+      const mr = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
+      const g = GRAV = { mr, stream, pedacos: [], p };
+      g.pronto = new Promise(res => { mr.onstop = () => res(); });
+      mr.ondataavailable = e => e.data?.size && g.pedacos.push(e.data);
+      mr.start(1000);
+    } catch (e) {
+      if (/NotAllowed|Permission/i.test(e.name + e.message)) return toast("Permita o uso do microfone (no ícone do cadeado, ao lado do endereço) para responder falando.", true);
+      return toast("Não consegui abrir o microfone: " + (e.message || e.name), true);
+    }
+  } else if (!srConfiavel()) return toast("Este navegador não grava áudio. Escreva a resposta.", true);
+  // 2) mostra o texto ao vivo quando o navegador sabe transcrever (Chrome/Edge)
+  if (srConfiavel()) iniciarSR(c, p);
+  p.gravando = true; render();
+}
+function iniciarSR(c, p) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  try {
+    const rec = REC = new SR(); rec.lang = vozIdioma(c); rec.continuous = true; rec.interimResults = true;
+    const base = p.ouvido;
+    rec.onresult = ev => {
+      let fim = "", parcial = "";
+      for (let i = 0; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) fim += r[0].transcript; else parcial += r[0].transcript; }
+      p.ouvido = (base + " " + fim).trim(); p.parcial = parcial;
+      const ta = $("#oralResp"); if (ta) ta.value = (p.base + p.ouvido + (parcial ? " " + parcial : "")).trim();
+    };
+    rec.onerror = e => { if (e.error === "network" || /not-allowed|service-not-allowed/.test(e.error)) rec.falhou = true; };
+    // a fala longa às vezes é cortada pelo navegador: religa sozinho enquanto você não tocar em "Parar"
+    rec.onend = () => { if (REC === rec && S.player === p && p.gravando && !p.parouManual && !rec.falhou) { p.ouvido = (p.ouvido + " " + p.parcial).trim(); p.parcial = ""; iniciarSR(c, p); } };
+    rec.start();
+  } catch {}
+}
+async function pararGravacao() {
+  const p = S.player; if (!p?.gravando) return;
+  p.parouManual = true; p.gravando = false;
+  try { REC?.stop(); } catch {} REC = null;
+  const g = GRAV; GRAV = null;
+  const aoVivo = (p.ouvido + " " + p.parcial).trim();
+  if (!g) { p.resp = (p.base + aoVivo).trim(); return render(); }
+  try { g.mr.state !== "inactive" && g.mr.stop(); } catch {}
+  await g.pronto; g.stream.getTracks().forEach(t => t.stop());
+  // o navegador já transcreveu ao vivo: usa esse texto
+  if (aoVivo.split(/\s+/).length >= 3 || !g.pedacos.length) {
+    p.resp = (p.base + aoVivo).trim(); render();
+    if (!aoVivo && !g.pedacos.length) toast("Não ouvi nada. Tente de novo, mais perto do microfone.");
+    return;
+  }
+  // senão, o Gemini transcreve o áudio gravado
+  p.transcrevendo = true; render();
+  try {
+    const txt = await transcreverAudio(new Blob(g.pedacos, { type: g.mr.mimeType || "audio/webm" }), vozIdioma(atual()));
+    if (S.player !== p) return;
+    if (!txt) toast("Não entendi o áudio. Tente de novo, mais perto do microfone.");
+    p.resp = (p.base + txt).trim();
+  } catch (e) { toast("Não consegui transcrever o áudio: " + erroMsg(e), true); p.resp = (p.base + aoVivo).trim(); }
+  p.transcrevendo = false; render();
+}
+// Converte para WAV 16 kHz mono (formato que o Gemini sempre aceita) e pede a transcrição
+async function paraWav(blob) {
+  const buf = await blob.arrayBuffer();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let audio; try { audio = await ctx.decodeAudioData(buf); } finally { ctx.close?.(); }
+  const taxa = 16000, n = Math.ceil(audio.duration * taxa);
+  const off = new OfflineAudioContext(1, n, taxa); const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+  const dados = (await off.startRendering()).getChannelData(0);
+  const out = new DataView(new ArrayBuffer(44 + dados.length * 2));
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); out.setUint32(4, 36 + dados.length * 2, true); str(8, "WAVE"); str(12, "fmt "); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, taxa, true); out.setUint32(28, taxa * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true); str(36, "data"); out.setUint32(40, dados.length * 2, true);
+  for (let i = 0; i < dados.length; i++) { const v = Math.max(-1, Math.min(1, dados[i])); out.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  return new Blob([out], { type: "audio/wav" });
+}
+const blobBase64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(b); });
+async function transcreverAudio(blob, lang) {
+  if (!GEMINI_OK()) throw new Error("a transcrição do áudio precisa do Gemini (Ajustes → IA)");
+  let wav; try { wav = await paraWav(blob); } catch { wav = blob; }
+  const data = await blobBase64(wav), mimeType = (wav.type || "audio/webm").split(";")[0];
+  const { ai, AI } = await motorGemini();
+  const idioma = /^es/.test(lang) ? "espanhol" : "português";
+  let erro;
+  for (const nome of MODELOS_GEMINI.filter(n => !(GEM_PAUSA[n] > Date.now())).concat(MODELOS_GEMINI)) {
+    try {
+      const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { temperature: 0 } });
+      const r = await m.generateContent([{ inlineData: { mimeType, data } }, { text: `Transcreva fielmente, palavra por palavra, o que a pessoa fala neste áudio (provavelmente em ${idioma}; é um estudante explicando um tema de medicina). Responda SOMENTE com o texto transcrito, sem comentários. Se não houver fala, responda vazio.` }]);
+      return (r.response.text?.() || "").trim().replace(/^["“]|["”]$/g, "");
+    } catch (e) { erro = e; }
+  }
+  throw erro || new Error("sem resposta");
 }
 
 // Capítulos do material (identificados pela IA uma vez e guardados no caderno)
@@ -2146,7 +2230,9 @@ function comecarExposicao(c) {
 }
 async function enviarOral(c) {
   const p = S.player;
-  const ta = $("#oralResp"); if (ta) p.resp = ta.value;
+  if (p.transcrevendo) return toast("Espere terminar de transcrever o áudio.");
+  if (p.gravando) { await pararGravacao(); if (S.player !== p) return; }
+  else { const ta = $("#oralResp"); if (ta) p.resp = ta.value; }
   const resp = (p.resp || "").trim();
   if (!resp) return toast("Fale ou escreva sua resposta primeiro.", true);
   p.parouManual = true; fecharVoz(); p.gravando = false; p.corrigindo = true; render();
@@ -2226,12 +2312,14 @@ function playerOral(c) {
       <div class="lvl"><div class="lvl-bar"><div style="width:${atualE * 25}%"></div><span>${esc(nomeCap(p.cap))}</span></div></div>
       <button class="icon-btn" data-act="oralOuvir" title="Ouvir de novo">🔊</button></div>${trilha}`;
   const papel = `<div class="papel-sorteado"><small>${es ? "Ateneo · tema sorteado" : "Ateneo · tema sorteado"}</small><b>${esc(nomeCap(p.cap))}</b></div>`;
-  const responder = (placeholder) => `<textarea id="oralResp" rows="${p.etapa === "exposicao" ? 9 : 6}" placeholder="${placeholder}" ${p.corrigindo ? "disabled" : ""}>${esc(p.resp || "")}</textarea>
+  const ocupado = p.corrigindo || p.transcrevendo;
+  const responder = (placeholder) => `<textarea id="oralResp" rows="${p.etapa === "exposicao" ? 9 : 6}" placeholder="${placeholder}" ${ocupado ? "disabled" : ""}>${esc(p.resp || "")}</textarea>
     <div class="study-foot">
-      <button class="mic l ${p.gravando ? "on" : ""}" data-act="${p.gravando ? "oralParar" : "oralGravar"}" ${p.corrigindo ? "disabled" : ""}>${p.gravando ? "⏹ Parar" : "🎙️ Falar"}</button>
-      <button class="pill" data-act="oralEnviar" ${p.corrigindo ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> O professor está avaliando…` : (p.etapa === "exposicao" ? "Terminei de explicar" : "Enviar resposta")}</button>
+      <button class="mic l ${p.gravando ? "on" : ""}" data-act="${p.gravando ? "oralParar" : "oralGravar"}" ${ocupado ? "disabled" : ""}>${p.gravando ? "⏹ Parar" : "🎙️ Falar"}</button>
+      <button class="pill" data-act="oralEnviar" ${ocupado ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> O professor está avaliando…` : (p.etapa === "exposicao" ? "Terminei de explicar" : "Enviar resposta")}</button>
       <span class="r"></span></div>
-    ${p.gravando ? `<p class="muted" style="text-align:center;margin-top:10px">🔴 Ouvindo… fale à vontade e toque em “Parar” quando terminar.</p>` : ""}`;
+    ${p.gravando ? `<p class="muted" style="text-align:center;margin-top:10px">🔴 Gravando… fale à vontade e toque em “Parar” quando terminar.${srConfiavel() ? "" : " O texto aparece quando você parar."}</p>` : ""}
+    ${p.transcrevendo ? `<p class="muted" style="text-align:center;margin-top:10px"><span class="spin"></span> Transcrevendo o que você falou…</p>` : ""}`;
   let corpo = "";
   if (p.etapa === "sorteio") corpo = `<p class="muted" style="text-align:center">🎲 ${es ? "Sacando un papel de la mesa…" : "Tirando um papel da mesa…"}</p>${papel}`;
   else if (p.etapa === "preparo") {
@@ -2564,7 +2652,7 @@ document.addEventListener("click", async e => {
     case "oralPronto": comecarExposicao(c); break;
     case "oralNovo": fecharVoz(); S.player = null; render(); break;
     case "oralGravar": gravar(); break;
-    case "oralParar": S.player.parouManual = true; try { REC?.stop(); } catch {} break;
+    case "oralParar": pararGravacao(); break;
     case "oralEnviar": enviarOral(c); break;
     case "oralProx": proximaEtapaOral(c); break;
     case "oralOuvir": { const p = S.player; const t = p.etapa === "pergunta" || p.etapa === "respondida" ? p.perguntas[p.k] : p.etapa === "exposicao" ? nomeCap(p.cap) : nomeCap(p.cap); falar(t); break; }
