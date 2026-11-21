@@ -305,7 +305,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgNovo">
   <h2 style="margin-bottom:14px">Novo caderno</h2>
   <div class="stack">
-    <label>Nome<input type="text" id="novoNome" placeholder="ex.: Fisiologia – Ateneo" maxlength="80"></label>
+    <label>Nome<input type="text" id="novoNome" placeholder="ex.: Fisiologia 2 – Prova final" maxlength="80"></label>
     <label>Matéria <span style="font-weight:500">(deixe em branco para a IA identificar sozinha)</span><input type="text" id="novoMateria" list="listaMaterias" placeholder="ex.: Nutrição Clínica" maxlength="60"></label>
     <div><div class="muted" style="font-size:13px;font-weight:600;margin-bottom:6px">Ícone</div><div class="icons-pick" id="novoIcones"></div></div>
     <div class="dropzone-hint" id="novoDrop" data-act="novoArquivos">📎 Adicionar arquivos agora (opcional) — clique ou arraste aqui</div>
@@ -393,9 +393,9 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
         <label class="grow">Idioma do site (botões e textos)<select id="cfgUi"><option value="pt">Português</option><option value="es">Español</option></select></label>
         <label class="grow">Idioma das perguntas (padrão)<select id="cfgIdiomaPadrao"><option value="auto">Automático (igual ao material)</option><option value="pt">Português</option><option value="es">Español</option></select></label>
       </div>
-      <span class="muted" style="font-size:12px">Cada caderno também tem o seu seletor 🌐 ao lado de “Começar a estudar”. O professor fala no mesmo idioma das perguntas.</span>
+      <span class="muted" style="font-size:12px">Cada caderno também tem o seu seletor 🌐 ao lado de “Começar a estudar”.</span>
     </div>
-    <div class="stack" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
+    <div class="stack" id="cfgVozBloco" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
       <b style="font-size:14px">🔊 Voz do professor (leitura em voz alta)</b>
       <div class="row"><label class="grow">Voz do Gemini (recomendada — humana, funciona em qualquer navegador)<select id="cfgVozGemini"></select></label><button class="btn small" data-act="testarVozGemini">▶ Testar</button></div>
       <span class="muted" style="font-size:12px">Se escolher “Voz do navegador”, use as opções abaixo:</span>
@@ -1365,7 +1365,7 @@ function render() {
   const emEstudo = !!S.player;
   // As opções de estudo só aparecem depois de escolher um caderno
   $("#rail").innerHTML = `<button class="ri ${!c ? "on" : ""}" data-act="inicio">${svg("inicio")}Início</button>` +
-    (c ? `<div class="sep"></div>` + ABAS.filter(([k]) => k !== "oral" || c.oficial).map(([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}${n}</button>`).join("") : "") +
+    (c ? `<div class="sep"></div>` + ABAS.filter(([k]) => k !== "oral" || (c.oficial && ATENEO_ATIVO)).map(([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}${n}</button>`).join("") : "") +
     `<button class="ri fim" data-act="config">${svg("config")}Ajustes</button>`;
   $("#iaChip span").textContent = nomeIA();
   $("#seqChip").textContent = `🔥 ${diasSeguidos()}`;
@@ -1407,7 +1407,7 @@ function viewHome() {
     </div>`;
   };
   const avisoEndereco = location.hostname.endsWith("github.io") ? `<div class="aviso-nuvem">🏠 O Foco Prova mudou de endereço: <a href="https://focoprova.web.app" style="color:var(--accent);font-weight:800">focoprova.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
-  return `${avisoEndereco}${cartaoPlano()}${cartaoMeta()}${cartaoAteneos()}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  return `${avisoEndereco}${cartaoPlano()}${cartaoMeta()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}
@@ -1456,7 +1456,7 @@ function pedirTexto(titulo, valor, aoSalvar) {
 }
 
 function viewCaderno(c, emEstudo) {
-  if (S.aba === "oral" && !c.oficial) S.aba = "materiais";
+  if (S.aba === "oral" && !(c.oficial && ATENEO_ATIVO)) S.aba = "materiais";
   if (c.oficial && !ativos(c).length) return cartaoBaixarAteneo(c.oficial);
   const corpo ={ materiais: viewMateriais, smart: viewSmart, oral: viewOral, resumo: viewResumo, flash: viewFlash, quiz: viewQuiz, prova: viewProva, tutor: viewTutor }[S.aba](c);
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
@@ -2292,6 +2292,9 @@ async function identificarCapitulos(c, forcar = false) {
 const nomeCap = k => `${k.numero ? (idiomaCaderno(atual()) === "es" ? "Capítulo " : "Capítulo ") + k.numero + " – " : ""}${k.titulo}`;
 
 /* ---------- Ateneos oficiais de Fisiologia (material embutido no site, baixado só por quem quiser) ---------- */
+// DESATIVADO até o plano pago do Gemini (a voz grátis só dá ~20 falas por dia). Reserva completa: Programs\FocoProva-reserva-Ateneo
+const ATENEO_ATIVO = false;
+if (!ATENEO_ATIVO) { const b = document.getElementById("cfgVozBloco"); if (b) b.style.display = "none"; } // só esconde: o resto dos Ajustes continua lendo esses campos
 const ATENEOS = [
   { id: "fisio1", nome: "Ateneo 1", sub: "Fisiologia 1 · 3º semestre", pronto: false },
   { id: "fisio2", nome: "Ateneo 2", sub: "Fisiologia 2 · 4º semestre", pronto: true, arquivo: "ateneos/fisio2.json", tam: "0,5 MB" }
@@ -2792,7 +2795,7 @@ function cartaoPlano() {
     return `<div class="aviso-nuvem" id="planoChip" style="border-color:#f5a623;background:rgba(245,166,35,.12)">⏳ <b>Seu Pro acaba ${n <= 0 ? "hoje" : n === 1 ? "amanhã" : `em ${n} dias`}</b> (${dataCurta(ACESSO.expira)}). <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Renovar por mais 30 dias (R$ ${reais(p.preco)})</a></div>`;
   }
   const venceu = ACESSO.vencido && ACESSO.expira ? `⏰ <b>Seu Pro venceu em ${dataCurta(ACESSO.expira)}.</b> ` : "";
-  return `<div class="aviso-nuvem" id="planoChip">${venceu}🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 ${venceu ? "Renovar" : "Quero"} o Pro (R$ ${reais(p.preco)}/mês)</a></div>`;
+  return `<div class="aviso-nuvem" id="planoChip">${venceu}🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA${ATENEO_ATIVO ? ` · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos` : ""} · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 ${venceu ? "Renovar" : "Quero"} o Pro (R$ ${reais(p.preco)}/mês)</a></div>`;
 }
 function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
@@ -2810,7 +2813,7 @@ function abrirPagamento(tipo) {
   $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Foco Prova Pro</h2>
     ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}${estado}
     <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${reais(p.preco)} por mês servem só para ajudar a manter o site e a IA funcionando para todo mundo. <b>Sem fidelidade:</b> cada pagamento vale 30 dias e você renova só se quiser. Avisamos ${AVISO_DIAS} dias antes de acabar.</div>
-    <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${reais(p.preco)}/mês</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
+    <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${reais(p.preco)}/mês</b>: perguntas${ATENEO_ATIVO ? ", Ateneos" : ""}, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
     ${ACESSO.pedido ? `<p class="aviso-nuvem" style="margin:0">📨 <b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado. Toque em "Verificar" para conferir.</p>` : ""}
     ${!p.pix ? `<p class="aviso-nuvem" style="margin:0">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</p>` : `
     <ol style="margin:0;padding-left:20px;display:grid;gap:12px">
@@ -2862,7 +2865,7 @@ async function abrirAdmin() {
       <div class="row">
         <label style="flex:1">Preço por mês (R$)<input type="number" id="admPreco" min="1" step="0.01" value="${p.preco}"></label>
         <label style="flex:1">Interações grátis<input type="number" id="admLimite" min="0" value="${p.limite}"></label>
-        <label style="flex:1">Ateneos grátis<input type="number" id="admAteneos" min="0" value="${p.ateneos}"></label>
+        <label style="flex:1;${ATENEO_ATIVO ? "" : "display:none"}">Ateneos grátis<input type="number" id="admAteneos" min="0" value="${p.ateneos}"></label>
       </div>
       <div><button class="pill" data-act="admSalvarPag">💾 Salvar</button></div>
     </div>
@@ -3260,7 +3263,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0346";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
