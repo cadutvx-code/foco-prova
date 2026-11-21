@@ -396,12 +396,10 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
       <span class="muted" style="font-size:12px">Cada caderno também tem o seu seletor 🌐 ao lado de “Começar a estudar”.</span>
     </div>
     <div class="stack" id="cfgVozBloco" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
-      <b style="font-size:14px">🔊 Voz do professor (leitura em voz alta)</b>
-      <div class="row"><label class="grow">Voz do Gemini (recomendada — humana, funciona em qualquer navegador)<select id="cfgVozGemini"></select></label><button class="btn small" data-act="testarVozGemini">▶ Testar</button></div>
-      <span class="muted" style="font-size:12px">Se escolher “Voz do navegador”, use as opções abaixo:</span>
-      <div class="row"><label class="grow">Português<select id="cfgVozPt"></select></label><button class="btn small" data-act="testarVoz" data-id="pt">▶ Testar</button></div>
-      <div class="row"><label class="grow">Español<select id="cfgVozEs"></select></label><button class="btn small" data-act="testarVoz" data-id="es">▶ Probar</button></div>
-      <span class="muted" style="font-size:12px">As vozes “Natural” / “Online” (Edge) e “Google” (Chrome) soam bem mais humanas.</span>
+      <b style="font-size:14px">🔊 Voz do professor (Ateneo)</b>
+      <div class="row"><label class="grow">Em espanhol<select id="cfgVozEs"></select></label><button class="btn small" data-act="testarVoz" data-id="es">▶ Probar</button></div>
+      <div class="row"><label class="grow">Em português (quando o Ateneo estiver em português)<select id="cfgVozPt"></select></label><button class="btn small" data-act="testarVoz" data-id="pt">▶ Testar</button></div>
+      <span class="muted" style="font-size:12px">Vozes Piper: rodam no seu aparelho, grátis e sem limite. Na primeira vez a voz é baixada (cerca de 60 MB) e fica guardada.</span>
     </div>
     <div class="row">
       <button class="btn" data-act="exportar">⬇️ Exportar backup</button>
@@ -2041,7 +2039,33 @@ try { speechSynthesis.onvoiceschanged = () => {}; speechSynthesis.getVoices(); }
 const VOZES_GEMINI = [["Charon", "Charon — masculina, calma (professor)"], ["Kore", "Kore — feminina, firme"], ["Puck", "Puck — masculina, animada"], ["Aoede", "Aoede — feminina, leve"], ["Fenrir", "Fenrir — masculina, forte"], ["Leda", "Leda — feminina, jovem"], ["navegador", "Voz do navegador (sem internet)"]];
 const AUDIO_CACHE = new Map(); let audioAtual = null; S.falaId = 0;
 const vozGemini = () => lsGet("fp-voz-gemini", "Charon");
-const usarVozGemini = () => cfg().provider === "gemini" && GEMINI_OK() && vozGemini() !== "navegador";
+const usarVozGemini = () => false; // voz do Gemini desligada: a cota grátis é de ~20 falas por dia para o site inteiro
+// Voz do professor: Piper, que roda no próprio aparelho (grátis e sem limite). Espanhol é o padrão do Ateneo.
+const VOZES_PIPER = {
+  es: [["es_MX-claude-high", "Claude — México, feminina (recomendada)"], ["es_MX-ald-medium", "Ald — México, masculina"], ["es_ES-davefx-medium", "Davefx — Espanha, masculina"], ["es_ES-sharvard-medium", "Sharvard — Espanha"]],
+  pt: [["pt_BR-faber-medium", "Faber — Brasil, masculina (recomendada)"], ["pt_BR-edresson-low", "Edresson — Brasil, masculina"]]
+};
+const idiomaVoz = lang => /^es/.test(lang || "") ? "es" : "pt";
+const vozPiper = idioma => lsGet("fp-voz-piper", {})[idioma] || VOZES_PIPER[idioma][0][0];
+let PIPER = null, PIPER_FILA = Promise.resolve();
+const motorPiper = () => PIPER ||= import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm").catch(e => { PIPER = null; throw e; });
+function audioPiper(texto, lang) {
+  const voz = vozPiper(idiomaVoz(lang)), chave = "piper|" + voz + "|" + texto;
+  if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
+  // uma fala de cada vez (assim a voz é baixada uma vez só, mesmo se várias falas forem pedidas juntas)
+  const pr = PIPER_FILA = PIPER_FILA.catch(() => {}).then(async () => {
+    const tts = await motorPiper();
+    let avisou = false;
+    const wav = await tts.predict({ text: texto, voiceId: voz }, p => {
+      if (p?.total && p.loaded < p.total && !avisou) { avisou = true; toast("Baixando a voz do professor (só na primeira vez)…"); }
+    });
+    return URL.createObjectURL(wav);
+  });
+  AUDIO_CACHE.set(chave, pr); pr.catch(() => AUDIO_CACHE.delete(chave));
+  if (AUDIO_CACHE.size > 40) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value);
+  return pr;
+}
+const usaPiper = lang => vozPiper(idiomaVoz(lang)) !== "navegador";
 // As falas do Gemini ficam guardadas no aparelho: frase repetida nunca gasta a cota grátis de novo
 const CACHE_VOZ = "fp-voz-v1";
 const urlVoz = chave => "https://voz.focoprova/" + encodeURIComponent(chave);
@@ -2077,13 +2101,13 @@ function audioGemini(texto, lang) {
   return pr;
 }
 // Gera o áudio antes (as perguntas do professor tocam na hora)
-function prepararFala(texto, lang) { if (S.oralVoz && usarVozGemini() && texto) audioGemini(texto, lang || vozIdioma(atual())).catch(() => {}); }
+function prepararFala(texto, lang) { lang ||= vozIdioma(atual()); if (S.oralVoz && texto && usaPiper(lang)) audioPiper(texto, lang).catch(() => {}); }
 function pararAudio() { try { audioAtual?.pause(); } catch {} audioAtual = null; try { speechSynthesis.cancel(); } catch {} }
 function falar(texto, lang) {
   lang ||= vozIdioma(atual());
   pararAudio(); const vez = ++S.falaId;
-  if (usarVozGemini()) {
-    audioGemini(texto, lang).then(url => { if (vez !== S.falaId) return; audioAtual = new Audio(url); audioAtual.play().catch(() => {}); })
+  if (usaPiper(lang)) {
+    audioPiper(texto, lang).then(url => { if (vez !== S.falaId) return; audioAtual = new Audio(url); audioAtual.play().catch(() => {}); })
       .catch(() => { if (vez === S.falaId) falarNavegador(texto, lang); });
     return;
   }
@@ -2292,8 +2316,8 @@ async function identificarCapitulos(c, forcar = false) {
 const nomeCap = k => `${k.numero ? (idiomaCaderno(atual()) === "es" ? "Capítulo " : "Capítulo ") + k.numero + " – " : ""}${k.titulo}`;
 
 /* ---------- Ateneos oficiais de Fisiologia (material embutido no site, baixado só por quem quiser) ---------- */
-// DESATIVADO até o plano pago do Gemini (a voz grátis só dá ~20 falas por dia). Reserva completa: Programs\FocoProva-reserva-Ateneo
-const ATENEO_ATIVO = false;
+// Liga/desliga tudo do Ateneo. Reserva completa: Programs\FocoProva-reserva-Ateneo
+const ATENEO_ATIVO = true; // reativado com a voz Piper (grátis e sem limite)
 if (!ATENEO_ATIVO) { const b = document.getElementById("cfgVozBloco"); if (b) b.style.display = "none"; } // só esconde: o resto dos Ajustes continua lendo esses campos
 const ATENEOS = [
   { id: "fisio1", nome: "Ateneo 1", sub: "Fisiologia 1 · 3º semestre", pronto: false },
@@ -2411,7 +2435,7 @@ function iniciarAteneo(c, idx, sorteado) {
 }
 function comecarPreparo(c) {
   const p = S.player; p.etapa = "preparo"; p.fim = Date.now() + p.prep * 60000;
-  if (S.oralVoz) falar(idiomaCaderno(c) === "es" ? `Te tocó: ${nomeCap(p.cap)}. Tienes ${p.prep} minutos para pensar.` : `Você tirou: ${nomeCap(p.cap)}. Você tem ${p.prep} minutos para pensar.`);
+  if (S.oralVoz && p.prep) falar(idiomaCaderno(c) === "es" ? `Te tocó: ${nomeCap(p.cap)}. Tienes ${p.prep} ${p.prep === 1 ? "minuto" : "minutos"} para pensar.` : `Você tirou: ${nomeCap(p.cap)}. Você tem ${p.prep} ${p.prep === 1 ? "minuto" : "minutos"} para pensar.`);
   if (!p.prep) return comecarExposicao(c);
   render();
   clearInterval(S.timerOral);
@@ -3046,13 +3070,9 @@ async function criarCaderno() {
 function preencherVozes() {
   $("#cfgUi").value = lsGet("fp-ui", "pt");
   $("#cfgIdiomaPadrao").value = lsGet("fp-idioma-padrao", "auto");
-  $("#cfgVozGemini").innerHTML = VOZES_GEMINI.map(([v, n]) => `<option value="${v}">${n}</option>`).join("");
-  $("#cfgVozGemini").value = vozGemini();
-  const salvas = lsGet("fp-voz", {});
-  for (const [id, lang] of [["#cfgVozPt", "pt-BR"], ["#cfgVozEs", "es-ES"]]) {
-    const vs = vozesDe(lang), melhor = melhorVoz(lang);
-    $(id).innerHTML = `<option value="">Automática (${esc(melhor?.name || "padrão")})</option>` + vs.map(v => `<option value="${esc(v.name)}">${esc(v.name)}</option>`).join("");
-    $(id).value = salvas[lang.slice(0, 2)] || "";
+  for (const [id, idioma] of [["#cfgVozEs", "es"], ["#cfgVozPt", "pt"]]) {
+    $(id).innerHTML = VOZES_PIPER[idioma].map(([v, n]) => `<option value="${v}">${n}</option>`).join("") + `<option value="navegador">Voz do navegador (sem baixar nada)</option>`;
+    $(id).value = vozPiper(idioma);
   }
 }
 function abrirConfig() {
@@ -3190,14 +3210,13 @@ document.addEventListener("click", async e => {
     case "limparChat": if (confirm("Apagar a conversa com o tutor?")) { c.chat = []; await salvar(c); render(); } break;
     case "config": abrirConfig(); break;
     case "fecharCfg": $("#dlgConfig").close(); break;
-    case "testarVozGemini": { lsSet("fp-voz-gemini", $("#cfgVozGemini").value); const es = idiomaCaderno(atual()) === "es"; toast("Gerando a voz…"); falar(es ? "¡Hola! Soy el profesor de tu ateneo. Te tocó el capítulo de los líquidos corporales. Explícame todo lo que sabes." : "Olá! Eu sou o professor do seu ateneo. Você tirou o capítulo de líquidos corporais. Me explique tudo o que você sabe.", es ? "es-ES" : "pt-BR"); break; }
-    case "testarVoz": { const v = $(id === "pt" ? "#cfgVozPt" : "#cfgVozEs").value; const salvas = lsGet("fp-voz", {}); lsSet("fp-voz", { ...salvas, [id]: v }); falar(id === "pt" ? "Olá! Eu sou o professor do seu ateneo. Me explique o capítulo de líquidos corporais." : "¡Hola! Soy el profesor de tu ateneo. Explícame el capítulo de los líquidos corporales.", id === "pt" ? "pt-BR" : "es-ES"); break; }
+    case "testarVoz": { const v = $(id === "pt" ? "#cfgVozPt" : "#cfgVozEs").value; lsSet("fp-voz-piper", { ...lsGet("fp-voz-piper", {}), [id]: v }); toast(v === "navegador" ? "Voz do navegador" : "Preparando a voz…"); S.oralVoz = true; falar(id === "pt" ? "Olá! Eu sou o professor do seu ateneo. Me explique o capítulo de líquidos corporais." : "¡Hola! Soy el profesor de tu ateneo. Te tocó el capítulo de los líquidos corporales. Explícame todo lo que sabes.", id === "pt" ? "pt-BR" : "es-ES"); break; }
     case "salvarCfg": {
       const uiAntes = lsGet("fp-ui", "pt"), uiNovo = $("#cfgUi").value;
       lsSet("fp-ui", uiNovo); lsSet("fp-idioma-padrao", $("#cfgIdiomaPadrao").value);
       if (uiAntes !== uiNovo) setTimeout(() => location.reload(), 300); // recarrega para trocar todos os textos
     }
-      lsSet("fp-voz-gemini", $("#cfgVozGemini").value); lsSet("fp-voz", { ...lsGet("fp-voz", {}), pt: $("#cfgVozPt").value, es: $("#cfgVozEs").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
+      lsSet("fp-voz-piper", { es: $("#cfgVozEs").value, pt: $("#cfgVozPt").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
     case "inicio": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
@@ -3263,7 +3282,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0356";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
