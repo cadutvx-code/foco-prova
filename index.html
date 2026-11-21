@@ -2640,7 +2640,7 @@ async function contarPedidos() {
   try { ACESSO.pedidos = (await NUVEM.F.getDocs(NUVEM.F.collection(NUVEM.db, "solicitacoes"))).size; } catch { ACESSO.pedidos = 0; }
 }
 async function carregarPagamento() {
-  try { const d = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, "config/pagamento")); if (d.exists()) { Object.assign(ACESSO.pag, d.data()); lsSet("fp-pag", ACESSO.pag); } } catch {}
+  try { const d = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, "config/pagamento")); if (d.exists()) { const antes = JSON.stringify(ACESSO.pag); Object.assign(ACESSO.pag, d.data()); lsSet("fp-pag", ACESSO.pag); if (JSON.stringify(ACESSO.pag) !== antes) render(); } } catch {}
 }
 async function verificarAcesso() {
   const u = NUVEM.user;
@@ -3163,7 +3163,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0303";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
