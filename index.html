@@ -3093,7 +3093,7 @@ function txidDe(email) { let x = 0; for (const ch of String(email || "visitante"
 async function desenharQRPix(codigo) {
   const el = $("#pixQR"); if (!el) return;
   try {
-    await carregarScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js");
+    if (typeof qrcode !== "function") { try { await carregarScript("lib/qrcode.js"); } catch { await carregarScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"); } }
     const qr = qrcode(0, "M"); qr.addData(codigo); qr.make();
     el.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
     const svg = el.querySelector("svg"); if (svg) { svg.style.width = "100%"; svg.style.height = "100%"; }
@@ -3719,7 +3719,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1447";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
