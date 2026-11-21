@@ -1,23 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <style>
-    .t { stroke: #000000; }
-    @media (prefers-color-scheme: dark) { .t { stroke: #ffffff; } }
+    .linha { stroke: #1b1d3a; } .halo { stroke: #ffffff; }
+    @media (prefers-color-scheme: dark) { .linha { stroke: #ffffff; } .halo { stroke: #0e0f1c; stroke-opacity: .5; } }
   </style>
-  <!-- livro aberto só em linhas (miolo transparente): preto no tema claro, branco no escuro -->
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" class="t">
-    <g stroke-width="3.4">
-      <path d="M32 16 C 25.5 11.6 15 10.8 6 12.8 V 46.2 C 15 44.4 25.5 45.2 32 49.4"/>
-      <path d="M32 16 C 38.5 11.6 49 10.8 58 12.8 V 46.2 C 49 44.4 38.5 45.2 32 49.4"/>
-      <path d="M32 16 V 49.4"/>
-      <path d="M2.5 18 V 50.6 C 13 48.8 24.5 49.6 32 53.8 C 39.5 49.6 51 48.8 61.5 50.6 V 18"/>
-    </g>
-    <g stroke-width="2.8">
-      <rect x="11" y="18.6" width="6.4" height="7.4" rx="1.5"/>
-      <path d="M21 21.6 C 23 21.5 25 21.8 27 22.4"/>
-      <path d="M11 33.4 C 16.6 32.4 22.4 32.8 27 34.4"/>
-      <path d="M37 22.4 C 42 20.9 47.6 20.7 53 21.5"/>
-      <path d="M37 30.6 C 42 29.1 47.6 28.9 53 29.7"/>
-      <path d="M37 38.8 C 42 37.3 47.6 37.1 53 37.9"/>
-    </g>
+  <!-- livro aberto em linhas, com detalhes azuis; contorno de fundo para aparecer em qualquer aba -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <g class="halo" stroke-width="6"><path d="M32 12.5 C 25 8 13.5 7.1 4.6 9.3 V 49.6 C 13.5 47.6 25 48.4 32 53"/><path d="M32 12.5 C 39 8 50.5 7.1 59.4 9.3 V 49.6 C 50.5 47.6 39 48.4 32 53"/><path d="M32 12.5 V 53"/><path d="M1.9 15 V 54.8 C 12.5 52.8 24.5 53.8 32 58.4 C 39.5 53.8 51.5 52.8 62.1 54.8 V 15"/></g>
+  <g class="linha" stroke-width="4"><path d="M32 12.5 C 25 8 13.5 7.1 4.6 9.3 V 49.6 C 13.5 47.6 25 48.4 32 53"/><path d="M32 12.5 C 39 8 50.5 7.1 59.4 9.3 V 49.6 C 50.5 47.6 39 48.4 32 53"/><path d="M32 12.5 V 53"/><path d="M1.9 15 V 54.8 C 12.5 52.8 24.5 53.8 32 58.4 C 39.5 53.8 51.5 52.8 62.1 54.8 V 15"/></g>
+  <g stroke="#3d8bff" stroke-width="3.4"><path d="M10 17.4 h7.6 v9 h-7.6 Z"/><path d="M21.4 18.4 C 23.4 18.3 25.4 18.6 27.4 19.2"/><path d="M10 32 C 16 31 22.4 31.4 27.4 33.1"/><path d="M10 40.4 C 16 39.4 22.4 39.8 27.4 41.5"/><path d="M36.6 19.2 C 41.8 17.6 47.8 17.4 54 18.3"/><path d="M36.6 28 C 41.8 26.4 47.8 26.2 54 27.1"/><path d="M36.6 36.8 C 41.8 35.2 47.8 35 54 35.9"/></g>
   </g>
 </svg>
