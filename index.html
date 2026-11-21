@@ -794,6 +794,11 @@ async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, ao
 // Flash-Lite primeiro: rápido e quase sempre disponível no plano grátis; os outros são reserva
 const MODELOS_GEMINI = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-4-hydrogen"];
 const GEM_PAUSA = {}; // modelo sobrecarregado → pula por alguns minutos
+const ERRO_PULAR = /(429|500|502|503|504|404)|quota|exhausted|rate.?limit|high demand|overload|unavailable|not.?found|internal|demorou/i;
+// às vezes um modelo fica "pendurado" sem responder: desiste dele depois de um tempo e tenta o próximo
+function prazo(promessa, ms) {
+  let t; return Promise.race([promessa, new Promise((_, rej) => { t = setTimeout(() => rej(new Error("o modelo demorou demais para responder")), ms); })]).finally(() => clearTimeout(t));
+}
 const GEM = { ai: null, AI: null, carregando: null };
 async function motorGemini() {
   if (GEM.ai) return GEM;
@@ -826,9 +831,12 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
         model: nome, systemInstruction: sys,
         generationConfig: { maxOutputTokens: limite, temperature: schema ? 0.6 : 0.8, ...(schema ? { responseMimeType: "application/json" } : {}) }
       });
-      const r = await modelo.generateContentStream({ contents });
+      const r = await prazo(modelo.generateContentStream({ contents }), 30000);
       let texto = "";
-      for await (const pedaco of r.stream) {
+      const it = r.stream[Symbol.asyncIterator]();
+      for (;;) {
+        const { value: pedaco, done } = await prazo(it.next(), 45000);
+        if (done) break;
         if (sinal?.aborted) throw new Error("interrompido");
         const t = pedaco.text?.() || "";
         if (t) { texto += t; prog(texto); aoParcial?.(texto); }
@@ -840,7 +848,7 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
       ultimoErro = e;
       const msg = String(e?.message || e);
       // limite grátis, modelo sobrecarregado ("high demand") ou indisponível: tenta o próximo
-      if (/(429|500|502|503|504|404)|quota|exhausted|rate.?limit|high demand|overload|unavailable|not.?found|internal/i.test(msg)) {
+      if (ERRO_PULAR.test(msg)) {
         GEM_PAUSA[nome] = Date.now() + 5 * 60000;
         if (i < ordem.length - 1) continue;
       }
@@ -2039,13 +2047,14 @@ function audioGemini(texto, lang) {
   if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
   const pr = (async () => {
     const { ai, AI } = await motorGemini();
+    if (GEM.ttsPausa > Date.now()) throw new Error("voz do Gemini em pausa");
     for (const nome of ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"]) {
       try {
         const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } } });
-        const r = await m.generateContent(texto);
+        const r = await prazo(m.generateContent(texto), 20000);
         const part = r.response.candidates?.[0]?.content?.parts?.find(x => x.inlineData);
         if (part) return `data:${part.inlineData.mimeType || "audio/wav"};base64,${part.inlineData.data}`;
-      } catch {}
+      } catch (e) { if (/429|quota|exhausted/i.test(String(e?.message))) { GEM.ttsPausa = Date.now() + 30 * 60000; break; } }
     }
     throw new Error("sem áudio");
   })();
@@ -2076,36 +2085,91 @@ function falarNavegador(texto, lang) {
     speechSynthesis.speak(u);
   } catch {}
 }
-let GRAV = null; // gravação do microfone (áudio que o Gemini transcreve quando o navegador não transcreve sozinho)
+let GRAV = null; // gravação do microfone: { stream, p, live? (transcrição ao vivo em pedaços), mr? (gravação inteira de reserva) }
 function fecharVoz() { try { REC?.stop(); } catch {} REC = null; descartarGravacao(); S.falaId++; pararAudio(); clearInterval(S.timerOral); }
-function descartarGravacao() { const g = GRAV; GRAV = null; if (!g) return; g.descartar = true; try { g.mr.state !== "inactive" && g.mr.stop(); } catch {} g.stream.getTracks().forEach(t => t.stop()); }
-// O Brave (e alguns celulares) dizem ter reconhecimento de voz, mas o serviço não funciona: nesses casos só o áudio gravado vale
-const srConfiavel = () => !!(window.SpeechRecognition || window.webkitSpeechRecognition) && !navigator.brave;
-async function gravar() {
+function fecharAoVivo(L) { try { L.proc.onaudioprocess = null; L.proc.disconnect(); L.src.disconnect(); L.ctx.close(); } catch {} }
+function descartarGravacao() {
+  const g = GRAV; GRAV = null; if (!g) return; g.descartar = true;
+  if (g.live) fecharAoVivo(g.live);
+  try { g.mr && g.mr.state !== "inactive" && g.mr.stop(); } catch {}
+  g.stream?.getTracks().forEach(t => t.stop());
+}
+// O Brave (e alguns celulares) dizem ter reconhecimento de voz, mas o serviço não funciona: nesses casos o Gemini transcreve
+const srConfiavel = () => !!(window.SpeechRecognition || window.webkitSpeechRecognition) && !navigator.brave && !S.forcarTranscricaoGemini;
+async function gravar(streamTeste) {
   const c = atual(), p = S.player;
   if (!p || p.gravando || p.transcrevendo) return;
   try { speechSynthesis.cancel(); } catch {} pararAudio();
   const ta0 = $("#oralResp"); if (ta0) p.resp = ta0.value;
   p.base = p.resp ? p.resp.trim() + " " : ""; p.ouvido = ""; p.parcial = ""; p.parouManual = false;
-  // 1) grava o áudio (funciona em qualquer navegador)
-  if (navigator.mediaDevices?.getUserMedia && window.MediaRecorder) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      const tipo = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4", "audio/webm"].find(t => MediaRecorder.isTypeSupported?.(t)) || "";
-      const mr = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
-      const g = GRAV = { mr, stream, pedacos: [], p };
-      g.pronto = new Promise(res => { mr.onstop = () => res(); });
-      mr.ondataavailable = e => e.data?.size && g.pedacos.push(e.data);
-      mr.start(1000);
-    } catch (e) {
+  let stream = streamTeste;
+  if (!stream) {
+    if (!navigator.mediaDevices?.getUserMedia) return toast("Este navegador não grava áudio. Escreva a resposta.", true);
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch (e) {
       if (/NotAllowed|Permission/i.test(e.name + e.message)) return toast("Permita o uso do microfone (no ícone do cadeado, ao lado do endereço) para responder falando.", true);
       return toast("Não consegui abrir o microfone: " + (e.message || e.name), true);
     }
-  } else if (!srConfiavel()) return toast("Este navegador não grava áudio. Escreva a resposta.", true);
-  // 2) mostra o texto ao vivo quando o navegador sabe transcrever (Chrome/Edge)
-  if (srConfiavel()) iniciarSR(c, p);
+  }
+  const g = GRAV = { stream, p };
+  if (srConfiavel()) {
+    // Chrome/Edge: o próprio navegador escreve ao vivo; a gravação inteira fica de reserva
+    if (window.MediaRecorder) {
+      try {
+        const tipo = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4", "audio/webm"].find(t => MediaRecorder.isTypeSupported?.(t)) || "";
+        const mr = g.mr = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
+        g.pedacos = []; g.pronto = new Promise(res => { mr.onstop = () => res(); });
+        mr.ondataavailable = e => e.data?.size && g.pedacos.push(e.data);
+        mr.start(1000);
+      } catch {}
+    }
+    iniciarSR(c, p);
+  } else {
+    // Brave e outros: o texto aparece enquanto você fala (a fala é cortada nas pausas e o Gemini transcreve cada pedaço)
+    try { g.live = iniciarAoVivo(p, stream); }
+    catch (e) { stream.getTracks().forEach(t => t.stop()); GRAV = null; return toast("Não consegui iniciar a gravação: " + (e.message || e), true); }
+  }
   p.gravando = true; render();
 }
+
+// ---- transcrição ao vivo em pedaços ----
+function iniciarAoVivo(p, stream) {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC(), src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
+  const L = { ctx, src, proc, taxa: ctx.sampleRate, seg: [], segLen: 0, silencio: 0, voz: 0, ruido: 0.01, fila: [], textos: [], pendentes: 0 };
+  proc.onaudioprocess = e => {
+    const d = new Float32Array(e.inputBuffer.getChannelData(0));
+    let s = 0; for (let i = 0; i < d.length; i++) s += d[i] * d[i];
+    const rms = Math.sqrt(s / d.length), dur = d.length / L.taxa;
+    // nível do ruído de fundo se ajusta sozinho; fala = bem acima dele
+    L.ruido = rms < L.ruido ? rms : L.ruido + (rms - L.ruido) * 0.002;
+    const falando = rms > Math.max(0.006, L.ruido * 3);
+    L.seg.push(d); L.segLen += dur;
+    if (falando) { L.silencio = 0; L.voz += dur; } else L.silencio += dur;
+    if ((L.segLen >= 2.5 && L.silencio >= 0.6 && L.voz >= 0.3) || L.segLen >= 12) cortarAoVivo(L, p);
+    else if (L.voz < 0.15 && L.segLen > 4) { L.seg = []; L.segLen = 0; L.silencio = 0; L.voz = 0; } // só silêncio: descarta
+  };
+  src.connect(proc); proc.connect(ctx.destination); // a saída fica muda; só serve para o processamento rodar
+  ctx.resume?.();
+  return L;
+}
+function cortarAoVivo(L, p, final) {
+  if (!L.seg.length) return;
+  const total = L.seg.reduce((n, a) => n + a.length, 0), tudo = new Float32Array(total);
+  let o = 0; for (const a of L.seg) { tudo.set(a, o); o += a.length; }
+  const temVoz = L.voz >= (final ? 0.15 : 0.3);
+  L.seg = []; L.segLen = 0; L.silencio = 0; L.voz = 0;
+  if (!temVoz) return;
+  const i = L.textos.length; L.textos.push(null); L.pendentes++; mostrarAoVivo(p, L);
+  const wav = pcmParaWav(tudo, L.taxa), lang = vozIdioma(atual());
+  const tentar = n => transcreverAudio(wav, lang).catch(e => { console.warn("trecho não transcrito:", e); return n ? tentar(n - 1) : ""; });
+  L.fila.push(tentar(2).then(t => { L.textos[i] = t || ""; L.pendentes--; mostrarAoVivo(p, L); }));
+}
+function mostrarAoVivo(p, L) {
+  p.ouvido = L.textos.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const ta = $("#oralResp"); if (ta) { ta.value = (p.base + p.ouvido + (L.pendentes ? " …" : "")).trim(); ta.scrollTop = ta.scrollHeight; }
+}
+
 function iniciarSR(c, p) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   try {
@@ -2128,8 +2192,18 @@ async function pararGravacao() {
   p.parouManual = true; p.gravando = false;
   try { REC?.stop(); } catch {} REC = null;
   const g = GRAV; GRAV = null;
+  if (g?.live) {
+    const L = g.live;
+    cortarAoVivo(L, p, true); fecharAoVivo(L); g.stream.getTracks().forEach(t => t.stop());
+    if (L.pendentes) { p.transcrevendo = true; render(); mostrarAoVivo(p, L); }
+    await Promise.all(L.fila);
+    if (S.player !== p) return;
+    p.transcrevendo = false; p.resp = (p.base + p.ouvido).trim();
+    if (!p.ouvido) toast("Não ouvi nada. Tente de novo, mais perto do microfone.");
+    return render();
+  }
   const aoVivo = (p.ouvido + " " + p.parcial).trim();
-  if (!g) { p.resp = (p.base + aoVivo).trim(); return render(); }
+  if (!g?.mr) { g?.stream?.getTracks().forEach(t => t.stop()); p.resp = (p.base + aoVivo).trim(); return render(); }
   try { g.mr.state !== "inactive" && g.mr.stop(); } catch {}
   await g.pronto; g.stream.getTracks().forEach(t => t.stop());
   // o navegador já transcreveu ao vivo: usa esse texto
@@ -2148,14 +2222,8 @@ async function pararGravacao() {
   } catch (e) { toast("Não consegui transcrever o áudio: " + erroMsg(e), true); p.resp = (p.base + aoVivo).trim(); }
   p.transcrevendo = false; render();
 }
-// Converte para WAV 16 kHz mono (formato que o Gemini sempre aceita) e pede a transcrição
-async function paraWav(blob) {
-  const buf = await blob.arrayBuffer();
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  let audio; try { audio = await ctx.decodeAudioData(buf); } finally { ctx.close?.(); }
-  const taxa = 16000, n = Math.ceil(audio.duration * taxa);
-  const off = new OfflineAudioContext(1, n, taxa); const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
-  const dados = (await off.startRendering()).getChannelData(0);
+// WAV 16 kHz mono (formato que o Gemini sempre aceita)
+function wavDe(dados, taxa) {
   const out = new DataView(new ArrayBuffer(44 + dados.length * 2));
   const str = (o, s) => { for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i)); };
   str(0, "RIFF"); out.setUint32(4, 36 + dados.length * 2, true); str(8, "WAVE"); str(12, "fmt "); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
@@ -2163,20 +2231,34 @@ async function paraWav(blob) {
   for (let i = 0; i < dados.length; i++) { const v = Math.max(-1, Math.min(1, dados[i])); out.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
   return new Blob([out], { type: "audio/wav" });
 }
+function pcmParaWav(amostras, taxaIn) {
+  const taxa = 16000, fator = taxaIn / taxa, n = Math.floor(amostras.length / fator), dados = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const a = Math.floor(i * fator), b = Math.min(amostras.length, Math.floor((i + 1) * fator)); let s = 0; for (let j = a; j < b; j++) s += amostras[j]; dados[i] = s / Math.max(1, b - a); }
+  return wavDe(dados, taxa);
+}
+async function paraWav(blob) {
+  const buf = await blob.arrayBuffer();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let audio; try { audio = await ctx.decodeAudioData(buf); } finally { ctx.close?.(); }
+  const taxa = 16000, n = Math.ceil(audio.duration * taxa);
+  const off = new OfflineAudioContext(1, n, taxa); const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+  return wavDe((await off.startRendering()).getChannelData(0), taxa);
+}
 const blobBase64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(b); });
 async function transcreverAudio(blob, lang) {
   if (!GEMINI_OK()) throw new Error("a transcrição do áudio precisa do Gemini (Ajustes → IA)");
-  let wav; try { wav = await paraWav(blob); } catch { wav = blob; }
+  let wav = blob; if (blob.type !== "audio/wav") { try { wav = await paraWav(blob); } catch {} }
   const data = await blobBase64(wav), mimeType = (wav.type || "audio/webm").split(";")[0];
   const { ai, AI } = await motorGemini();
   const idioma = /^es/.test(lang) ? "espanhol" : "português";
   let erro;
-  for (const nome of MODELOS_GEMINI.filter(n => !(GEM_PAUSA[n] > Date.now())).concat(MODELOS_GEMINI)) {
+  const livres = MODELOS_GEMINI.filter(n => !(GEM_PAUSA[n] > Date.now()));
+  for (const nome of livres.length ? livres : MODELOS_GEMINI) {
     try {
       const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { temperature: 0 } });
-      const r = await m.generateContent([{ inlineData: { mimeType, data } }, { text: `Transcreva fielmente, palavra por palavra, o que a pessoa fala neste áudio (provavelmente em ${idioma}; é um estudante explicando um tema de medicina). Responda SOMENTE com o texto transcrito, sem comentários. Se não houver fala, responda vazio.` }]);
+      const r = await prazo(m.generateContent([{ inlineData: { mimeType, data } }, { text: `Transcreva fielmente, palavra por palavra, o que a pessoa fala neste áudio. É um estudante explicando um tema de medicina, em português ou espanhol. Escreva EXATAMENTE no idioma em que ele fala: NUNCA traduza (se falar em português, escreva em português; se falar em espanhol, escreva em espanhol). Responda SOMENTE com o texto transcrito, sem comentários. Se não houver fala, responda vazio.` }]), 25000);
       return (r.response.text?.() || "").trim().replace(/^["“]|["”]$/g, "");
-    } catch (e) { erro = e; }
+    } catch (e) { erro = e; if (ERRO_PULAR.test(String(e?.message || e))) GEM_PAUSA[nome] = Date.now() + 5 * 60000; }
   }
   throw erro || new Error("sem resposta");
 }
@@ -2413,7 +2495,7 @@ function playerOral(c) {
       <button class="icon-btn" data-act="oralOuvir" title="Ouvir de novo">🔊</button></div>${trilha}`;
   const papel = `<div class="papel-sorteado"><small>${es ? "Ateneo · tema sorteado" : "Ateneo · tema sorteado"}</small><b>${esc(nomeCap(p.cap))}</b></div>`;
   const ocupado = p.corrigindo || p.transcrevendo;
-  const responder = (placeholder) => `<textarea id="oralResp" rows="${p.etapa === "exposicao" ? 9 : 6}" placeholder="${placeholder}" ${ocupado ? "disabled" : ""}>${esc(p.resp || "")}</textarea>
+  const responder = (placeholder) => `<textarea id="oralResp" rows="${p.etapa === "exposicao" ? 9 : 6}" placeholder="${placeholder}" ${ocupado ? "disabled" : ""}>${esc(p.gravando || p.transcrevendo ? ((p.base || "") + (p.ouvido || "")).trim() : (p.resp || ""))}</textarea>
     <div class="study-foot">
       <button class="mic l ${p.gravando ? "on" : ""}" data-act="${p.gravando ? "oralParar" : "oralGravar"}" ${ocupado ? "disabled" : ""}>${p.gravando ? "⏹ Parar" : "🎙️ Falar"}</button>
       <button class="pill" data-act="oralEnviar" ${ocupado ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> O professor está avaliando…` : (p.etapa === "exposicao" ? "Terminei de explicar" : "Enviar resposta")}</button>
@@ -3164,7 +3246,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0322";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
