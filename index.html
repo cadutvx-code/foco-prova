@@ -222,6 +222,12 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .pro-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-weight:900;font-size:12.5px;background:linear-gradient(135deg,#ffd76a,#f5a623);color:#3a2500;white-space:nowrap;box-shadow:0 2px 10px rgba(245,166,35,.35)}
 .av-wrap{position:relative;display:inline-grid}
 .av-wrap .coroa{position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(-12deg);font-size:15px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4));pointer-events:none}
+.idioma-opcoes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.idioma-opcoes button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:18px 10px;border-radius:16px;border:2px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer;font:inherit;transition:border-color .15s,transform .15s}
+.idioma-opcoes button:hover{border-color:var(--accent);transform:translateY(-2px)}
+.idioma-opcoes span{font-size:38px;line-height:1.1}
+.idioma-opcoes b{font-size:17px}
+.idioma-opcoes small{color:var(--muted);font-size:12.5px}
 .av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px}
 .av-grid button{aspect-ratio:1;border-radius:50%;border:2px solid transparent;font-size:24px;cursor:pointer;display:grid;place-items:center;padding:0}
 .av-grid button.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,141,255,.35)}
@@ -376,6 +382,13 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
+<dialog id="dlgIdioma" style="width:min(460px,calc(100vw - 24px))"><div class="stack" style="text-align:center;gap:14px">
+  <div style="font-size:40px;line-height:1">🌎</div>
+  <h2 style="margin:0">Em qual idioma você quer estudar?</h2>
+  <div class="muted" style="margin-top:-8px;font-weight:700">¿En qué idioma querés estudiar?</div>
+  <div class="idioma-opcoes"><button data-act="escolherIdioma" data-id="pt"><span>🇧🇷</span><b>Português</b><small>Perguntas e site em português</small></button><button data-act="escolherIdioma" data-id="es"><span>🇵🇾</span><b>Español</b><small>Preguntas y sitio en español</small></button></div>
+  <small class="muted">Dá para trocar depois em Ajustes · Podés cambiarlo después en Ajustes</small>
+</div></dialog>
 <dialog id="dlgComecar" style="width:min(620px,calc(100vw - 24px))"><div id="comecarCorpo"></div></dialog>
 <dialog id="dlgPublico" style="width:min(760px,calc(100vw - 24px))"><div id="publicoCorpo" class="stack"></div></dialog>
 <dialog id="dlgAdmin"style="width:min(560px,calc(100vw - 24px))"><div id="adminCorpo" class="stack"></div></dialog>
@@ -3924,6 +3937,13 @@ document.addEventListener("click", async e => {
       lsSet("fp-voz-piper", { es: $("#cfgVozEs").value, pt: $("#cfgVozPt").value }); if ($("#cfgMic")) lsSet("fp-mic", $("#cfgMic").value); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "comecar": abrirComecar(); break;
+    case "escolherIdioma": {
+      const antes = lsGet("fp-ui", "pt");
+      lsSet("fp-ui", id); lsSet("fp-idioma-padrao", id); lsSet("fp-idioma-escolhido", true);
+      $("#dlgIdioma").close();
+      if (antes !== id) location.reload(); else toast("👍 Português selecionado.");
+      break;
+    }
     case "fecharComecar": $("#dlgComecar").close(); break;
     case "escolherModo": {
       $("#dlgComecar").close();
@@ -3994,7 +4014,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2022";
+const VERSAO_APP = "2026-11-21-2028";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4128,6 +4148,8 @@ aplicarTema();
 try { db = await abrirDB(); S.cadernos = (await dbAll()) || []; }
 catch (e) { toast("Armazenamento local indisponível — os dados não serão salvos.", true); }
 render();
+// primeira visita: escolher o idioma de estudo (site + perguntas)
+if (!lsGet("fp-idioma-escolhido", false)) setTimeout(() => { const d = $("#dlgIdioma"); if (d && !d.open) d.showModal(); }, 400);
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
 iniciarNuvem();
 // Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)
