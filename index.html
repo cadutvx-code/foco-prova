@@ -2906,7 +2906,7 @@ async function iniciarNuvem() {
     carregarPagamento(); registrarVisita();
     A.onAuthStateChanged(NUVEM.auth, async u => {
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
-      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); }
+      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
       if (u) await sincronizarTudo();
     });
@@ -3090,6 +3090,50 @@ function codigoPix({ chave, nome, cidade, valor, txid, descricao }) {
 
 // identificador do pagamento a partir do e-mail (aparece para você no extrato de alguns bancos)
 function txidDe(email) { let x = 0; for (const ch of String(email || "visitante")) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return "HS" + x.toString(36).toUpperCase().padStart(7, "0").slice(0, 10); }
+const PAG_AUTO = "https://hipocampo-pagamento.pagamento-worker.workers.dev";
+async function pagAuto(rota, dados) {
+  const idToken = await NUVEM.user.getIdToken();
+  const r = await fetch(PAG_AUTO + rota, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, ...dados }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.erro) throw new Error(d.erro || "serviço de pagamento indisponível");
+  return d;
+}
+// Gera o Pix automático e fica conferindo; se o serviço falhar, mantém o QR comum (aprovação manual)
+async function iniciarPixAuto() {
+  const caixa = $("#pixAuto"); if (!caixa || !NUVEM.user) return;
+  clearInterval(S.pixTimer);
+  try {
+    const d = await pagAuto("/criar");
+    if (!d.qr_code) throw new Error("sem QR");
+    S.pixCodigo = d.qr_code; S.pixPedido = d.id;
+    lsSet("fp-pix-pendente", { id: d.id, ate: Date.now() + 35 * 60000 });
+    const el = $("#pixQR"); if (el) el.innerHTML = d.qr_code_base64 ? `<img src="data:image/png;base64,${d.qr_code_base64}" alt="QR Code do Pix" style="width:100%;height:100%">` : "";
+    if (!d.qr_code_base64) desenharQRPix(d.qr_code);
+    caixa.innerHTML = `<div class="aviso-nuvem" style="margin:0"><span class="spin"></span> <b>Aguardando o pagamento…</b> Assim que o Pix cair, seu Pro é liberado <b>sozinho</b>, em segundos. Pode deixar esta tela aberta.</div>`;
+    const ini = Date.now();
+    S.pixTimer = setInterval(async () => {
+      if (!$("#dlgPagar")?.open || Date.now() - ini > 30 * 60000) return clearInterval(S.pixTimer);
+      try { const s = await pagAuto("/status", { id: d.id }); if (s.pago) { clearInterval(S.pixTimer); pixConfirmado(s.expira); } } catch {}
+    }, 5000);
+  } catch (e) {
+    console.warn("Pix automático indisponível:", e.message);
+    caixa.innerHTML = `<small class="muted">O pagamento automático está indisponível agora. Pague pelo QR abaixo e use os passos 3 e 4 (aprovação manual).</small>`;
+  }
+}
+async function pixConfirmado(expira) {
+  lsSet("fp-pix-pendente", null);
+  await verificarAcesso();
+  $("#dlgPagar")?.close();
+  toast(`🎉 Pagamento confirmado! Você está no Pro até ${dataCurta(expira || ACESSO.expira || Date.now())}.`);
+  render();
+}
+// Ao abrir o site: se ficou um Pix pendente (a pessoa fechou a tela antes de cair), confere
+async function conferirPixPendente() {
+  const pend = lsGet("fp-pix-pendente", null);
+  if (!pend?.id || !NUVEM.user) return;
+  if (Date.now() > pend.ate + 24 * 3600000) return lsSet("fp-pix-pendente", null);
+  try { const s = await pagAuto("/status", { id: pend.id }); if (s.pago) pixConfirmado(s.expira); } catch {}
+}
 async function desenharQRPix(codigo) {
   const el = $("#pixQR"); if (!el) return;
   try {
@@ -3121,6 +3165,7 @@ function abrirPagamento(tipo) {
     <ol style="margin:0;padding-left:20px;display:grid;gap:12px">
       <li>${NUVEM.user ? `Você está entrando como <b>${esc(email)}</b>. É esse e-mail que será liberado.` : `<b>Entre com sua conta Google</b> (é ela que será liberada).<br><button class="btn-google" data-act="entrar" style="margin-top:6px">${G_ICON}<span>Entrar com Google</span></button>`}</li>
       <li>Pague o <b>Pix de R$ ${reais(p.preco)}</b>: abra o app do seu banco e <b>aponte a câmera para o QR Code</b>, ou toque em <b>Copiar Pix copia e cola</b> e cole na área Pix do banco. O valor já vai preenchido.
+        <div id="pixAuto" style="margin-top:8px">${NUVEM.user ? `<small class="muted"><span class="spin"></span> Gerando o seu Pix…</small>` : `<small class="muted">Entre com o Google para o Pro ser liberado <b>automaticamente</b> quando o Pix cair.</small>`}</div>
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:8px">
           <div id="pixQR" style="width:176px;height:176px;background:#fff;border-radius:12px;padding:10px;display:grid;place-items:center;flex:none"><span class="spin"></span></div>
           <div class="stack" style="gap:8px;min-width:0;flex:1 1 210px">
@@ -3133,7 +3178,8 @@ function abrirPagamento(tipo) {
     </ol>`}
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${!NUVEM.user || !p.pix ? "" : ACESSO.pedido ? `<button class="pill" data-act="jaLiberado">🔄 Verificar se já liberou</button>` : `<button class="pill" data-act="pedirPro">📨 Já paguei, pedir o Pro</button>`}</div>`;
   const d = $("#dlgPagar"); if (!d.open) d.showModal();
-  if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(email) }); desenharQRPix(S.pixCodigo); }
+  if (NUVEM.user) iniciarPixAuto();
+  else if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(email) }); desenharQRPix(S.pixCodigo); }
 }
 async function abrirAdmin() {
   const F = NUVEM.F, db = NUVEM.db, p = ACESSO.pag;
@@ -3719,7 +3765,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1452";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;

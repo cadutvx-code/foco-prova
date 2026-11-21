@@ -1,0 +1,9 @@
+name = "hipocampo-pagamento"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+FB_API_KEY = "AIzaSyBiluHvIHKlk5pYD1uQFXulhbmmgA5Mz70"
+FB_PROJETO = "foco-prova-b2c5c"
+PRECO = "9.99"
+DIAS = "30"
