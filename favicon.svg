@@ -1,20 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3f8cff"/>
-      <stop offset="1" stop-color="#7a52f4"/>
-    </linearGradient>
-  </defs>
-  <!-- livro em pé (esquerda) -->
-  <rect x="5" y="14" width="21" height="42" rx="3.5" fill="url(#g)"/>
-  <rect x="9.5" y="14" width="2.6" height="42" fill="#ffffff" opacity=".85"/>
-  <path d="M15.5 24h7M15.5 29h7M15.5 34h5" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" opacity=".9"/>
-  <!-- cavalo-marinho (direita), olhando para o livro -->
-  <path d="M45 40 C 45 47 40 50 41 55 C 42 60 50 60 51 55 C 52 51 48 49 46 52" fill="none" stroke="url(#g)" stroke-width="5" stroke-linecap="round"/>
-  <path d="M41.5 23 C 36.5 28 36.5 37 41 41.5 C 44 44.5 49 44 51.5 40 C 55 34.5 54 26 49 23 Z" fill="url(#g)"/>
-  <path d="M52 30 C 57.5 29.5 59.5 34.5 56.5 38 C 55.5 35.5 53.8 34.2 51.8 34.2 Z" fill="url(#g)"/>
-  <circle cx="45.5" cy="16.5" r="8" fill="url(#g)"/>
-  <path d="M39 15.5 L 30.5 18" stroke="url(#g)" stroke-width="4.4" stroke-linecap="round"/>
-  <path d="M42 9.5 L 43.5 4.5 L 46.5 8.5 L 49.5 5 L 50 10.5 Z" fill="url(#g)"/>
-  <circle cx="46.8" cy="15.5" r="2.3" fill="#ffffff"/>
+  <style>
+    .t { stroke: #1b1d3a; }
+    .p { fill: #1b1d3a; }
+    @media (prefers-color-scheme: dark) { .t { stroke: #ffffff; } .p { fill: #ffffff; } }
+  </style>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4" class="t">
+    <!-- focinho -->
+    <path d="M12 18.6 L 29 14.2"/>
+    <!-- cabeça, costas e cauda em espiral (um traço só) -->
+    <path d="M29 14.2 C 30 6.4 38.4 3.6 42.2 8.2 C 45.4 12 44.2 17 41.2 19.6 C 48.6 23.6 50.2 33 45.2 39.6 C 42.2 43.6 38.6 45.2 37 49.2 C 35.2 54 37.8 59.6 43 59.4 C 47.6 59.2 48.6 53.6 45.2 52.2 C 43 51.4 41.2 53.4 42.4 55.2"/>
+    <!-- barriga (o miolo fica vazio) -->
+    <path d="M30.6 19 C 23.4 24.6 23 34.6 29.6 39.6 C 32 41.4 34.6 42.6 37.6 44.6"/>
+    <!-- coroa -->
+    <path d="M33.4 5.6 L 35 1.9 L 37.6 5.1"/>
+    <!-- nadadeira -->
+    <path d="M46.8 27.2 C 51.6 26.8 53.6 31.8 50.6 35"/>
+  </g>
+  <circle class="p" cx="35.8" cy="11.2" r="2.3"/>
+  <!-- brilho azul -->
+  <path d="M13 4 C 13.8 7.4 14.8 8.4 18.2 9.2 C 14.8 10 13.8 11 13 14.4 C 12.2 11 11.2 10 7.8 9.2 C 11.2 8.4 12.2 7.4 13 4 Z" fill="#3d8bff"/>
 </svg>
