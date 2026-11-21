@@ -3074,20 +3074,20 @@ async function abrirAdmin() {
   $("#adminCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🛡️ Painel do administrador</h2><div class="row" style="gap:6px"><button class="pill" data-act="publico" style="padding:6px 14px">📊 Público</button><button class="btn small ghost" data-act="admin">🔄 Atualizar</button></div></div>
     <div class="card" style="margin:0;${pedidos.length ? "border-color:#f5a623" : ""}"><h3 style="margin:0 0 4px">👑 Pedidos de Pro (${pedidos.length})</h3>
       <div class="muted" style="font-size:13px;margin-bottom:6px">Pessoas que tocaram em "Já paguei". Confira o Pix e o comprovante no WhatsApp antes de autorizar.</div>
-      ${pedidos.length ? pedidos.map(x => `<div class="mrow" style="margin-top:6px;align-items:center">${avPed(x)}<span class="nm">${esc(x.email)}<small>${esc(x.nome || "")}${x.data ? " · pediu " + fmtData(x.data) : ""}</small></span>
-        <button class="pill" data-act="admAutorizar" data-id="${esc(x.email)}" style="padding:6px 12px">✅ Autorizar</button><button class="btn small ghost" data-act="admRecusar" data-id="${esc(x.email)}" style="color:var(--bad)">Recusar</button></div>`).join("") : `<p class="muted" style="margin:0">Nenhum pedido no momento.</p>`}
+      ${pedidos.length ? pedidos.map(x => `<div class="mrow" style="margin-top:6px;align-items:center;flex-wrap:wrap">${avPed(x)}<span class="nm">${esc(x.email)}<small>${esc(x.nome || "")}${x.data ? " · pediu " + fmtData(x.data) : ""}</small></span>
+        <span style="flex-basis:100%;display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:4px"><input type="number" class="admDiasPed" data-email="${esc(x.email)}" value="30" step="1" title="Quantidade de dias" style="width:72px;padding:5px 8px" min="1"><span class="muted" style="font-size:12px">dias</span><button class="pill" data-act="admAutorizar" data-id="${esc(x.email)}" style="padding:6px 12px">✅ Autorizar</button><button class="btn small ghost" data-act="admRecusar" data-id="${esc(x.email)}" style="color:var(--bad)">Recusar</button></span></div>`).join("") : `<p class="muted" style="margin:0">Nenhum pedido no momento.</p>`}
     </div>
     <div class="card stack" style="margin:0"><h3 style="margin:0">Liberar um e-mail manualmente</h3>
       <div class="muted" style="font-size:13px">Se a pessoa te mandou o e-mail direto, digite o Gmail que ela usa para entrar.</div>
-      <div class="row"><input type="email" id="admEmail" placeholder="pessoa@gmail.com" style="flex:1;min-width:200px"><input type="text" id="admNota" placeholder="observação (opcional)" style="flex:1;min-width:140px"><button class="pill" data-act="admLiberar">✅ Liberar</button></div>
+      <div class="row"><input type="email" id="admEmail" placeholder="pessoa@gmail.com" style="flex:1;min-width:200px"><input type="text" id="admNota" placeholder="observação (ex.: promoção, divulgou 2 pessoas)" style="flex:1;min-width:160px"><span style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="number" id="admDias" value="30" min="1" step="1" title="Quantidade de dias" style="width:72px;padding:5px 8px"><span class="muted" style="font-size:12px">dias</span><button class="pill" data-act="admLiberar">✅ Liberar</button></span></div>
     </div>
     ${(() => {
       const agora = Date.now(), ativos = lista.filter(x => x.semPrazo || x.exp > agora), vencidos = lista.filter(x => !x.semPrazo && x.exp <= agora);
       const linha = x => {
         const n = diasRestam(x.exp), perto = !x.semPrazo && x.exp > agora && n <= AVISO_DIAS;
         const info = x.semPrazo ? "sem prazo (administrador)" : x.exp > agora ? `aprovado em ${dataCurta(x.data || x.inicio)} · <b style="color:${perto ? "var(--warn)" : "var(--ok)"}">expira ${dataCurta(x.exp)} (${n === 1 ? "1 dia" : n + " dias"})</b>` : `<b style="color:var(--bad)">venceu em ${dataCurta(x.exp)}</b>`;
-        return `<div class="mrow" style="margin-top:6px;align-items:center"><span class="fi">${x.semPrazo ? "🛡️" : x.exp > agora ? (perto ? "⏳" : "👑") : "⏰"}</span><span class="nm">${esc(x.email)}<small>${info}${x.renovacoes ? ` · ${x.renovacoes} renovação(ões)` : ""}${x.nota && !x.semPrazo ? " · " + esc(x.nota) : ""}</small></span>
-          ${x.semPrazo ? "" : `<button class="btn small" data-act="admAutorizar" data-id="${esc(x.email)}" title="Soma 30 dias">+30 dias</button>`}<button class="btn small ghost" data-act="admRemover" data-id="${esc(x.email)}" style="color:var(--bad)">Remover</button></div>`;
+        return `<div class="mrow" style="margin-top:6px;align-items:center;flex-wrap:wrap"><span class="fi">${x.semPrazo ? "🛡️" : x.exp > agora ? (perto ? "⏳" : "👑") : "⏰"}</span><span class="nm">${esc(x.email)}<small>${info}${x.renovacoes ? ` · ${x.renovacoes} renovação(ões)` : ""}${x.nota && !x.semPrazo ? " · " + esc(x.nota) : ""}</small></span>
+          ${x.semPrazo ? `<button class="btn small ghost" data-act="admRemover" data-id="${esc(x.email)}" style="color:var(--bad)">Remover</button>` : `<span style="flex-basis:100%;display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:4px"><input type="number" class="admDiasMem" data-email="${esc(x.email)}" value="15" step="1" title="Quantidade de dias" style="width:72px;padding:5px 8px"><span class="muted" style="font-size:12px">dias</span><button class="btn small" data-act="admAjustar" data-id="${esc(x.email)}" title="Número positivo soma dias; negativo tira dias">✏️ Ajustar</button><button class="btn small ghost" data-act="admRemover" data-id="${esc(x.email)}" style="color:var(--bad)">Remover</button></span>`}</div>`;
       };
       return `<div class="card" style="margin:0"><h3 style="margin:0 0 8px">👑 Membros Pro ativos (${ativos.length})</h3>${ativos.length ? ativos.map(linha).join("") : `<p class="muted" style="margin:0">Ninguém no Pro agora.</p>`}</div>
         ${vencidos.length ? `<div class="card" style="margin:0"><h3 style="margin:0 0 8px">⏰ Pro vencido (${vencidos.length})</h3><div class="muted" style="font-size:13px">Saíram do Pro sozinhos ao completar 30 dias. Se pagarem de novo, toque em "+30 dias".</div>${vencidos.map(linha).join("")}</div>` : ""}`;
@@ -3104,18 +3104,27 @@ async function abrirAdmin() {
     </div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`;
 }
-async function admLiberar(emailPedido) {
+// lê o campo de dias ao lado do botão (pedido ou membro); vazio = 30
+function diasDoCampo(cls, email) {
+  const el = [...document.querySelectorAll("." + cls)].find(x => x.dataset.email === email);
+  const v = parseInt(el?.value, 10); return Number.isFinite(v) ? v : 30;
+}
+async function admLiberar(emailPedido, diasEscolhidos) {
   const email = (emailPedido || $("#admEmail").value || "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Digite um e-mail válido.", true);
+  const dias = Math.round(diasEscolhidos ?? (emailPedido ? 30 : parseInt($("#admDias")?.value, 10) || 30));
+  if (!dias || Math.abs(dias) > 3650) return toast("Escolha uma quantidade de dias válida.", true);
   const F = NUVEM.F, db = NUVEM.db;
   try {
-    // 30 dias a partir de agora; se ainda estiver no Pro, soma aos dias que faltam
+    // dias positivos: somam a partir de hoje (ou do que ainda falta); negativos: tiram da data de expiração
     const ref = F.doc(db, "liberados/" + email), atual = await F.getDoc(ref), ant = atual.exists() ? atual.data() : null;
-    const agora = Date.now(), base = ant && expiraDe(ant) > agora ? expiraDe(ant) : agora, expira = base + MES_MS;
+    if (dias < 0 && !ant) return toast("Essa pessoa não está no Pro para tirar dias.", true);
+    const agora = Date.now(), fimAtual = ant ? expiraDe(ant) : agora;
+    const base = dias > 0 ? Math.max(fimAtual, agora) : fimAtual, expira = base + dias * DIA_MS;
     const nota = emailPedido ? (ant ? "renovado pelo app" : "pedido pelo app") : ($("#admNota")?.value || "").trim().slice(0, 120) || ant?.nota || "";
-    await F.setDoc(ref, { inicio: ant?.inicio || ant?.data || agora, data: agora, expira, renovacoes: (ant?.renovacoes || 0) + (ant ? 1 : 0), nota, por: emailUser() });
-    await F.deleteDoc(F.doc(db, "solicitacoes/" + email)).catch(() => {});
-    toast(`👑 ${email} é Pro até ${dataCurta(expira)}!`); abrirAdmin();
+    await F.setDoc(ref, { inicio: ant?.inicio || ant?.data || agora, data: dias > 0 ? agora : (ant?.data || agora), expira, renovacoes: (ant?.renovacoes || 0) + (ant && dias > 0 ? 1 : 0), nota, por: emailUser(), ultimoAjuste: dias });
+    if (dias > 0) await F.deleteDoc(F.doc(db, "solicitacoes/" + email)).catch(() => {});
+    toast(expira > agora ? `👑 ${email}: ${dias > 0 ? "+" : ""}${dias} dia(s). Pro até ${dataCurta(expira)}.` : `${email}: ${dias} dia(s). O Pro ficou vencido.`); abrirAdmin();
   } catch (e) { toast("Não consegui liberar: " + e.message, true); }
 }
 /* ---------- 📊 Público: visitas (todo mundo, anônimo) e contas (quem entrou com o Google) ---------- */
@@ -3463,7 +3472,8 @@ document.addEventListener("click", async e => {
     case "admin": NUVEM.menu = false; desenharConta(); abrirAdmin(); break;
     case "fecharAdmin": $("#dlgAdmin").close(); break;
     case "admLiberar": admLiberar(); break;
-    case "admAutorizar": admLiberar(id); break;
+    case "admAutorizar": admLiberar(id, diasDoCampo("admDiasPed", id)); break;
+    case "admAjustar": admLiberar(id, diasDoCampo("admDiasMem", id)); break;
     case "publico": abrirPublico(); break;
     case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
@@ -3607,7 +3617,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1421";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
