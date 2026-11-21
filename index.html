@@ -2560,7 +2560,8 @@ function playerOral(c) {
       <button class="pill" data-act="oralEnviar" ${ocupado ? "disabled" : ""}>${p.corrigindo ? `<span class="spin"></span> O professor está avaliando…` : (p.etapa === "exposicao" ? "Terminei de explicar" : "Enviar resposta")}</button>
       <span class="r"></span></div>
     ${p.gravando ? `<p class="muted" style="text-align:center;margin-top:10px">🔴 Gravando… fale à vontade e toque em “Parar” quando terminar.</p>${srConfiavel() ? "" : `<div class="prog" style="max-width:260px;margin:6px auto 0" title="Volume do microfone"><div id="nivelMic" style="width:0;transition:width .1s"></div></div>`}` : ""}
-    ${p.transcrevendo ? `<p class="muted" style="text-align:center;margin-top:10px"><span class="spin"></span> Transcrevendo o que você falou…</p>` : ""}`;
+    ${p.transcrevendo ? `<p class="muted" style="text-align:center;margin-top:10px"><span class="spin"></span> Transcrevendo o que você falou…</p>` : ""}
+    ${navigator.brave && !p.corrigindo && !p.transcrevendo ? `<p class="muted" style="text-align:center;margin-top:8px;font-size:12.5px">🦁 No Brave o microfone pode falhar. Se não funcionar, use o <b>Chrome</b> ou o <b>Edge</b>.</p>` : ""}`;
   let corpo = "";
   if (p.etapa === "sorteio") corpo = `<p class="muted" style="text-align:center">🎲 ${es ? "Sacando un papel de la mesa…" : "Tirando um papel da mesa…"}</p>${papel}`;
   else if (p.etapa === "preparo") {
@@ -3300,7 +3301,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0419";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
