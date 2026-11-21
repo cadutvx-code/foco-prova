@@ -2911,7 +2911,8 @@ async function perguntar(txt) {
 // Configuração pública do projeto Firebase (não é senha: só identifica o projeto)
 const FB_CONFIG = {
   apiKey: "AIzaSyBiluHvIHKlk5pYD1uQFXulhbmmgA5Mz70",
-  authDomain: "foco-prova-b2c5c.firebaseapp.com",
+  // login pelo próprio endereço do site: o Safari do iPhone bloqueia o login que passa por outro domínio ("missing initial state")
+  authDomain: ["hipocampo.web.app"].includes(location.hostname) ? location.hostname : "foco-prova-b2c5c.firebaseapp.com",
   projectId: "foco-prova-b2c5c",
   storageBucket: "foco-prova-b2c5c.firebasestorage.app",
   messagingSenderId: "242917076224",
@@ -3993,7 +3994,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1933";
+const VERSAO_APP = "2026-11-21-2019";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
