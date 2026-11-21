@@ -3028,7 +3028,7 @@ async function checarVersao() {
   ultimaChecagem = Date.now();
   try {
     const t = await (await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" })).text();
-    const v = t.match(/const VERSAO_APP = "2026-11-21-0237"]+)"/)?.[1];
+    const v = t.match(/VERSAO_APP\s*=\s*"([\w-]+)";/)?.[1];
     if (v && v !== VERSAO_APP) {
       if (S.player || S.ocupado || document.querySelector("dialog[open]")) { toast("✨ Nova versão do Foco Prova disponível. Ela entra quando você recarregar a página."); return; }
       location.reload();
