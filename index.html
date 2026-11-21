@@ -123,7 +123,7 @@ h3{font-size:16px;margin:0 0 6px}
 .grow{flex:1;min-width:200px}
 label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
 label.inline{flex-direction:row;align-items:center;gap:6px;color:var(--text);font-size:14px}
-input[type=text],input[type=number],input[type=password],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 11px;color:var(--text);width:100%;font-weight:500}
+input[type=text],input[type=number],input[type=password],input[type=email],input[type=tel],input[type=search],input[type=url],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 11px;color:var(--text);width:100%;font-weight:500}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
 textarea{resize:vertical;min-height:90px}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:18px}
@@ -3117,7 +3117,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0255";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
