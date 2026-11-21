@@ -25,6 +25,22 @@ service cloud.firestore {
         && request.auth.token.email.lower() == email && request.resource.data.email == email;
       allow list, delete: if admin();
     }
+    // 📊 visitas: cada aparelho registra a própria visita do dia (sem dados pessoais); só o administrador lê
+    match /acessos/{dia}/aparelhos/{aparelho} {
+      allow create, update: if dia.size() == 10 && aparelho.size() < 40
+        && request.resource.data.keys().hasOnly(['aberturas', 'ultimo', 'logado'])
+        && request.resource.data.aberturas is int && request.resource.data.aberturas <= 500
+        && request.resource.data.ultimo is int && request.resource.data.logado is bool;
+      allow read: if admin();
+    }
+    // 📊 contas: cada pessoa grava só a própria (com o e-mail verdadeiro do login); só o administrador lista
+    match /contas/{uid} {
+      allow create, update: if logado() && request.auth.uid == uid
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.keys().hasOnly(['nome', 'email', 'foto', 'primeiro', 'ultimo', 'acessos']);
+      allow get: if admin() || (logado() && request.auth.uid == uid);
+      allow list: if admin();
+    }
     // chave Pix, WhatsApp, preço e limites do plano grátis: todos leem, só o administrador muda
     match /config/{doc} {
       allow read: if true;

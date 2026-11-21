@@ -337,6 +337,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
+<dialog id="dlgPublico" style="width:min(760px,calc(100vw - 24px))"><div id="publicoCorpo" class="stack"></div></dialog>
 <dialog id="dlgAdmin"style="width:min(560px,calc(100vw - 24px))"><div id="adminCorpo" class="stack"></div></dialog>
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
@@ -2703,7 +2704,7 @@ function desenharConta() {
       ${pro && !ACESSO.admin && ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS ? `<button data-act="pagar">⏳ Renovar o Pro</button>` : ""}
       <button data-act="perfil">🎨 Editar perfil (foto, nome, avatar)</button>
       ${ACESSO.admin ? `<button data-act="admin">🛡️ Painel do administrador${ped ? ` <b style="color:var(--bad)">(${ped} pedido${ped > 1 ? "s" : ""})</b>` : ""}</button>` : pro ? "" : `<button data-act="pagar">👑 Quero o Pro</button>`}
-      <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar.</span>
+      <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar. Seu nome e e-mail ficam guardados para a conta funcionar.</span>
       <button data-act="syncAgora">🔄 Sincronizar agora</button><button data-act="sairConta">🚪 Sair da conta</button></div>` : ""}`;
 }
 function estadoNuvem(t) { NUVEM.estado = t; desenharConta(); }
@@ -2715,10 +2716,10 @@ async function iniciarNuvem() {
     const [app, A, F] = await Promise.all([appFirebase(), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
     Object.assign(NUVEM, { A, F, auth: A.getAuth(app), db: F.getFirestore(app) });
     A.getRedirectResult(NUVEM.auth).catch(() => {});
-    carregarPagamento();
+    carregarPagamento(); registrarVisita();
     A.onAuthStateChanged(NUVEM.auth, async u => {
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
-      await verificarAcesso();
+      await verificarAcesso(); if (u) registrarConta(u);
       if ($("#dlgPagar").open) abrirPagamento(null);
       if (u) await sincronizarTudo();
     });
@@ -2919,7 +2920,7 @@ async function abrirAdmin() {
   }
   catch (e) { $("#adminCorpo").innerHTML = `<h2>🛡️ Painel do administrador</h2><p>Sem permissão: ${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`; return; }
   const avPed = x => x.avatar?.emoji ? `<span class="avatar" style="width:34px;height:34px;cursor:default;flex:none">${avatarHTML(34, x.avatar)}</span>` : `<span class="fi">👤</span>`;
-  $("#adminCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🛡️ Painel do administrador</h2><button class="btn small ghost" data-act="admin">🔄 Atualizar</button></div>
+  $("#adminCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🛡️ Painel do administrador</h2><div class="row" style="gap:6px"><button class="pill" data-act="publico" style="padding:6px 14px">📊 Público</button><button class="btn small ghost" data-act="admin">🔄 Atualizar</button></div></div>
     <div class="card" style="margin:0;${pedidos.length ? "border-color:#f5a623" : ""}"><h3 style="margin:0 0 4px">👑 Pedidos de Pro (${pedidos.length})</h3>
       <div class="muted" style="font-size:13px;margin-bottom:6px">Pessoas que tocaram em "Já paguei". Confira o Pix e o comprovante no WhatsApp antes de autorizar.</div>
       ${pedidos.length ? pedidos.map(x => `<div class="mrow" style="margin-top:6px;align-items:center">${avPed(x)}<span class="nm">${esc(x.email)}<small>${esc(x.nome || "")}${x.data ? " · pediu " + fmtData(x.data) : ""}</small></span>
@@ -2965,6 +2966,57 @@ async function admLiberar(emailPedido) {
     await F.deleteDoc(F.doc(db, "solicitacoes/" + email)).catch(() => {});
     toast(`👑 ${email} é Pro até ${dataCurta(expira)}!`); abrirAdmin();
   } catch (e) { toast("Não consegui liberar: " + e.message, true); }
+}
+/* ---------- 📊 Público: visitas (todo mundo, anônimo) e contas (quem entrou com o Google) ---------- */
+// acessos/{dia}/aparelhos/{aparelho} = { aberturas, ultimo, logado }  ·  contas/{uid} = { nome, email, foto, primeiro, ultimo, acessos }
+const diaHoje = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+function idAparelho() { let a = lsGet("fp-aparelho", ""); if (!a) { a = uid() + uid(); lsSet("fp-aparelho", a); } return a; }
+async function registrarVisita() {
+  try {
+    if (sessionStorage.getItem("fp-visita")) return; sessionStorage.setItem("fp-visita", "1");
+    const F = NUVEM.F;
+    await F.setDoc(F.doc(NUVEM.db, `acessos/${diaHoje()}/aparelhos/${idAparelho()}`), { aberturas: F.increment(1), ultimo: Date.now(), logado: !!NUVEM.auth?.currentUser }, { merge: true });
+  } catch (e) { console.warn("visita não registrada:", e?.message); }
+}
+async function registrarConta(u) {
+  try {
+    if (sessionStorage.getItem("fp-conta") === u.uid) return; sessionStorage.setItem("fp-conta", u.uid);
+    const F = NUVEM.F, ref = F.doc(NUVEM.db, `contas/${u.uid}`), agora = Date.now();
+    const d = await F.getDoc(ref).catch(() => null);
+    await F.setDoc(ref, { nome: (PERFIL.nome || u.displayName || "").slice(0, 80), email: (u.email || "").toLowerCase(), foto: (u.photoURL || "").slice(0, 400), ultimo: agora, acessos: F.increment(1), ...(d?.exists() ? {} : { primeiro: agora }) }, { merge: true });
+  } catch (e) { console.warn("conta não registrada:", e?.message); }
+}
+const quando = t => { if (!t) return "—"; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "agora" : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : m < 2880 ? "ontem" : `há ${Math.round(m / 1440)} dias`; };
+async function abrirPublico() {
+  const F = NUVEM.F, db = NUVEM.db;
+  $("#publicoCorpo").innerHTML = `<h2 style="margin:0">📊 Público</h2><p class="muted"><span class="spin"></span> Contando…</p>`;
+  const dlg = $("#dlgPublico"); if (!dlg.open) dlg.showModal();
+  try {
+    const dias = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (13 - i)); return diaHoje(d); });
+    const porDia = await Promise.all(dias.map(async dia => {
+      const s = await F.getDocs(F.collection(db, `acessos/${dia}/aparelhos`));
+      return { dia, aparelhos: s.size, aberturas: s.docs.reduce((t, x) => t + (x.data().aberturas || 0), 0), ids: s.docs.map(x => x.id) };
+    }));
+    const contas = (await F.getDocs(F.collection(db, "contas"))).docs.map(x => ({ uid: x.id, ...x.data() })).sort((a, b) => (b.ultimo || 0) - (a.ultimo || 0));
+    const pros = new Set((await F.getDocs(F.collection(db, "liberados"))).docs.filter(x => expiraDe(x.data()) > Date.now() || x.data().nota === "administrador").map(x => x.id));
+    const hoje = porDia[porDia.length - 1], ult7 = porDia.slice(-7);
+    const unicos7 = new Set(ult7.flatMap(d => d.ids)).size, unicos14 = new Set(porDia.flatMap(d => d.ids)).size;
+    const DIA = 86400000, ativosHoje = contas.filter(c => Date.now() - (c.ultimo || 0) < DIA).length, ativos7 = contas.filter(c => Date.now() - (c.ultimo || 0) < 7 * DIA).length;
+    const novas7 = contas.filter(c => Date.now() - (c.primeiro || 0) < 7 * DIA).length;
+    const maior = Math.max(1, ...porDia.map(d => d.aparelhos));
+    const caixa = (num, rot, sub = "") => `<div class="card" style="margin:0;padding:12px 14px;flex:1;min-width:130px"><div style="font-size:26px;font-weight:900;line-height:1.1">${num}</div><div style="font-weight:700;font-size:13px">${rot}</div>${sub ? `<div class="muted" style="font-size:12px">${sub}</div>` : ""}</div>`;
+    const semana = d => new Date(d + "T12:00").toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 3);
+    $("#publicoCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">📊 Público</h2><div class="row" style="gap:6px"><button class="btn small ghost" data-act="publico">🔄 Atualizar</button><button class="btn small" data-act="fecharPublico">Fechar</button></div></div>
+      <h3 style="margin:4px 0 0">Visitas ao site</h3>
+      <div class="muted" style="font-size:12.5px">Conta todo mundo que abre o site, com ou sem login (sem guardar dados pessoais). "Aparelhos" = pessoas diferentes, aproximadamente.</div>
+      <div class="row" style="gap:10px">${caixa(hoje.aparelhos, "aparelhos hoje", `${hoje.aberturas} abertura(s) do site`)}${caixa(unicos7, "aparelhos em 7 dias", `${ult7.reduce((t, d) => t + d.aberturas, 0)} aberturas`)}${caixa(unicos14, "aparelhos em 14 dias")}</div>
+      <div class="card" style="margin:0;padding:12px 14px"><div style="display:flex;align-items:flex-end;gap:6px;height:120px">${porDia.map(d => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end" title="${d.dia}: ${d.aparelhos} aparelho(s), ${d.aberturas} abertura(s)"><b style="font-size:11px">${d.aparelhos || ""}</b><div style="width:100%;max-width:30px;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,var(--accent2),var(--accent));height:${Math.max(3, Math.round(d.aparelhos / maior * 80))}px;opacity:${d.aparelhos ? 1 : .25}"></div><span class="muted" style="font-size:10.5px">${semana(d.dia)}<br>${d.dia.slice(8)}</span></div>`).join("")}</div></div>
+      <h3 style="margin:6px 0 0">Quem entrou com o Google</h3>
+      <div class="row" style="gap:10px">${caixa(contas.length, "contas no total", `${novas7} nova(s) em 7 dias`)}${caixa(ativosHoje, "ativas hoje", `${ativos7} na semana`)}${caixa(contas.filter(c => pros.has(c.email)).length, "👑 no Pro agora")}</div>
+      <div class="card" style="margin:0;padding:8px 10px;max-height:46vh;overflow:auto">${contas.length ? contas.map(c => `<div class="mrow" style="margin:4px 0;align-items:center">
+          ${c.foto ? `<img src="${esc(c.foto)}" referrerpolicy="no-referrer" alt="" style="width:34px;height:34px;border-radius:50%;flex:none;object-fit:cover">` : `<span class="fi">👤</span>`}
+          <span class="nm">${esc(c.nome || "(sem nome)")}${pros.has(c.email) ? ` <span class="pro-chip" style="padding:1px 7px;font-size:11px">👑 Pro</span>` : ""}<small>${esc(c.email || "")}</small><small>entrou ${quando(c.primeiro)} · último uso ${quando(c.ultimo)} · ${c.acessos || 1} acesso(s)</small></span></div>`).join("") : `<p class="muted" style="margin:6px">Ninguém registrado ainda. As contas aparecem aqui quando a pessoa entra com o Google (a partir de agora).</p>`}</div>`;
+  } catch (e) { $("#publicoCorpo").innerHTML = `<h2>📊 Público</h2><p>Não consegui carregar: ${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPublico">Fechar</button></div>`; }
 }
 async function admRecusar(email) {
   if (!confirm(`Recusar o pedido de ${email}? (a pessoa pode pedir de novo)`)) return;
@@ -3225,6 +3277,8 @@ document.addEventListener("click", async e => {
     case "fecharAdmin": $("#dlgAdmin").close(); break;
     case "admLiberar": admLiberar(); break;
     case "admAutorizar": admLiberar(id); break;
+    case "publico": abrirPublico(); break;
+    case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
     case "pedirPro": pedirPro(); break;
     case "perfil": NUVEM.menu = false; desenharConta(); S.perfilEd = null; abrirPerfil(); break;
@@ -3360,7 +3414,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1404";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
