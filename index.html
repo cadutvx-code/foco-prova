@@ -207,6 +207,15 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .avatar{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);cursor:pointer;object-fit:cover;background:var(--panel2);display:grid;place-items:center;font-weight:800;padding:0}
 .sync{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
 .conta-menu{position:absolute;top:44px;right:0;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 34px rgba(0,0,0,.2);padding:12px;min-width:250px;display:flex;flex-direction:column;gap:6px}
+.pro-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-weight:900;font-size:12.5px;background:linear-gradient(135deg,#ffd76a,#f5a623);color:#3a2500;white-space:nowrap;box-shadow:0 2px 10px rgba(245,166,35,.35)}
+.av-wrap{position:relative;display:inline-grid}
+.av-wrap .coroa{position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(-12deg);font-size:15px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4));pointer-events:none}
+.av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px}
+.av-grid button{aspect-ratio:1;border-radius:50%;border:2px solid transparent;font-size:24px;cursor:pointer;display:grid;place-items:center;padding:0}
+.av-grid button.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,141,255,.35)}
+.cores-av{display:flex;gap:8px;flex-wrap:wrap}
+.cores-av button{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.cores-av button.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
 .conta-menu button{background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700}
 .conta-menu button:hover{background:var(--panel2)}
 .btn-google{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 14px;font-weight:800;cursor:pointer;font-size:13.5px;white-space:nowrap}
@@ -317,7 +326,9 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   </div>
 </dialog>
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
-<dialog id="dlgAdmin" style="width:min(560px,calc(100vw - 24px))"><div id="adminCorpo" class="stack"></div></dialog>
+<dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
+<input type="file" id="perfilFoto" accept="image/*" hidden>
+<dialog id="dlgAdmin"style="width:min(560px,calc(100vw - 24px))"><div id="adminCorpo" class="stack"></div></dialog>
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
@@ -2419,13 +2430,17 @@ function desenharConta() {
   if (!FB_CONFIG) { el.innerHTML = ""; return; }
   const u = NUVEM.user;
   if (!u) { el.innerHTML = `<button class="btn-google" data-act="entrar">${G_ICON}<span>Entrar com Google</span></button>`; return; }
-  const ini = (u.displayName || u.email || "?").trim()[0].toUpperCase();
+  const pro = ACESSO.liberado, ped = ACESSO.pedidos || 0;
   el.innerHTML = `<span class="sync" title="Sincronização com a nuvem">${esc(NUVEM.estado || "☁ Sincronizado")}</span>
-    <button class="avatar" data-act="menuConta" title="${esc(u.email || "")}">${u.photoURL ? `<img src="${esc(u.photoURL)}" referrerpolicy="no-referrer" alt="" style="width:100%;height:100%;border-radius:50%">` : ini}</button>
-    ${NUVEM.menu ? `<div class="conta-menu"><b>${esc(u.displayName || "Sua conta")}</b><span class="muted" style="font-size:13px">${esc(u.email || "")}</span>
-      <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos, materiais e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar.</span>
-      <span style="font-size:12.5px;margin-bottom:4px">${ACESSO.admin ? "🛡️ Administrador" : ACESSO.liberado ? "✅ Acesso completo" : "🎁 Plano grátis"}</span>
-      ${ACESSO.admin ? `<button data-act="admin">🛡️ Painel do administrador</button>` : ACESSO.liberado ? "" : `<button data-act="pagar">🔓 Liberar acesso completo</button>`}
+    ${pro ? `<span class="pro-chip" title="Você está no Foco Prova Pro">👑 Pro</span>` : ""}
+    <span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<button class="avatar" data-act="menuConta" title="${esc(u.email || "")}" style="${pro ? "border-color:#f5a623" : ""}">${avatarHTML(34)}</button>${ACESSO.admin && ped ? `<span style="position:absolute;top:-4px;right:-6px;background:var(--bad);color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px">${ped}</span>` : ""}</span>
+    ${NUVEM.menu ? `<div class="conta-menu">
+      <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap"><span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<span class="avatar" style="width:46px;height:46px;cursor:default;${pro ? "border-color:#f5a623" : ""}">${avatarHTML(46)}</span></span>
+        <div style="min-width:0"><b>${esc(nomeUser())}</b><div class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis">${esc(u.email || "")}</div></div></div>
+      ${pro ? `<span class="pro-chip" style="align-self:flex-start;margin:4px 0">👑 Você está no Pro${ACESSO.admin ? " · Administrador" : ""}</span>` : `<span style="font-size:12.5px;margin:4px 0">🎁 Plano grátis</span>`}
+      <button data-act="perfil">🎨 Editar perfil (foto, nome, avatar)</button>
+      ${ACESSO.admin ? `<button data-act="admin">🛡️ Painel do administrador${ped ? ` <b style="color:var(--bad)">(${ped} pedido${ped > 1 ? "s" : ""})</b>` : ""}</button>` : pro ? "" : `<button data-act="pagar">👑 Quero o Pro</button>`}
+      <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar.</span>
       <button data-act="syncAgora">🔄 Sincronizar agora</button><button data-act="sairConta">🚪 Sair da conta</button></div>` : ""}`;
 }
 function estadoNuvem(t) { NUVEM.estado = t; desenharConta(); }
@@ -2470,18 +2485,82 @@ const ACESSO = { liberado: false, admin: false, verificado: false, pag: { pix: "
 const emailUser = () => (NUVEM.user?.email || "").trim().toLowerCase();
 { const a = lsGet("fp-acesso", null); if (a?.liberado) ACESSO.liberado = true; }
 const uso = () => ({ n: 0, ateneos: 0, ...lsGet("fp-uso", {}) });
+
+// ---- perfil: foto real, avatar pronto ou a foto do Google; nome personalizado
+let PERFIL = lsGet("fp-perfil", {}) || {};
+const AVATARES = ["🦉", "🐱", "🐶", "🦊", "🐼", "🐨", "🦁", "🐯", "🐸", "🐵", "🦄", "🐧", "🐙", "🦋", "🐝", "🐢", "🧠", "🩺", "🔬", "💊", "📚", "🚀", "⭐", "🔥"];
+const CORES_AV = ["#5b8dff", "#8b5cf6", "#ec4899", "#ef4444", "#f59e0b", "#10b981", "#06b6d4", "#334155"];
+const nomeUser = () => (PERFIL.nome || NUVEM.user?.displayName || NUVEM.user?.email || "Você").trim();
+function avatarHTML(tam = 34, p = PERFIL) {
+  const est = "width:100%;height:100%;border-radius:50%;object-fit:cover";
+  if (p.tipo === "foto" && p.foto) return `<img src="${esc(p.foto)}" alt="" style="${est}">`;
+  if (p.tipo === "emoji" && p.emoji) return `<span style="${est};display:grid;place-items:center;background:${esc(p.cor || CORES_AV[0])};font-size:${Math.round(tam * .55)}px;line-height:1">${p.emoji}</span>`;
+  const g = NUVEM.user?.photoURL;
+  if (g) return `<img src="${esc(g)}" referrerpolicy="no-referrer" alt="" style="${est}">`;
+  return `<span style="font-size:${Math.round(tam * .45)}px">${esc(nomeUser()[0].toUpperCase())}</span>`;
+}
+function abrirPerfil() {
+  if (!NUVEM.user) return toast("Entre com o Google para personalizar o perfil.", true);
+  S.perfilEd ||= { ...PERFIL };
+  const p = S.perfilEd, pro = ACESSO.liberado;
+  $("#perfilCorpo").innerHTML = `<h2 style="margin:0">🎨 Meu perfil</h2>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:8px">
+      <span class="av-wrap">${pro ? `<span class="coroa" style="font-size:26px;top:-20px">👑</span>` : ""}<span class="avatar" style="width:96px;height:96px;cursor:default;border-width:3px;${pro ? "border-color:#f5a623" : ""}">${avatarHTML(96, p)}</span></span>
+      ${pro ? `<span class="pro-chip">👑 Você está no Pro</span>` : `<span class="muted" style="font-size:13px">🎁 Plano grátis · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Quero o Pro</a></span>`}
+    </div>
+    <label>Nome que aparece<input type="text" id="perfilNome" maxlength="40" value="${esc(p.nome || NUVEM.user.displayName || "")}"></label>
+    <div><div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">Foto</div>
+      <div class="row"><button class="btn small" data-act="perfilUpload">📷 Usar uma foto minha</button>${NUVEM.user.photoURL ? `<button class="btn small ghost" data-act="perfilGoogle">Foto do Google</button>` : ""}</div></div>
+    <div><div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">Ou escolha um avatar</div>
+      <div class="av-grid">${AVATARES.map(a => `<button data-act="perfilEmoji" data-id="${a}" class="${p.tipo === "emoji" && p.emoji === a ? "sel" : ""}" style="background:${p.tipo === "emoji" && p.emoji === a ? esc(p.cor || CORES_AV[0]) : "var(--panel2)"}">${a}</button>`).join("")}</div>
+      <div class="cores-av" style="margin-top:10px">${CORES_AV.map(c => `<button data-act="perfilCor" data-id="${c}" class="${(p.cor || CORES_AV[0]) === c ? "sel" : ""}" style="background:${c}" title="Cor do fundo"></button>`).join("")}</div></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="perfilCancelar">Cancelar</button><button class="pill" data-act="perfilSalvar">💾 Salvar</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+// reduz a foto para 192 px (fica leve para salvar na nuvem)
+function fotoReduzida(arq) {
+  return new Promise((res, rej) => {
+    const img = new Image(); img.onerror = () => rej(new Error("imagem inválida"));
+    img.onload = () => { const t = 192, cv = document.createElement("canvas"); cv.width = cv.height = t; const s = Math.min(img.width, img.height); cv.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, t, t); URL.revokeObjectURL(img.src); res(cv.toDataURL("image/jpeg", 0.82)); };
+    img.src = URL.createObjectURL(arq);
+  });
+}
+async function salvarPerfil() {
+  const p = { ...S.perfilEd, nome: ($("#perfilNome").value || "").trim().slice(0, 40), atualizado: Date.now() };
+  try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/conta/perfil`), p); }
+  catch (e) { return toast("Não consegui salvar o perfil: " + e.message, true); }
+  PERFIL = p; lsSet("fp-perfil", { uid: NUVEM.user.uid, ...p }); S.perfilEd = null;
+  $("#dlgPerfil").close(); desenharConta(); toast("✨ Perfil atualizado!");
+}
+
+// ---- pedidos de Pro: a pessoa paga, toca em "Já paguei" e o e-mail aparece no painel do administrador
+async function pedirPro() {
+  if (!NUVEM.user) return toast("Entre com o Google primeiro.", true);
+  try {
+    await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, "solicitacoes/" + emailUser()), { email: emailUser(), nome: nomeUser(), data: Date.now(), avatar: PERFIL.tipo === "emoji" ? { tipo: "emoji", emoji: PERFIL.emoji, cor: PERFIL.cor } : null });
+    ACESSO.pedido = true; abrirPagamento(null); toast("📨 Pedido enviado! Assim que o Pix for confirmado, seu Pro é liberado.");
+  } catch (e) { toast("Não consegui enviar o pedido: " + e.message, true); }
+}
+async function contarPedidos() {
+  try { ACESSO.pedidos = (await NUVEM.F.getDocs(NUVEM.F.collection(NUVEM.db, "solicitacoes"))).size; } catch { ACESSO.pedidos = 0; }
+}
 async function carregarPagamento() {
   try { const d = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, "config/pagamento")); if (d.exists()) { Object.assign(ACESSO.pag, d.data()); lsSet("fp-pag", ACESSO.pag); } } catch {}
 }
 async function verificarAcesso() {
   const u = NUVEM.user;
-  if (!u) { ACESSO.liberado = ACESSO.admin = false; lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
+  if (!u) { ACESSO.liberado = ACESSO.admin = ACESSO.pedido = false; ACESSO.pedidos = 0; PERFIL = {}; lsSet("fp-perfil", {}); lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
+  if (PERFIL.uid && PERFIL.uid !== u.uid) PERFIL = {};
   const F = NUVEM.F, db = NUVEM.db;
   try { await F.getDocs(F.query(F.collection(db, "liberados"), F.limit(1))); ACESSO.admin = true; } catch { ACESSO.admin = false; }
   let lib = ACESSO.admin;
   if (!lib) { try { lib = (await F.getDoc(F.doc(db, "liberados/" + emailUser()))).exists(); } catch { lib = false; } }
   ACESSO.liberado = lib; ACESSO.verificado = true;
   lsSet("fp-acesso", { email: emailUser(), liberado: lib });
+  // perfil (nome, foto ou avatar) e pedidos de Pro
+  try { const d = await F.getDoc(F.doc(db, `${caminhoUser()}/conta/perfil`)); PERFIL = d.exists() ? d.data() : {}; lsSet("fp-perfil", { uid: u.uid, ...PERFIL }); } catch {}
+  if (ACESSO.admin) await contarPedidos();
+  else if (!lib) { try { ACESSO.pedido = (await F.getDoc(F.doc(db, "solicitacoes/" + emailUser()))).exists(); } catch { ACESSO.pedido = false; } }
   // o contador do plano grátis acompanha a conta (vale o maior entre o aparelho e a nuvem)
   try {
     const ref = F.doc(db, `${caminhoUser()}/conta/uso`), d = await F.getDoc(ref), nv = d.exists() ? d.data() : {}, lo = uso();
@@ -2507,36 +2586,51 @@ function gastar(tipo = "ia", qtd = 1) {
 function cartaoPlano() {
   if (ACESSO.liberado) return "";
   const u = uso(), p = ACESSO.pag;
-  return `<div class="aviso-nuvem" id="planoChip">🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Liberar acesso completo (R$ ${p.preco})</a></div>`;
+  return `<div class="aviso-nuvem" id="planoChip">🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 Quero o Pro (R$ ${p.preco}, vitalício)</a></div>`;
 }
 function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
   const acabou = tipo === "ateneo" ? `Você já fez os <b>${p.ateneos} Ateneos grátis</b>.` : tipo ? `Você usou as <b>${p.limite} interações grátis</b> com a IA.` : "";
-  const msg = `Olá! Fiz o Pix de R$ ${p.preco} do Foco Prova. Segue o comprovante. Meu e-mail de login: ${email || "(coloque aqui o seu Gmail)"}`;
+  const msg = `Olá! Estou tentando ganhar a autorização Pro do Foco Prova 👑\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix de R$ ${p.preco}:`;
   const num = String(p.whats || "").replace(/\D/g, "");
-  $("#pagarCorpo").innerHTML = `<h2 style="margin:0">🔓 Liberar o Foco Prova</h2>
+  if (ACESSO.liberado) {
+    $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Você está no Pro!</h2><p class="muted" style="margin:0">Acesso completo e vitalício liberado. Bons estudos!</p><div class="row" style="justify-content:flex-end"><button class="pill" data-act="fecharPagar">Fechar</button></div>`;
+    const d = $("#dlgPagar"); if (!d.open) d.showModal(); return;
+  }
+  $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Foco Prova Pro</h2>
     ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}
-    <p class="muted" style="margin:0">Acesso <b>completo e vitalício</b> por <b>R$ ${p.preco}</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite.</p>
+    <p class="muted" style="margin:0">Acesso <b>completo e vitalício</b> por <b>R$ ${p.preco}</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
+    ${ACESSO.pedido ? `<p class="aviso-nuvem" style="margin:0">📨 <b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado. Toque em "Verificar" para conferir.</p>` : ""}
     ${!p.pix ? `<p class="aviso-nuvem" style="margin:0">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</p>` : `
     <ol style="margin:0;padding-left:20px;display:grid;gap:12px">
       <li>${NUVEM.user ? `Você está entrando como <b>${esc(email)}</b>. É esse e-mail que será liberado.` : `<b>Entre com sua conta Google</b> (é ela que será liberada).<br><button class="btn-google" data-act="entrar" style="margin-top:6px">${G_ICON}<span>Entrar com Google</span></button>`}</li>
       <li>Faça um <b>Pix de R$ ${p.preco}</b> para a chave:<div class="row" style="margin-top:6px;align-items:center"><code style="font-size:15px;padding:6px 10px;border-radius:8px;background:var(--panel2,rgba(255,255,255,.08));word-break:break-all">${esc(p.pix)}</code><button class="btn small" data-act="copiarPix">📋 Copiar</button></div></li>
       <li>Envie o <b>comprovante</b> e o <b>seu e-mail</b>${num ? ` pelo WhatsApp <b>${esc(p.whats)}</b>` : ""}:${num ? `<div style="margin-top:6px"><a class="pill" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">💬 Enviar pelo WhatsApp</a></div>` : ""}</li>
-      <li>Quando o acesso for liberado, toque em <b>"Já fui liberado"</b>.</li>
+      <li>Toque em <b>"Já paguei, pedir o Pro"</b>. Seu pedido chega na hora para o administrador liberar.</li>
     </ol>`}
-    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${NUVEM.user ? `<button class="pill" data-act="jaLiberado">✅ Já fui liberado</button>` : ""}</div>`;
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${!NUVEM.user || !p.pix ? "" : ACESSO.pedido ? `<button class="pill" data-act="jaLiberado">🔄 Verificar se já liberou</button>` : `<button class="pill" data-act="pedirPro">📨 Já paguei, pedir o Pro</button>`}</div>`;
   const d = $("#dlgPagar"); if (!d.open) d.showModal();
 }
 async function abrirAdmin() {
   const F = NUVEM.F, db = NUVEM.db, p = ACESSO.pag;
   $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2><p class="muted"><span class="spin"></span> Carregando…</p>`;
   const d = $("#dlgAdmin"); if (!d.open) d.showModal();
-  let lista = [];
-  try { lista = (await F.getDocs(F.collection(db, "liberados"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (b.data || 0) - (a.data || 0)); }
+  let lista = [], pedidos = [];
+  try {
+    lista = (await F.getDocs(F.collection(db, "liberados"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (b.data || 0) - (a.data || 0));
+    pedidos = (await F.getDocs(F.collection(db, "solicitacoes"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (a.data || 0) - (b.data || 0));
+    ACESSO.pedidos = pedidos.length; desenharConta();
+  }
   catch (e) { $("#adminCorpo").innerHTML = `<h2>🛡️ Painel do administrador</h2><p>Sem permissão: ${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`; return; }
-  $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2>
-    <div class="card stack" style="margin:0"><h3 style="margin:0">Liberar um e-mail</h3>
-      <div class="muted" style="font-size:13px">Depois de receber o Pix, digite o Gmail que a pessoa usa para entrar.</div>
+  const avPed = x => x.avatar?.emoji ? `<span class="avatar" style="width:34px;height:34px;cursor:default;flex:none">${avatarHTML(34, x.avatar)}</span>` : `<span class="fi">👤</span>`;
+  $("#adminCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🛡️ Painel do administrador</h2><button class="btn small ghost" data-act="admin">🔄 Atualizar</button></div>
+    <div class="card" style="margin:0;${pedidos.length ? "border-color:#f5a623" : ""}"><h3 style="margin:0 0 4px">👑 Pedidos de Pro (${pedidos.length})</h3>
+      <div class="muted" style="font-size:13px;margin-bottom:6px">Pessoas que tocaram em "Já paguei". Confira o Pix e o comprovante no WhatsApp antes de autorizar.</div>
+      ${pedidos.length ? pedidos.map(x => `<div class="mrow" style="margin-top:6px;align-items:center">${avPed(x)}<span class="nm">${esc(x.email)}<small>${esc(x.nome || "")}${x.data ? " · pediu " + fmtData(x.data) : ""}</small></span>
+        <button class="pill" data-act="admAutorizar" data-id="${esc(x.email)}" style="padding:6px 12px">✅ Autorizar</button><button class="btn small ghost" data-act="admRecusar" data-id="${esc(x.email)}" style="color:var(--bad)">Recusar</button></div>`).join("") : `<p class="muted" style="margin:0">Nenhum pedido no momento.</p>`}
+    </div>
+    <div class="card stack" style="margin:0"><h3 style="margin:0">Liberar um e-mail manualmente</h3>
+      <div class="muted" style="font-size:13px">Se a pessoa te mandou o e-mail direto, digite o Gmail que ela usa para entrar.</div>
       <div class="row"><input type="email" id="admEmail" placeholder="pessoa@gmail.com" style="flex:1;min-width:200px"><input type="text" id="admNota" placeholder="observação (opcional)" style="flex:1;min-width:140px"><button class="pill" data-act="admLiberar">✅ Liberar</button></div>
     </div>
     <div class="card" style="margin:0"><h3 style="margin:0 0 8px">Liberados (${lista.length})</h3>
@@ -2554,11 +2648,20 @@ async function abrirAdmin() {
     </div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`;
 }
-async function admLiberar() {
-  const email = ($("#admEmail").value || "").trim().toLowerCase();
+async function admLiberar(emailPedido) {
+  const email = (emailPedido || $("#admEmail").value || "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Digite um e-mail válido.", true);
-  try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, "liberados/" + email), { data: Date.now(), nota: ($("#admNota").value || "").trim().slice(0, 120), por: emailUser() }); toast(`✅ ${email} liberado!`); abrirAdmin(); }
-  catch (e) { toast("Não consegui liberar: " + e.message, true); }
+  const F = NUVEM.F, db = NUVEM.db;
+  try {
+    await F.setDoc(F.doc(db, "liberados/" + email), { data: Date.now(), nota: emailPedido ? "pedido pelo app" : ($("#admNota").value || "").trim().slice(0, 120), por: emailUser() });
+    await F.deleteDoc(F.doc(db, "solicitacoes/" + email)).catch(() => {});
+    toast(`👑 ${email} agora é Pro!`); abrirAdmin();
+  } catch (e) { toast("Não consegui liberar: " + e.message, true); }
+}
+async function admRecusar(email) {
+  if (!confirm(`Recusar o pedido de ${email}? (a pessoa pode pedir de novo)`)) return;
+  try { await NUVEM.F.deleteDoc(NUVEM.F.doc(NUVEM.db, "solicitacoes/" + email)); toast("Pedido recusado."); abrirAdmin(); }
+  catch (e) { toast("Não consegui recusar: " + e.message, true); }
 }
 async function admRemover(email) {
   if (!confirm(`Remover o acesso de ${email}?`)) return;
@@ -2788,6 +2891,16 @@ document.addEventListener("click", async e => {
     case "admin": NUVEM.menu = false; desenharConta(); abrirAdmin(); break;
     case "fecharAdmin": $("#dlgAdmin").close(); break;
     case "admLiberar": admLiberar(); break;
+    case "admAutorizar": admLiberar(id); break;
+    case "admRecusar": admRecusar(id); break;
+    case "pedirPro": pedirPro(); break;
+    case "perfil": NUVEM.menu = false; desenharConta(); S.perfilEd = null; abrirPerfil(); break;
+    case "perfilUpload": $("#perfilFoto").click(); break;
+    case "perfilGoogle": S.perfilEd = { ...S.perfilEd, tipo: "google", foto: "", nome: $("#perfilNome").value }; abrirPerfil(); break;
+    case "perfilEmoji": S.perfilEd = { ...S.perfilEd, tipo: "emoji", emoji: id, foto: "", cor: S.perfilEd.cor || CORES_AV[0] }; S.perfilEd.nome = $("#perfilNome").value; abrirPerfil(); break;
+    case "perfilCor": S.perfilEd = { ...S.perfilEd, cor: id, ...(S.perfilEd.tipo === "emoji" ? {} : { tipo: "emoji", emoji: S.perfilEd.emoji || AVATARES[0], foto: "" }) }; S.perfilEd.nome = $("#perfilNome").value; abrirPerfil(); break;
+    case "perfilCancelar": S.perfilEd = null; $("#dlgPerfil").close(); break;
+    case "perfilSalvar": salvarPerfil(); break;
     case "admRemover": admRemover(id); break;
     case "admSalvarPag": admSalvarPag(); break;
     case "menuKit": S.menuKit = S.menuKit === id ? null : id; render(); break;
@@ -2907,6 +3020,11 @@ document.addEventListener("keydown", e => {
 });
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
+$("#perfilFoto").addEventListener("change", async e => {
+  const arq = e.target.files?.[0]; e.target.value = ""; if (!arq) return;
+  try { const foto = await fotoReduzida(arq); const nome = $("#perfilNome")?.value; S.perfilEd = { ...S.perfilEd, tipo: "foto", foto, nome }; abrirPerfil(); }
+  catch { toast("Não consegui abrir essa imagem. Tente outra foto.", true); }
+});
 $("#txtValor").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("[data-act=txtOk]").click(); } });
 $("#novoNome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); criarCaderno(); } });
 $("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });

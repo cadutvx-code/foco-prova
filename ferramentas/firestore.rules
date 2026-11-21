@@ -14,6 +14,13 @@ service cloud.firestore {
       allow get: if admin() || (logado() && request.auth.token.email.lower() == email);
       allow list, write: if admin();
     }
+    // pedidos de Pro: a pessoa cria/atualiza só o próprio pedido; o administrador vê, autoriza e apaga
+    match /solicitacoes/{email} {
+      allow get: if admin() || (logado() && request.auth.token.email.lower() == email);
+      allow create, update: if logado() && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == email && request.resource.data.email == email;
+      allow list, delete: if admin();
+    }
     // chave Pix, WhatsApp, preço e limites do plano grátis: todos leem, só o administrador muda
     match /config/{doc} {
       allow read: if true;
