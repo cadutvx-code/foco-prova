@@ -19,12 +19,12 @@
 <style>
 :root{
   /* modo claro: lavanda pastel com textura de papel, nada de branco puro */
-  --bg:#e9e4f2; --panel:#f8f5fb; --panel2:#ebe5f4; --rail:#e2dbee; --text:#1e1838; --muted:#57507a; --line:#d3c9e5;
-  --elev:#f0ebf7; /* botões, capítulos e alternativas dentro dos cartões */
-  --accent:#5040d6; --accent2:#8452ee; --accent-soft:#dfd8f7; --navy:#2a2160;
+  --bg:#e6dcc6; --panel:#f3ebd9; --panel2:#e9dfc8; --rail:#ddd2b9; --text:#2a2233; --muted:#62574e; --line:#d0c3a6;
+  --elev:#ece2cd; /* botões, capítulos e alternativas dentro dos cartões */
+  --accent:#5040d6; --accent2:#8452ee; --accent-soft:#e3d9ee; --navy:#2a2160;
   --ok:#13824f; --ok-soft:#d9eee2; --bad:#c42d42; --bad-soft:#f5dfe3; --warn:#a96a08; --warn-soft:#f4e7cc;
   --star:#e0a100; --shadow:0 1px 2px rgba(45,28,100,.08),0 6px 22px rgba(45,28,100,.09); --r:14px;
-  --textura:radial-gradient(1200px 600px at 10% -10%, rgba(132,82,238,.10), transparent 60%), radial-gradient(900px 500px at 110% 10%, rgba(80,64,214,.08), transparent 60%), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .55 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --textura:radial-gradient(1200px 600px at 10% -10%, rgba(214,160,60,.12), transparent 60%), radial-gradient(900px 500px at 110% 10%, rgba(132,82,238,.06), transparent 60%), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .36 0 0 0 0 .20 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -2132,7 +2132,11 @@ function falar(texto, lang) {
   pararAudio(); const vez = ++S.falaId;
   if (usaPiper(lang)) {
     audioPiper(texto, lang).then(url => { if (vez !== S.falaId) return; audioAtual = new Audio(url); audioAtual.play().catch(() => {}); })
-      .catch(() => { if (vez === S.falaId) falarNavegador(texto, lang); });
+      .catch(e => {
+        console.warn("voz Piper falhou:", e);
+        if (usaPiper(lang) && !S.avisouVoz) { S.avisouVoz = true; toast("A voz do professor não carregou neste navegador (" + String(e?.message || e).slice(0, 80) + "). Usando a voz do navegador." + (navigator.brave ? " No Brave, desative os escudos (Shields) para este site ou use o Chrome." : ""), true); }
+        if (vez === S.falaId) falarNavegador(texto, lang);
+      });
     return;
   }
   falarNavegador(texto, lang);
@@ -2206,7 +2210,7 @@ async function iniciarAoVivo(p, stream, ctxPronto) {
     const d = new Float32Array(e.inputBuffer.getChannelData(0));
     let s = 0; for (let i = 0; i < d.length; i++) s += d[i] * d[i];
     const rms = Math.sqrt(s / d.length), dur = d.length / L.taxa;
-    L.blocos++;
+    L.blocos++; if (rms > (L.maxRms || 0)) L.maxRms = rms;
     const barra = document.getElementById("nivelMic"); if (barra) barra.style.width = Math.min(100, Math.round(Math.sqrt(rms) * 260)) + "%";
     // nível do ruído de fundo se ajusta sozinho; fala = bem acima dele
     L.ruido = rms < L.ruido ? rms : L.ruido + (rms - L.ruido) * 0.002;
@@ -2269,6 +2273,13 @@ async function pararGravacao() {
     if (g.mr) await g.pronto;
     g.stream.getTracks().forEach(t => t.stop());
     if (S.player !== p) return;
+    let mudo = L.blocos > 5 && (L.maxRms || 0) < 0.002 && !p.ouvido;
+    if (mudo && g.pedacos?.length) mudo = (await volumeGravacao(new Blob(g.pedacos, { type: g.mr.mimeType || "audio/webm" }))) < 0.002; // confere na própria gravação
+    if (mudo) {
+      p.transcrevendo = false; p.resp = p.base.trim(); render();
+      toast(navigator.brave ? "🦁 O Brave entregou o microfone mudo (sem som nenhum). Use o Chrome ou o Edge, ou toque no leão do Brave e desative os escudos (Shields) para este site." : "O microfone chegou mudo (sem som nenhum). Confira se ele está ligado e se é o microfone certo, no cadeado ao lado do endereço.", true);
+      return;
+    }
     if (!p.ouvido && g.pedacos?.length) {
       // o texto ao vivo não pegou nada: o Gemini transcreve a gravação inteira
       p.transcrevendo = true; render();
@@ -2299,6 +2310,10 @@ async function pararGravacao() {
     p.resp = (p.base + txt).trim();
   } catch (e) { toast("Não consegui transcrever o áudio: " + erroMsg(e), true); p.resp = (p.base + aoVivo).trim(); }
   p.transcrevendo = false; render();
+}
+// Volume (RMS) de uma gravação: separa microfone mudo de fala baixa
+async function volumeGravacao(blob) {
+  try { const w = await paraWav(blob), dv = new DataView(await w.arrayBuffer()); let s = 0, n = 0; for (let i = 44; i + 1 < dv.byteLength; i += 2) { const v = dv.getInt16(i, true) / 32768; s += v * v; n++; } return n ? Math.sqrt(s / n) * 4 : 1; } catch { return 1; } // erro ao medir: não bloqueia
 }
 // WAV 16 kHz mono (formato que o Gemini sempre aceita)
 function wavDe(dados, taxa) {
@@ -2334,8 +2349,9 @@ async function transcreverAudio(blob, lang) {
   for (const nome of livres.length ? livres : MODELOS_GEMINI) {
     try {
       const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { temperature: 0 } });
-      const r = await prazo(m.generateContent([{ inlineData: { mimeType, data } }, { text: `Transcreva fielmente, palavra por palavra, o que a pessoa fala neste áudio. É um estudante explicando um tema de medicina, em português ou espanhol. Escreva EXATAMENTE no idioma em que ele fala: NUNCA traduza (se falar em português, escreva em português; se falar em espanhol, escreva em espanhol). Responda SOMENTE com o texto transcrito, sem comentários. Se não houver fala, responda vazio.` }]), 25000);
-      return (r.response.text?.() || "").trim().replace(/^["“]|["”]$/g, "");
+      const r = await prazo(m.generateContent([{ inlineData: { mimeType, data } }, { text: `Transcreva fielmente, palavra por palavra, SOMENTE o que for realmente falado neste áudio (português ou espanhol). Escreva exatamente no idioma falado: NUNCA traduza. NUNCA invente, complete ou adivinhe frases: se o áudio estiver mudo, só com ruído ou sem fala clara, responda exatamente [SEM_FALA]. Responda SOMENTE com o texto transcrito, sem comentários.` }]), 25000);
+      const txt = (r.response.text?.() || "").trim().replace(/^["“]|["”]$/g, "");
+      return /\[?SEM_FALA\]?/i.test(txt) && txt.length < 20 ? "" : txt.replace(/\[?SEM_FALA\]?/gi, "").trim();
     } catch (e) { erro = e; if (ERRO_PULAR.test(String(e?.message || e))) GEM_PAUSA[nome] = Date.now() + 5 * 60000; }
   }
   throw erro || new Error("sem resposta");
@@ -3344,7 +3360,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1359";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
