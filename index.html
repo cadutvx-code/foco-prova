@@ -2189,12 +2189,43 @@ async function identificarCapitulos(c, forcar = false) {
 }
 const nomeCap = k => `${k.numero ? (idiomaCaderno(atual()) === "es" ? "Capítulo " : "Capítulo ") + k.numero + " – " : ""}${k.titulo}`;
 
+// "25-31, 46-62, 75" → ["25",...,"31","46",...,"62","75"]
+function lerFaixas(txt) {
+  const out = [];
+  for (const parte of String(txt || "").split(/[,;\s]+/)) {
+    const m = parte.match(/^(\d+)(?:\s*[-–a]\s*(\d+))?$/); if (!m) continue;
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    for (let n = Math.min(a, b); n <= Math.max(a, b) && out.length < 300; n++) if (!out.includes(String(n))) out.push(String(n));
+  }
+  return out;
+}
+function faixasTexto(nums) {
+  const ns = nums.map(Number).sort((a, b) => a - b), out = [];
+  for (let i = 0; i < ns.length; i++) { let j = i; while (j + 1 < ns.length && ns[j + 1] === ns[j] + 1) j++; out.push(j > i ? `${ns[i]}-${ns[j]}` : `${ns[i]}`); i = j; }
+  return out.join(", ");
+}
+// Capítulos que entram no sorteio: só os da prova (se configurada), senão todos os do material
+function listaAteneo(c) {
+  const caps = c.capitulos || [], prova = c.ateneoProva?.caps;
+  if (!prova?.length || S.oralTodos) return caps;
+  return prova.map(n => caps.find(k => k.numero === n) || { numero: n, titulo: "(não está nos seus PDFs)", faltando: true });
+}
+
 function viewOral(c) {
   if (S.player?.tipo === "oral") return playerOral(c);
   const sem = semMateriais(c); if (sem) return sem;
   c.ateneos ||= [];
   if (!c.capitulos?.length && !S.buscandoCaps) setTimeout(() => identificarCapitulos(c), 0);
-  const caps = c.capitulos || [];
+  const caps = listaAteneo(c), pv = c.ateneoProva, falt = caps.filter(k => k.faltando).length;
+  const cartaoProva = S.editProva ? `<div class="card stack">
+      <h3 style="margin:0">📋 Capítulos que caem na prova</h3>
+      <label>Nome da prova<input type="text" id="provaNome" maxlength="60" value="${esc(pv?.nome || "")}" placeholder="ex.: Ateneo 2 – Fisiologia 2"></label>
+      <label>Capítulos (números ou intervalos)<input type="text" id="provaCaps" value="${esc(pv ? faixasTexto(pv.caps) : "")}" placeholder="ex.: 25-31, 46-62, 75-81"></label>
+      <div class="row"><button class="pill" data-act="provaSalvar">💾 Salvar</button><button class="btn" data-act="provaCancelar">Cancelar</button>${pv ? `<button class="btn ghost" data-act="provaRemover" style="color:var(--bad)">Usar todos os capítulos</button>` : ""}</div>
+    </div>`
+    : pv ? `<div class="aviso-nuvem" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">📋 <span style="flex:1;min-width:200px"><b>${esc(pv.nome || "Prova")}</b> · ${pv.caps.length} capítulos: ${esc(faixasTexto(pv.caps))}${falt && !S.oralTodos ? ` · <span style="color:var(--warn)">⚠️ ${falt} não está${falt > 1 ? "ão" : ""} nos seus PDFs</span>` : ""}</span>
+        <button class="btn small ghost" data-act="provaEditar">✏️ Editar</button><button class="btn small ghost" data-act="oralTodos">${S.oralTodos ? "Só os da prova" : "Ver todos"}</button></div>`
+    : `<div class="aviso-nuvem">📋 Sabe quais capítulos caem na sua prova? <a href="#" data-act="provaEditar" style="color:var(--accent);font-weight:800">Defina aqui</a> e o sorteio só tira esses.</div>`;
   return `<div class="stack">
     <div class="card stack">
       <div><h2 style="margin:0">🎤 Ateneo oral</h2>
@@ -2205,10 +2236,11 @@ function viewOral(c) {
       </div>
       <div><button class="pill" data-act="oralSortear" ${caps.length ? "" : "disabled"}>🎲 Tirar um papel (sortear capítulo)</button></div>
     </div>
+    ${cartaoProva}
     <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">Ou escolha o capítulo</h3>
       <button class="btn small ghost" data-act="oralCaps" ${S.buscandoCaps ? "disabled" : ""}>↻ Reidentificar</button></div>
       ${S.buscandoCaps ? `<p class="muted"><span class="spin"></span> Lendo o material e identificando os capítulos…</p>` :
-        caps.length ? `<div class="papeis">${caps.map((k, i) => `<button class="papel" data-act="oralEscolher" data-id="${i}">📄 ${esc(nomeCap(k))}</button>`).join("")}</div>`
+        caps.length ? `<div class="papeis">${caps.map((k, i) => `<button class="papel" data-act="oralEscolher" data-id="${i}" ${k.faltando ? `title="Este capítulo não foi encontrado nos seus PDFs: a correção usa o conhecimento geral do livro" style="opacity:.7"` : ""}>${k.faltando ? "⚠️" : "📄"} ${esc(nomeCap(k))}</button>`).join("")}</div>`
         : `<p class="muted">Nenhum capítulo identificado ainda.</p>`}
     </div>
     ${c.ateneos.length ? `<div class="card"><h3>Ateneos anteriores</h3>${c.ateneos.slice(0, 10).map(a => `<div class="mrow" style="margin-top:6px"><span class="fi">🎤</span><span class="nm">${esc(a.capitulo || "Ateneo")}<small>${fmtData(a.data)}</small></span><b style="font-size:18px;color:${a.media >= 7 ? "var(--ok)" : a.media >= 5 ? "var(--warn)" : "var(--bad)"}">${a.media.toFixed(1)}</b></div>`).join("")}</div>` : ""}
@@ -2221,7 +2253,7 @@ function iniciarAteneo(c, idx, sorteado) {
   S.oralVoz = !!$("#oral-voz")?.checked; lsSet("fp-oral-voz", S.oralVoz);
   const prep = Math.max(0, Math.min(15, +($("#oral-prep")?.value ?? 3)));
   lsSet("fp-oral-prep", prep);
-  const cap = c.capitulos[idx];
+  const cap = listaAteneo(c)[idx]; if (!cap) return;
   prepararFala(idiomaCaderno(c) === "es" ? "Muy bien. Explícame todo lo que sabes sobre este capítulo." : "Muito bem. Me explique tudo o que você sabe sobre este capítulo.");
   S.player = { tipo: "oral", cap, etapa: sorteado ? "sorteio" : "preparo", fim: Date.now() + prep * 60000, prep, resp: "", gravando: false, corrigindo: false, exp: null, perguntas: [], k: 0, respostas: [] };
   render();
@@ -2254,7 +2286,7 @@ async function enviarOral(c) {
   const resp = (p.resp || "").trim();
   if (!resp) return toast("Fale ou escreva sua resposta primeiro.", true);
   p.parouManual = true; fecharVoz(); p.gravando = false; p.corrigindo = true; render();
-  const cap = nomeCap(p.cap), es = idiomaCaderno(c) === "es";
+  const cap = nomeCap(p.cap) + (p.cap.faltando ? " (este capítulo não está nos materiais: use o conhecimento do livro-texto de referência da matéria, como o Guyton & Hall, e informe isso no comentário)" : ""), es = idiomaCaderno(c) === "es";
   try {
     if (p.etapa === "exposicao") {
       const r = await gerarJSON(c, `Você é o professor de um ATENEO (exame oral). O estudante tirou o capítulo "${cap}" e fez a exposição abaixo (transcrita da fala; ignore erros de reconhecimento de voz e de gramática).
@@ -2870,7 +2902,17 @@ document.addEventListener("click", async e => {
   switch (act) {
     case "novo": abrirNovo(); break;
     case "metaDia": e.preventDefault(); { const q = sequencia(); pedirTexto("Meta diária (perguntas por dia)", String(q.meta), v => { const n = Math.max(1, Math.min(500, parseInt(v) || q.meta)); lsSet("fp-sequencia", { ...sequencia(), meta: n }); render(); toast(`Meta diária: ${n} perguntas.`); }); break; }
-    case "oralSortear": { const n = c.capitulos?.length || 0; if (n) iniciarAteneo(c, Math.floor(Math.random() * n), true); break; }
+    case "oralSortear": { const n = listaAteneo(c).length; if (n) iniciarAteneo(c, Math.floor(Math.random() * n), true); break; }
+    case "provaEditar": e.preventDefault(); S.editProva = true; render(); $("#provaCaps")?.focus(); break;
+    case "provaCancelar": S.editProva = false; render(); break;
+    case "provaSalvar": {
+      const caps = lerFaixas($("#provaCaps").value);
+      if (!caps.length) return toast("Digite os capítulos, por exemplo: 25-31, 46-62, 75-81", true);
+      c.ateneoProva = { nome: $("#provaNome").value.trim().slice(0, 60), caps }; S.editProva = false; S.oralTodos = false;
+      await salvar(c); render(); toast(`📋 ${caps.length} capítulos salvos. O sorteio só vai tirar esses.`); break;
+    }
+    case "provaRemover": delete c.ateneoProva; S.editProva = false; await salvar(c); render(); break;
+    case "oralTodos": S.oralTodos = !S.oralTodos; render(); break;
     case "oralEscolher": iniciarAteneo(c, +id, false); break;
     case "oralCaps": identificarCapitulos(c, true); break;
     case "oralPronto": comecarExposicao(c); break;
@@ -3021,7 +3063,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0237";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
