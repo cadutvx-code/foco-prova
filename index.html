@@ -3093,7 +3093,7 @@ function txidDe(email) { let x = 0; for (const ch of String(email || "visitante"
 const PAG_AUTO = "https://hipocampo-pagamento.pagamento-worker.workers.dev";
 async function pagAuto(rota, dados) {
   const idToken = await NUVEM.user.getIdToken();
-  const r = await fetch(PAG_AUTO + rota, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, ...dados }) });
+  const r = await prazo(fetch(PAG_AUTO + rota, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, ...dados }) }), 20000);
   const d = await r.json().catch(() => ({}));
   if (!r.ok || d.erro) throw new Error(d.erro || "serviço de pagamento indisponível");
   return d;
@@ -3117,7 +3117,8 @@ async function iniciarPixAuto() {
     }, 5000);
   } catch (e) {
     console.warn("Pix automático indisponível:", e.message);
-    caixa.innerHTML = `<small class="muted">O pagamento automático está indisponível agora. Pague pelo QR abaixo e use os passos 3 e 4 (aprovação manual).</small>`;
+    caixa.innerHTML = `<small class="muted">O pagamento automático não funcionou agora (${esc(String(e.message).slice(0, 140))}). Pague pelo QR abaixo e use os passos 3 e 4 (aprovação manual).</small>`;
+    const p = ACESSO.pag; if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(emailUser()) }); desenharQRPix(S.pixCodigo); }
   }
 }
 async function pixConfirmado(expira) {
@@ -3765,7 +3766,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1506";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
