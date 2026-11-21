@@ -474,8 +474,26 @@ function toast(msg, err = false) {
   const t = $("#toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
   clearTimeout(toastT); toastT = setTimeout(() => t.className = "", err ? 6000 : 2800);
 }
-function lsGet(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } }
-function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+/* Cada conta Google tem o próprio progresso neste aparelho.
+   A 1ª conta que entrou aqui ("dona") usa os nomes de sempre (IndexedDB "foco-prova", chaves "fp-*"), então ninguém perde nada;
+   qualquer outra conta usa cópias separadas (IndexedDB "foco-prova-<uid>", chaves "fp-xp@<uid>"…). */
+function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
+const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
+const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados"]);
+const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
+function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
+function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
+// Ao entrar/sair: se a conta mudou, recarrega a página já com os dados certos daquela conta
+function trocarDadosDaConta(uid) {
+  try {
+    if (uid && !CONTA_DONA) { localStorage.setItem("fp-dono", uid); localStorage.setItem("fp-conta-ativa", uid); return false; } // 1ª conta: os dados deste aparelho são dela
+    const precisa = uid && uid !== CONTA_DONA ? uid : "";
+    if (precisa === SUFIXO_CONTA) { if (uid) localStorage.setItem("fp-conta-ativa", uid); return false; }
+    if (uid) localStorage.setItem("fp-conta-ativa", uid); else localStorage.removeItem("fp-conta-ativa");
+    location.reload(); return true;
+  } catch { return false; }
+}
 function b64(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
 }
@@ -486,7 +504,7 @@ const STORE = "cadernos";
 let db = null;
 function abrirDB() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open("foco-prova", 1);
+    const r = indexedDB.open(SUFIXO_CONTA ? `foco-prova-${SUFIXO_CONTA}` : "foco-prova", 1);
     r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: "id" });
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
@@ -2937,6 +2955,7 @@ async function iniciarNuvem() {
     A.getRedirectResult(NUVEM.auth).catch(() => {});
     carregarPagamento(); registrarVisita();
     A.onAuthStateChanged(NUVEM.auth, async u => {
+      if (u && trocarDadosDaConta(u.uid)) return; // outra conta: recarrega com o progresso dela
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
       await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
@@ -3153,7 +3172,7 @@ async function iniciarPixAuto() {
     }, 5000);
   } catch (e) {
     console.warn("Pix automático indisponível:", e.message);
-    caixa.innerHTML = `<small class="muted">O pagamento automático não funcionou agora (${esc(String(e.message).slice(0, 140))}). Pague pelo QR abaixo e use os passos 3 e 4 (aprovação manual).</small>`;
+    caixa.innerHTML = `<small class="muted">O pagamento automático não funcionou agora (${esc(String(e.message).slice(0, 140))}). Pague pelo QR abaixo e envie o comprovante pelo WhatsApp (passo 3) que faremos a liberação.</small>`;
     const p = ACESSO.pag; if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(emailUser()) }); desenharQRPix(S.pixCodigo); }
   }
 }
@@ -3164,12 +3183,40 @@ async function pixConfirmado(expira, id) {
   toast(`🎉 Pagamento confirmado! Você está no Pro até ${dataCurta(expira || ACESSO.expira || Date.now())}.`);
   render();
 }
+// Cartão: abre o checkout do Mercado Pago numa aba nova e fica conferindo se foi aprovado
+async function pagarCartao() {
+  const aba = window.open("", "_blank"); // abre já no clique (senão o navegador bloqueia)
+  const aviso = $("#cartaoAviso");
+  if (aviso) aviso.innerHTML = `<small class="muted"><span class="spin"></span> Abrindo o Mercado Pago…</small>`;
+  try {
+    const d = await pagAuto("/cartao");
+    if (!d.url) throw new Error("sem link");
+    if (aba) aba.location.href = d.url; else location.href = d.url;
+    lsSet("fp-cartao-pendente", { email: emailUser(), ate: Date.now() + 24 * 3600000 });
+    if (aviso) aviso.innerHTML = `<div class="aviso-nuvem" style="margin:0"><span class="spin"></span> <b>Aguardando o pagamento no cartão…</b> Termine na aba do Mercado Pago; quando aprovar, seu Pro é liberado aqui sozinho.</div>`;
+    clearInterval(S.cartaoTimer); const ini = Date.now();
+    S.cartaoTimer = setInterval(async () => {
+      if (!$("#dlgPagar")?.open || Date.now() - ini > 30 * 60000) return clearInterval(S.cartaoTimer);
+      try { const s2 = await pagAuto("/status-cartao"); if (s2.pago) { clearInterval(S.cartaoTimer); lsSet("fp-cartao-pendente", null); pixConfirmado(s2.expira, null); } } catch {}
+    }, 6000);
+  } catch (e) {
+    aba?.close();
+    if (aviso) aviso.innerHTML = `<small class="muted">O pagamento com cartão não abriu agora (${esc(String(e.message).slice(0, 120))}). Tente de novo em instantes ou pague pelo Pix.</small>`;
+  }
+}
 // Ao abrir o site: se ficou um Pix pendente (a pessoa fechou a tela antes de cair), confere
 async function conferirPixPendente() {
   if (!NUVEM.user) return;
   const pend = (lsGet("fp-pix-pendentes", []) || []).filter(x => x.ate > Date.now());
   lsSet("fp-pix-pendentes", pend);
   for (const x of pend) { try { const s = await pagAuto("/status", { id: x.id }); if (s.pago) return pixConfirmado(s.expira, x.id); } catch {} }
+  const cp = lsGet("fp-cartao-pendente", null);
+  if ((cp && cp.ate > Date.now() && cp.email === emailUser()) || /pago=cartao/.test(location.search)) {
+    try { const s = await pagAuto("/status-cartao"); if (s.pago) { lsSet("fp-cartao-pendente", null); return pixConfirmado(s.expira, null); } } catch {}
+    if (/pago=cartao/.test(location.search)) toast("Recebemos seu pagamento no cartão. Assim que o Mercado Pago aprovar, seu Pro é liberado — pode levar alguns minutos.");
+  }
+  if (/pago=falhou/.test(location.search)) toast("O pagamento no cartão não foi aprovado. Tente outro cartão ou pague pelo Pix.", true);
+  if (/pago=/.test(location.search)) history.replaceState(null, "", location.pathname);
 }
 async function desenharQRPix(codigo) {
   const el = $("#pixQR"); if (!el) return;
@@ -3210,9 +3257,9 @@ function abrirPagamento(tipo) {
             <small class="muted">Ou pague pela chave Pix:<br><code style="word-break:break-all">${esc(p.pix)}</code> <button class="btn small ghost" data-act="copiarPix">Copiar chave</button></small>
           </div>
         </div></li>
-      <li>Envie o <b>comprovante</b> e o <b>seu e-mail</b>${num ? ` pelo WhatsApp <b>${esc(p.whats)}</b>` : ""}:${num ? `<div style="margin-top:6px"><a class="pill" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">💬 Enviar pelo WhatsApp</a></div>` : ""}</li>
-      <li>Toque em <b>"Já paguei, pedir o Pro"</b>. Seu pedido chega na hora para o administrador liberar.</li>
-    </ol>`}
+      <li>Caso o seu Pro <b>não seja liberado automaticamente</b> em alguns minutos, envie o <b>comprovante</b>${num ? ` para o WhatsApp <b>${esc(p.whats)}</b>` : ""} que faremos a liberação.${num ? `<div style="margin-top:6px"><a class="btn small" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">💬 Enviar comprovante pelo WhatsApp</a></div>` : ""}</li>
+    </ol>
+    ${NUVEM.user ? `<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--line)"><b>💳 Prefere cartão de crédito ou débito?</b><div class="muted" style="font-size:13px;margin:4px 0 8px">Abre a página segura do Mercado Pago. Assim que for aprovado, seu Pro é liberado sozinho.</div><button class="pill" data-act="pagarCartao">💳 Pagar com cartão</button><div id="cartaoAviso" style="margin-top:6px"></div></div>` : ""}`}
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${!NUVEM.user || !p.pix ? "" : ACESSO.pedido ? `<button class="pill" data-act="jaLiberado">🔄 Verificar se já liberou</button>` : `<button class="pill" data-act="pedirPro">📨 Já paguei, pedir o Pro</button>`}</div>`;
   const d = $("#dlgPagar"); if (!d.open) d.showModal();
   if (NUVEM.user) iniciarPixAuto();
@@ -3639,6 +3686,7 @@ document.addEventListener("click", async e => {
     case "sairConta": NUVEM.menu = false; sairConta(); break;
     case "pagar": e.preventDefault(); NUVEM.menu = false; desenharConta(); abrirPagamento(null); break;
     case "fecharPagar": $("#dlgPagar").close(); break;
+    case "pagarCartao": pagarCartao(); break;
     case "copiarPixCodigo": navigator.clipboard?.writeText(S.pixCodigo || "").then(() => toast("📋 Pix copia e cola copiado! Cole na área Pix do app do seu banco."), () => toast("Não consegui copiar. Use o QR Code.", true)); break;
     case "copiarPix": navigator.clipboard?.writeText(ACESSO.pag.pix).then(() => toast("📋 Chave Pix copiada!"), () => toast("Copie a chave manualmente.", true)); break;
     case "jaLiberado": await verificarAcesso(); if (ACESSO.liberado && !ACESSO.pedido) { $("#dlgPagar").close(); toast(`🎉 Pro liberado${ACESSO.expira ? ` até ${dataCurta(ACESSO.expira)}` : ""}! Bons estudos.`); } else toast("Ainda não foi liberado. Assim que o administrador confirmar o Pix, toque de novo.", true); break;
@@ -3797,7 +3845,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1848";
+const VERSAO_APP = "2026-11-21-1904";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;

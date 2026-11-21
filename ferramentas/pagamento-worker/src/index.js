@@ -1,6 +1,8 @@
 // Hipocampo Study — pagamento automático do Pro (Pix pelo Mercado Pago, API de Orders)
 // Rotas:  POST /criar   { idToken }            → cria um Pix de R$ PRECO para o e-mail da pessoa logada
 //         POST /status  { idToken, id }        → confere no Mercado Pago; se pago, libera DIAS de Pro
+//         POST /cartao  { idToken }            → cria um link do Checkout do Mercado Pago (cartão) para o e-mail logado
+//         POST /status-cartao { idToken }      → procura pagamento aprovado desse e-mail feito pelo checkout; se achar, libera
 //         POST /webhook (aviso do Mercado Pago) → confere o pedido e libera
 // Segredos (wrangler secret put): MP_TOKEN (Access Token do Mercado Pago), SA_JSON (chave da conta de serviço do Firebase)
 
@@ -25,6 +27,8 @@ export default {
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
       if (rota === "/criar") return json(req, await criarPix(env, email));
       if (rota === "/status") return json(req, await conferir(env, corpo.id, email));
+      if (rota === "/cartao") return json(req, await criarCheckout(env, email));
+      if (rota === "/status-cartao") return json(req, await conferirCheckout(env, email));
       return json(req, { erro: "rota desconhecida" }, 404);
     } catch (e) {
       return json(req, { erro: String(e?.message || e).slice(0, 300) }, 500);
@@ -80,7 +84,7 @@ async function criarPixPagamento(env, email) {
     headers: { "X-Idempotency-Key": crypto.randomUUID() },
     body: JSON.stringify({
       transaction_amount: preco, description: "Hipocampo Study Pro - 30 dias", payment_method_id: "pix",
-      external_reference: email, date_of_expiration: vence, payer: { email }
+      external_reference: email, date_of_expiration: vence, payer: { email }, metadata: { origem: "pix-pagamento" }
     })
   });
   const td = p.point_of_interaction?.transaction_data || {};
@@ -102,6 +106,38 @@ async function criarPixOrders(env, email) {
   return { id: pedido.id, status: pedido.status, qr_code: pg.qr_code, qr_code_base64: pg.qr_code_base64, ticket_url: pg.ticket_url, valor: preco };
 }
 
+// Cartão: página oficial do Mercado Pago (o número do cartão nunca passa pelo site)
+const SITE = "https://hipocampo.web.app";
+async function criarCheckout(env, email) {
+  if (await contaDeTeste(env)) throw new Error("pagamento automático em manutenção");
+  const preco = Math.round(Number(env.PRECO || "9.99") * 100) / 100;
+  const pref = await mp(env, "/checkout/preferences", {
+    method: "POST",
+    body: JSON.stringify({
+      items: [{ id: "pro-30", title: "Hipocampo Study Pro - 30 dias", quantity: 1, unit_price: preco, currency_id: "BRL" }],
+      payer: { email },
+      external_reference: refDe(email),
+      metadata: { origem: "checkout" },
+      payment_methods: { excluded_payment_types: [{ id: "ticket" }], installments: 1 },
+      back_urls: { success: SITE + "/?pago=cartao", pending: SITE + "/?pago=cartao", failure: SITE + "/?pago=falhou" },
+      auto_return: "approved",
+      notification_url: "https://hipocampo-pagamento.pagamento-worker.workers.dev/webhook",
+      statement_descriptor: "HIPOCAMPO",
+      expires: true, expiration_date_to: new Date(Date.now() + 24 * 3600000).toISOString()
+    })
+  });
+  return { url: pref.init_point };
+}
+async function conferirCheckout(env, email) {
+  const r = await mp(env, `/v1/payments/search?external_reference=${encodeURIComponent(refDe(email))}&sort=date_created&criteria=desc&limit=20`);
+  // libera cada pagamento aprovado ainda não contado (o liberar() ignora os que já foram somados)
+  const aprovados = (r.results || []).filter(x => x.status === "approved" && x.metadata?.origem === "checkout").reverse();
+  if (!aprovados.length) return { pago: false };
+  let expira = 0;
+  for (const x of aprovados) expira = await liberar(env, email, "pay_" + x.id);
+  return { pago: true, expira };
+}
+
 const pago = p => p?.status === "processed" || p?.status_detail === "accredited" || p?.transactions?.payments?.[0]?.status === "processed";
 
 async function conferir(env, id, emailPedido) {
@@ -109,6 +145,7 @@ async function conferir(env, id, emailPedido) {
   let email, ok, status, ref = id;
   if (id.startsWith("pay_")) {
     const p = await mp(env, "/v1/payments/" + encodeURIComponent(id.slice(4)));
+    if (!["checkout", "pix-pagamento"].includes(p.metadata?.origem)) return { pago: false, status: "contado pelo pedido" };
     email = emailDaRef(p.external_reference); ok = p.status === "approved"; status = p.status;
   } else {
     const pedido = await mp(env, "/v1/orders/" + encodeURIComponent(id));
