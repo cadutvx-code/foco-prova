@@ -1670,7 +1670,7 @@ function formGerar(tipo, label, { qtd = true, extra = "" } = {}) {
   return `<div class="card stack">
     <div class="row">
       ${qtd ? `<label style="width:120px">Quantidade<input type="number" id="g-qtd" min="1" max="60" value="${S.form.qtd}"></label>` : ""}
-      ${qtd ? `<label style="width:150px">Dificuldade<select id="g-dif">${["mista", "fácil", "média", "difícil"].map(d => `<option ${S.form.dif === d ? "selected" : ""}>${d}</option>`).join("")}</select></label>` : ""}
+      ${qtd ? `<label style="width:150px">Dificuldade<select id="g-dif">${["mista", "fácil", "média", "difícil"].map(d => `<option value="${d}" ${S.form.dif === d ? "selected" : ""}>${d}</option>`).join("")}</select></label>` : ""}
       <label class="grow">Foco (opcional)<input type="text" id="g-foco" value="${esc(S.form.foco)}" placeholder="ex.: capítulo 3, ciclo de Krebs, só as fórmulas"></label>
     </div>
     ${extra}
@@ -4014,7 +4014,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2034";
+const VERSAO_APP = "2026-11-21-2036";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4444,15 +4444,23 @@ const UI_ES = {
   "Pessoas que tocaram em \"Já paguei\". Confira o Pix e o comprovante no WhatsApp antes de autorizar.": "Personas que tocaron en \"Ya pagué\". Revisa el Pix y el comprobante en WhatsApp antes de autorizar.",
   "Conta todo mundo que abre o site, com ou sem login (sem guardar dados pessoais). \"Aparelhos\" = pessoas diferentes, aproximadamente.": "Cuenta a todos los que abren el sitio, con o sin login (sin guardar datos personales). \"Dispositivos\" = personas distintas, aproximadamente.",
   "Os R$": "Los R$",
-  "” criado e salvo.": "” creado y guardado."
+  "” criado e salvo.": "” creado y guardado.",
+  ": perguntas, Ateneos": ": preguntas, Ateneos", ": perguntas, tutor": ": preguntas, tutor", "mista": "mixta", "fácil": "fácil", "difícil": "difícil"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
 const pedacosUI = () => PEDACOS_UI ||= Object.keys(UI_ES).filter(k => k.length >= 12 || k.includes("R$")).sort((a, b) => b.length - a.length);
+// frase inteira → regras com números → pedaços conhecidos (frases com números ou nomes no meio)
+function traduzirTexto(t) {
+  let novo = UI_ES[t];
+  if (!novo) for (const [re, rep] of UI_RE) if (re.test(t)) { novo = t.replace(re, rep); break; }
+  if (!novo && t.length > 12) { let x = t; for (const k of pedacosUI()) if (x.includes(k)) x = x.split(k).join(UI_ES[k]); if (x !== t) novo = x; }
+  return novo;
+}
 function traduzirNo(raiz) {
   if (lsGet("fp-ui", "pt") !== "es" || !raiz) return;
   if (raiz.nodeType === 3) raiz = raiz.parentElement; if (!raiz) return;
@@ -4462,14 +4470,11 @@ function traduzirNo(raiz) {
     const el = n.parentElement; if (!el || el.closest(IGNORAR_TRAD)) continue;
     if (el.tagName === "OPTION" && !el.hasAttribute("value")) continue; // o texto é o próprio valor
     const t = n.nodeValue.trim(); if (!t) continue;
-    let novo = UI_ES[t];
-    if (!novo) for (const [re, rep] of UI_RE) if (re.test(t)) { novo = t.replace(re, rep); break; }
-    // frase com números ou nomes no meio: traduz os pedaços conhecidos
-    if (!novo && t.length > 12) { let x = t; for (const k of pedacosUI()) if (x.includes(k)) x = x.split(k).join(UI_ES[k]); if (x !== t) novo = x; }
+    const novo = traduzirTexto(t);
     if (novo && novo !== t) n.nodeValue = n.nodeValue.replace(t, novo);
   }
   (raiz.querySelectorAll ? [raiz, ...raiz.querySelectorAll("[placeholder],[title]")] : []).forEach(el => {
-    for (const a of ["placeholder", "title"]) { const v = el.getAttribute?.(a); if (v && UI_ES[v]) el.setAttribute(a, UI_ES[v]); }
+    for (const a of ["placeholder", "title"]) { const v = el.getAttribute?.(a)?.trim(); const novo = v && traduzirTexto(v); if (novo && novo !== v) el.setAttribute(a, novo); }
   });
 }
 if (lsGet("fp-ui", "pt") === "es") {
