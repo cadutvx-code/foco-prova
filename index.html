@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hipocampo Study</title>
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
-<link rel="shortcut icon" href="favicon.ico">
+<link rel="icon" href="favicon.svg?v=livro" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png?v=livro" sizes="32x32" type="image/png">
+<link rel="shortcut icon" href="favicon.ico?v=livro">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icone-180.png">
 <meta name="theme-color" content="#6246ea">
@@ -1192,7 +1192,7 @@ ESTILO DAS PERGUNTAS (diretas e fáceis de memorizar):
 - CONFIRA O GABARITO antes de responder: a alternativa indicada em "correta" tem que estar 100% de acordo com o conteúdo — mesmos números, faixas e unidades. A "explicacao" tem que defender exatamente essa alternativa, com os mesmos valores. Se não tiver certeza, faça outra pergunta.
 - "explicacao": 2 ou 3 tópicos curtos em lista (cada linha começando com "- "), cada um com no máximo 20 palavras, com o fato principal em **negrito**, do jeito mais fácil de memorizar (pode usar um macete).`;
 // Perguntas repetidas: compara as palavras importantes da pergunta + resposta certa com as já feitas
-const PALAVRAS_VAZIAS = new Set("que qual quais cual cuales como para por com con uma una dos das del los las nos nas mais menos muy muito entre sobre principal principais normal normales normais valor aproximado aproximadamente condicoes condiciones verdadeiro verdadero falso este esta isso esto ser sao son tem tiene quando cuando acontece ocurre sucede pasa ocorre afirmacao afirmacion".split(" "));
+const PALAVRAS_VAZIAS = new Set("que qual quais cual cuales como para por com con uma una dos das del los las nos nas mais menos muy muito entre sobre principal principais normal normales normais valor aproximado aproximadamente condicoes condiciones verdadeiro verdadero falso este esta isso esto ser sao son tem tiene quando cuando acontece ocurre sucede pasa ocorre afirmacao afirmacion capitulo segun acuerdo documento material datos presentados presentacion estudio principios conforme livro libro texto".split(" "));
 function termosDe(t) {
   return new Set(String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").split(" ")
     .filter(w => w.length > 2 && !PALAVRAS_VAZIAS.has(w)).map(w => w.slice(0, 6)));
@@ -1207,10 +1207,15 @@ function sobreposicao(a, b, porMenor) {
   let n = 0; for (const w of a) if (b.has(w)) n++;
   return n / (porMenor ? Math.min(a.size, b.size) : new Set([...a, ...b]).size);
 }
+// palavras opostas: "hipotônica" × "hipertônica" são fatos diferentes mesmo com o resto igual
+const OPOSTOS = [["hipoto", "hipert"], ["aument", "dismin"], ["intrac", "extrac"], ["aferen", "eferen"], ["sistol", "diasto"], ["simpat", "parass"], ["simpat", "parasi"], ["hiperc", "hipoca"], ["hipern", "hipona"], ["hiperp", "hipopo"], ["acidos", "alcalo"], ["vasodi", "vasoco"], ["despol", "hiperp"], ["inspir", "expira"]];
+const opostos = (a, b) => OPOSTOS.some(([x, y]) => (a.has(x) && b.has(y) && !a.has(y) && !b.has(x)) || (a.has(y) && b.has(x) && !a.has(x) && !b.has(y)));
 // mesma resposta + pergunta parecida, ou quase as mesmas palavras no total
 function mesmoFato(a, b) {
+  if (opostos(new Set([...a.q, ...a.r]), new Set([...b.q, ...b.r]))) return false;
   if (a.r.size && b.r.size && sobreposicao(a.r, b.r, true) >= 0.6 && sobreposicao(a.q, b.q, true) > 0.5) return true;
   if (a.q.size >= 3 && b.q.size >= 3 && sobreposicao(a.q, b.q) >= 0.6) return true;
+  if (a.q.size >= 5 && b.q.size >= 5 && sobreposicao(a.q, b.q, true) >= 0.65) return true;
   const ta = new Set([...a.q, ...a.r]), tb = new Set([...b.q, ...b.r]);
   return ta.size >= 3 && tb.size >= 3 && sobreposicao(ta, tb) >= 0.6;
 }
@@ -1918,9 +1923,9 @@ async function entregar(forcado = false) {
 
 /* ---------- Estudo inteligente (adaptativo) ---------- */
 // Perguntas primeiro (a 1ª aparece mais cedo); lista de tópicos curta no fim
-SCH.smart = obj({ itens: arr(obj({ tipo: { type: "string", enum: ["multipla", "vf"] }, topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str) })), topicos: { type: "array", items: str, maxItems: 10 } });
+SCH.smart = obj({ itens: arr(obj({ fato: int, tipo: { type: "string", enum: ["multipla", "vf"] }, topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str) })), topicos: { type: "array", items: str, maxItems: 10 } });
 // Versão leve para a IA no processador: menos texto por pergunta (a explicação completa é gerada quando você responde)
-SCH.smartLeve = obj({ itens: arr(obj({ topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str })), topicos: { type: "array", items: str, maxItems: 8 } });
+SCH.smartLeve = obj({ itens: arr(obj({ fato: int, topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str })), topicos: { type: "array", items: str, maxItems: 8 } });
 const topicoValido = t => { t = String(t || "").trim(); return t.length >= 2 && t.length <= 80 && !/[<>{}]|^(t[óo]pico|topic|name|nome)\s*\d*$/i.test(t); };
 function garantirSmart(c) {
   c.dominio ||= {};
@@ -1956,19 +1961,74 @@ function materialFixo(c, limite) {
   if (S.matCache[c.id]?.chave !== chave) S.matCache[c.id] = { chave, texto: blocoMateriais(c, "", limite) };
   return S.matCache[c.id].texto;
 }
+/* ---------- Mapa de fatos: cada pergunta nova sai de um fato ainda não perguntado ----------
+   Fato acertado nunca volta. Fato errado volta mais adiante (depois de ~10 perguntas), perguntado de outro jeito.
+   Acabou o mapa: a IA procura fatos novos no material. */
+SCH.fatos = obj({ fatos: arr(str) });
+const REVISAR_DEPOIS = 10;
+const chaveMateriais = c => ativos(c).map(m => m.nome || m.id).sort().join("|");
+// cadernos com o mesmo material (ex.: dois "cap 25" com os mesmos PDFs) dividem o histórico
+function cadernosIrmaos(c) { const k = chaveMateriais(c); return k ? (S.cadernos || []).filter(x => x !== c && chaveMateriais(x) === k) : []; }
+function historicoAmplo(c) { return [...(c.inteligente?.historico || []), ...cadernosIrmaos(c).flatMap(x => x.inteligente?.historico || [])]; }
+function fatoUsadoNoHistorico(t, hist) { const q = termosDe(t); return q.size >= 2 && hist.some(h => sobreposicao(q, new Set([...h.q, ...h.r]), true) >= 0.6); }
+S.mapeando = {};
+async function garantirFatos(c, mais = false) {
+  const I = c.inteligente, k = chaveMateriais(c);
+  if (!k) return null;
+  if (!mais && I.fatos?.chave === k && I.fatos.lista?.length) return I.fatos;
+  if (!mais) { // outro caderno com o mesmo material já tem o mapa: aproveita
+    const ir = cadernosIrmaos(c).find(x => x.inteligente?.fatos?.chave === k && x.inteligente.fatos.lista?.length);
+    if (ir) { I.fatos = JSON.parse(JSON.stringify(ir.inteligente.fatos)); return I.fatos; }
+  }
+  if (S.mapeando[c.id]) return S.mapeando[c.id];
+  return S.mapeando[c.id] = (async () => {
+    const atuais = (I.fatos?.chave === k ? I.fatos.lista : []) || [];
+    const r = await gerarJSON(c, mais
+      ? `Estes fatos do material JÁ foram usados:\n${atuais.map(f => "- " + f.t).join("\n")}\n\nLeia TODO o material de novo e liste de 20 a 60 fatos-chave NOVOS, que NÃO estejam na lista acima (nem com outras palavras): detalhes, valores, mecanismos, causas e consequências, exceções, comparações. Cada fato numa frase curta e completa, no idioma do material.`
+      : `Leia TODO o material, do começo ao fim, e liste de 40 a 90 FATOS-CHAVE DIFERENTES que um aluno precisa saber para a prova, cobrindo o conteúdo inteiro (não só o começo). Cada fato numa frase curta e completa, com o valor e a unidade quando houver (ex.: "O fluxo sanguíneo encefálico normal é de 50–65 mL/100 g/min, cerca de 15% do débito cardíaco."). Não repita fatos nem escreva o mesmo fato de dois jeitos. Escreva no idioma do material.`,
+      SCH.fatos, "", { maxTokens: 7000, fundo: true, rotulo: "Mapeando os fatos do material", system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: materialFixo(c, 40000) }] });
+    const hist = historicoAmplo(c).map(fatoDe), lista = [...atuais], vistos = atuais.map(f => fatoDe({ enunciado: f.t }));
+    for (const t of (r.fatos || []).map(x => String(x).trim()).filter(x => x.length > 12)) {
+      const f = fatoDe({ enunciado: t });
+      if (vistos.some(v => mesmoFato(f, v))) continue;
+      vistos.push(f);
+      lista.push({ t, usos: fatoUsadoNoHistorico(t, hist) ? 1 : 0, erros: 0, errouEm: 0 });
+    }
+    I.fatos = { chave: k, lista, rodadas: (I.fatos?.rodadas || 0) + (mais ? 1 : 0) };
+    salvar(c);
+    return I.fatos;
+  })().finally(() => { delete S.mapeando[c.id]; });
+}
+// Escolhe os fatos do próximo lote: no máx. 1 revisão (fato errado há tempo) + fatos nunca perguntados
+async function escolherFatos(c, n) {
+  const I = c.inteligente;
+  let F = await garantirFatos(c); if (!F) return null;
+  const agora = Date.now(), reservado = f => f.reserva && agora - f.reserva < 10 * 60000;
+  const revisao = F.lista.map((f, i) => ({ f, i })).filter(x => x.f.erros > 0 && !reservado(x.f) && (I.respondidas || 0) - (x.f.errouEm || 0) >= REVISAR_DEPOIS);
+  let novos = F.lista.map((f, i) => ({ f, i })).filter(x => !x.f.usos && !reservado(x.f));
+  if (novos.length < n && (F.rodadas || 0) < 4) { try { F = await garantirFatos(c, true); novos = F.lista.map((f, i) => ({ f, i })).filter(x => !x.f.usos && !reservado(x.f)); } catch (e) { console.warn("mapa extra:", e.message); } }
+  const esc = [...revisao.slice(0, 1).map(x => ({ ...x, rev: true })), ...embaralhar(novos)].slice(0, n);
+  for (const x of esc) x.f.reserva = agora;
+  return esc.length ? esc : null;
+}
 async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false, leve = false, conversa = null) {
   garantirSmart(c);
   const I = c.inteligente;
+  let escolhidos = null;
+  if (!focoTopico) { try { escolhidos = await escolherFatos(c, n || 3); } catch (e) { console.warn("mapa de fatos indisponível:", e.message); } }
+  if (escolhidos) n = escolhidos.length;
   const local = cfg().provider !== "anthropic";
   const cpu = cfg().provider === "webllm" && (WL.modo === "cpu" || !navigator.gpu);
   n = cpu ? Math.min(n || 2, 2) : (n || (local ? 4 : 8));
   const dom = I.topicos.map(t => { const d = c.dominio[t]; return d?.tentativas ? `- ${t}: domínio ${Math.round(d.score * 100)}% (${d.acertos}/${d.tentativas} acertos) → dificuldade alvo ${nivelDe(d.score)}` : `- ${t}: ainda não praticado`; }).join("\n");
   const naFila = S.player?.tipo === "smart" ? S.player.fila.slice(S.player.i) : [];
-  const jaFeitas = [...I.historico.slice(-150), ...[...(I.banco || []), ...naFila].map(b => b.enunciado.slice(0, 100))];
+  const jaFeitas = [...historicoAmplo(c).slice(-150), ...[...(I.banco || []), ...naFila].map(b => b.enunciado.slice(0, 100))];
   const hist = jaFeitas.map(h => "- " + h).join("\n") || "(nenhuma)";
   const instr = `Você conduz uma sessão de ESTUDO ADAPTATIVO, como um professor particular. Gere exatamente ${n} perguntas.
 ${I.topicos.length ? `Tópicos conhecidos e domínio atual do estudante:\n${dom}` : `Primeira sessão: identifique os principais tópicos dos materiais (de 4 a 12, nomes curtos) e liste-os em "topicos". Comece com perguntas de dificuldade 1 e 2 sobre os tópicos mais importantes.`}
-${focoTopico ? `\nO estudante pediu para focar SOMENTE no tópico: "${focoTopico}".` : `
+${focoTopico ? `\nO estudante pediu para focar SOMENTE no tópico: "${focoTopico}".` : escolhidos ? `
+FATOS DESTE LOTE — faça exatamente UMA pergunta para CADA fato abaixo, na mesma ordem, testando exatamente esse fato. Em "fato", coloque o número do fato.
+${escolhidos.map((x, k) => `${k + 1}) ${x.f.t}${x.rev ? ` [REVISÃO: o estudante ERROU este fato. Pergunte de um jeito DIFERENTE do anterior (outro ângulo ou formato), para ele fixar.]` : ""}`).join("\n")}` : `
 Regras de adaptação:
 - Cerca de 60% das perguntas nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
@@ -1984,13 +2044,17 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
   // No processador cada palavra lida custa tempo: instrução curta e direta
   const instrFinal = !cpu ? (leve ? instr.replace(/^- "explicacoes".*$/m, "- As alternativas são só o texto da opção, sem rótulos como \"Correta\" ou \"Errada\".") : instr) : `Crie ${n} perguntas de múltipla escolha sobre o material, em ${idiomaCaderno(c) === "es" ? "espanhol" : "português"}. Cada uma com 4 alternativas e só uma correta ("correta" = índice 0 a 3). "explicacao": por que a correta está certa (1 frase). "topico": assunto curto (ex.: "Edema").${focoTopico ? ` Só sobre: ${focoTopico}.` : foco ? ` Priorize: ${foco.slice(0, 120)}.` : ""}${I.historico.length ? ` Não repita: ${I.historico.slice(-5).map(h => h.slice(0, 50)).join("; ")}.` : ""}${I.prefs ? ` Preferência: ${I.prefs.slice(0, 150)}.` : ""}`;
   // fatos já cobrados (respondidas, guardadas e na fila): a IA às vezes repete com outras palavras, então confere aqui também
-  const anteriores = [...I.historico.slice(-200), ...(I.banco || []), ...naFila].map(fatoDe);
+  const anteriores = [...historicoAmplo(c).slice(-300), ...(I.banco || []), ...naFila].map(fatoDe);
   const preparar = bruto => {
     const vf = bruto.tipo === "vf" || (Array.isArray(bruto.alternativas) && bruto.alternativas.length === 2 && /^verdade/i.test(String(bruto.alternativas[0])));
     const it = { ...bruto, tipo: vf ? "vf" : "multipla" };
     if (vf) { it.alternativas = idiomaCaderno(c) === "es" ? ["Verdadero", "Falso"] : ["Verdadeiro", "Falso"]; it.correta = it.correta === 1 ? 1 : 0; delete it.explicacoes; it.enunciado = String(it.enunciado || "").replace(/^\s*¿?(verdadeiro ou falso|verdadero o falso)\s*[?:.\-–]*\s*/i, ""); }
     if (!it.enunciado || !altsValidas(it)) return null;
-    if (repetida(it, anteriores)) return null;
+    // liga a pergunta ao fato do mapa (revisão de fato errado pode parecer com a anterior: é de propósito)
+    const ef = escolhidos?.[(Number.isInteger(bruto.fato) ? bruto.fato : 0) - 1];
+    if (ef) { it.fatoTxt = ef.f.t; if (ef.rev) it.revisao = true; }
+    if (!it.revisao && repetida(it, anteriores)) return null;
+    if (ef) { ef.f.usos = (ef.f.usos || 0) + 1; delete ef.f.reserva; }
     anteriores.push(fatoDe(it));
     if (!topicoValido(it.topico)) it.topico = "Geral";
     if (!I.topicos.includes(it.topico)) I.topicos.push(it.topico);
@@ -2104,11 +2168,11 @@ function playerSmart(c) {
 // já foi perguntada (nesta sessão, no histórico ou guardada)? lotes gerados ao mesmo tempo não se enxergam, então confere aqui
 function jaTem(c, it, p) {
   const I = c.inteligente || {};
-  const lista = [...(I.historico || []).slice(-250), ...(I.banco || []), ...(p?.fila || [])].filter(x => x !== it);
+  const lista = [...historicoAmplo(c).slice(-300), ...(I.banco || []), ...(p?.fila || [])].filter(x => x !== it);
   return repetida(it, lista.map(fatoDe));
 }
 function empurrar(c, p, it) {
-  if (it.tipo !== "licao" && jaTem(c, it, S.player === p ? p : null)) return; // repetida: descarta
+  if (it.tipo !== "licao" && !it.revisao && jaTem(c, it, S.player === p ? p : null)) return; // repetida: descarta
   if (S.player === p && !p.fim) {
     const esperando = p.i >= p.fila.length;
     p.fila.push(it);
@@ -2171,8 +2235,8 @@ function smartIniciar(c, focoTopico = null) {
   const I = c.inteligente;
   const inicioDominio = {}; for (const t of I.topicos) inicioDominio[t] = c.dominio[t]?.score || 0;
   const banco = I.banco || [];
-  const anteriores = (I.historico || []).slice(-250).map(fatoDe), limpas = [];
-  for (const it of banco) { if (it.tipo === "licao" || !repetida(it, anteriores)) { limpas.push(it); anteriores.push(fatoDe(it)); } }
+  const anteriores = historicoAmplo(c).slice(-300).map(fatoDe), limpas = [];
+  for (const it of banco) { if (it.tipo === "licao" || it.revisao || !repetida(it, anteriores)) { limpas.push(it); anteriores.push(fatoDe(it)); } }
   const usar = focoTopico ? limpas.filter(it => it.topico === focoTopico) : limpas.slice();
   I.banco = limpas.filter(it => !usar.includes(it));
   S.player = { tipo: "smart", fila: usar, i: 0, escolha: null, confirmado: false, virado: false, focoTopico, proximo: null, inicioDominio, sessao: { acertos: 0, total: 0, xp: 0, combo: 0, erros: 0 } };
@@ -2185,6 +2249,8 @@ function smartIniciar(c, focoTopico = null) {
 async function smartResponder(c, acertou) {
   if (!podeUsar()) { S.player.escolha = null; render(); return; } gastar();
   const p = S.player, it = p.fila[p.i], I = c.inteligente;
+  const fato = it.fatoTxt && I.fatos?.lista?.find(f => f.t === it.fatoTxt);
+  if (fato) { if (acertou) fato.erros = 0; else { fato.erros = (fato.erros || 0) + 1; fato.errouEm = (I.respondidas || 0) + 1; } }
   const d = c.dominio[it.topico] ||= { score: 0, tentativas: 0, acertos: 0 };
   if (!(it.topico in p.inicioDominio)) p.inicioDominio[it.topico] = d.score;
   d.tentativas++; d.ultima = Date.now();
@@ -3730,6 +3796,7 @@ function aplicarTema() {
 
 /* ================= eventos ================= */
 document.addEventListener("click", async e => {
+  if (NUVEM.menu && !e.target.closest(".conta-menu") && !e.target.closest('[data-act="menuConta"]')) { NUVEM.menu = false; desenharConta(); }
   const el = e.target.closest("[data-act]"); if (!el || el.disabled) return;
   if (S.menuKit && !e.target.closest(".kit-menu") && el.dataset.act !== "menuKit") { S.menuKit = null; if (el.dataset.act === "abrir") { render(); return; } }
   const act = el.dataset.act, id = el.dataset.id, c = atual();
@@ -3926,7 +3993,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1917";
+const VERSAO_APP = "2026-11-21-1925";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
