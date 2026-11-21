@@ -3103,17 +3103,21 @@ async function iniciarPixAuto() {
   const caixa = $("#pixAuto"); if (!caixa || !NUVEM.user) return;
   clearInterval(S.pixTimer);
   try {
-    const d = await pagAuto("/criar");
+    // reaproveita o mesmo Pix por 20 minutos (abrir a tela de novo não gera outro QR)
+    const reusar = S.pixAtual && S.pixAtual.email === emailUser() && Date.now() - S.pixAtual.t < 20 * 60000;
+    const d = reusar ? S.pixAtual.d : await pagAuto("/criar");
     if (!d.qr_code) throw new Error("sem QR");
+    if (!reusar) S.pixAtual = { d, t: Date.now(), email: emailUser() };
     S.pixCodigo = d.qr_code; S.pixPedido = d.id;
-    lsSet("fp-pix-pendente", { id: d.id, ate: Date.now() + 35 * 60000 });
+    const pend = (lsGet("fp-pix-pendentes", []) || []).filter(x => x.ate > Date.now() && x.id !== d.id);
+    lsSet("fp-pix-pendentes", [...pend, { id: d.id, ate: Date.now() + 24 * 3600000 }].slice(-10));
     const el = $("#pixQR"); if (el) el.innerHTML = d.qr_code_base64 ? `<img src="data:image/png;base64,${d.qr_code_base64}" alt="QR Code do Pix" style="width:100%;height:100%">` : "";
     if (!d.qr_code_base64) desenharQRPix(d.qr_code);
     caixa.innerHTML = `<div class="aviso-nuvem" style="margin:0"><span class="spin"></span> <b>Aguardando o pagamento…</b> Assim que o Pix cair, seu Pro é liberado <b>sozinho</b>, em segundos. Pode deixar esta tela aberta.</div>`;
     const ini = Date.now();
     S.pixTimer = setInterval(async () => {
       if (!$("#dlgPagar")?.open || Date.now() - ini > 30 * 60000) return clearInterval(S.pixTimer);
-      try { const s = await pagAuto("/status", { id: d.id }); if (s.pago) { clearInterval(S.pixTimer); pixConfirmado(s.expira); } } catch {}
+      for (const x of lsGet("fp-pix-pendentes", []) || []) { try { const s = await pagAuto("/status", { id: x.id }); if (s.pago) { clearInterval(S.pixTimer); return pixConfirmado(s.expira, x.id); } } catch {} }
     }, 5000);
   } catch (e) {
     console.warn("Pix automático indisponível:", e.message);
@@ -3121,8 +3125,8 @@ async function iniciarPixAuto() {
     const p = ACESSO.pag; if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(emailUser()) }); desenharQRPix(S.pixCodigo); }
   }
 }
-async function pixConfirmado(expira) {
-  lsSet("fp-pix-pendente", null);
+async function pixConfirmado(expira, id) {
+  lsSet("fp-pix-pendentes", (lsGet("fp-pix-pendentes", []) || []).filter(x => x.id !== id)); S.pixAtual = null;
   await verificarAcesso();
   $("#dlgPagar")?.close();
   toast(`🎉 Pagamento confirmado! Você está no Pro até ${dataCurta(expira || ACESSO.expira || Date.now())}.`);
@@ -3130,10 +3134,10 @@ async function pixConfirmado(expira) {
 }
 // Ao abrir o site: se ficou um Pix pendente (a pessoa fechou a tela antes de cair), confere
 async function conferirPixPendente() {
-  const pend = lsGet("fp-pix-pendente", null);
-  if (!pend?.id || !NUVEM.user) return;
-  if (Date.now() > pend.ate + 24 * 3600000) return lsSet("fp-pix-pendente", null);
-  try { const s = await pagAuto("/status", { id: pend.id }); if (s.pago) pixConfirmado(s.expira); } catch {}
+  if (!NUVEM.user) return;
+  const pend = (lsGet("fp-pix-pendentes", []) || []).filter(x => x.ate > Date.now());
+  lsSet("fp-pix-pendentes", pend);
+  for (const x of pend) { try { const s = await pagAuto("/status", { id: x.id }); if (s.pago) return pixConfirmado(s.expira, x.id); } catch {} }
 }
 async function desenharQRPix(codigo) {
   const el = $("#pixQR"); if (!el) return;
@@ -3766,7 +3770,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1513";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;

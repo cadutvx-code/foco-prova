@@ -52,6 +52,12 @@ async function mp(env, caminho, opcoes = {}) {
   return d;
 }
 
+const refDe = email => btoa(unescape(encodeURIComponent(email))).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+function emailDaRef(ref) {
+  ref = String(ref || "");
+  if (ref.includes("@")) return ref.toLowerCase();
+  try { const b = ref.replace(/-/g, "+").replace(/_/g, "/"); return decodeURIComponent(escape(atob(b + "===".slice((b.length + 3) % 4)))).toLowerCase(); } catch { return ""; }
+}
 async function criarPix(env, email) {
   try { return await criarPixOrders(env, email); }
   catch (e) { console.log("Orders recusou, tentando Pagamentos:", e.message); return await criarPixPagamento(env, email); }
@@ -77,8 +83,7 @@ async function criarPixOrders(env, email) {
     headers: { "X-Idempotency-Key": crypto.randomUUID() },
     body: JSON.stringify({
       type: "online", processing_mode: "automatic", total_amount: preco,
-      external_reference: email,
-      description: "Hipocampo Study Pro - 30 dias",
+      external_reference: refDe(email),
       payer: { email },
       transactions: { payments: [{ amount: preco, payment_method: { id: "pix", type: "bank_transfer" }, expiration_time: "PT30M" }] }
     })
@@ -94,10 +99,10 @@ async function conferir(env, id, emailPedido) {
   let email, ok, status, ref = id;
   if (id.startsWith("pay_")) {
     const p = await mp(env, "/v1/payments/" + encodeURIComponent(id.slice(4)));
-    email = String(p.external_reference || "").toLowerCase(); ok = p.status === "approved"; status = p.status;
+    email = emailDaRef(p.external_reference); ok = p.status === "approved"; status = p.status;
   } else {
     const pedido = await mp(env, "/v1/orders/" + encodeURIComponent(id));
-    email = String(pedido.external_reference || "").toLowerCase(); ok = pago(pedido); status = pedido.status; ref = pedido.id;
+    email = emailDaRef(pedido.external_reference); ok = pago(pedido); status = pedido.status; ref = pedido.id;
   }
   if (emailPedido && email !== emailPedido) throw new Error("este pagamento é de outra conta");
   if (!ok) return { pago: false, status };
