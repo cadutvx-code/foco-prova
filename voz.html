@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teste de voz</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg:#110b2e; --panel:#1b1446; --panel2:#251c5c; --line:#3a2f7a; --text:#fff; --muted:#b9b3e6; --accent:#5b8dff; --ok:#3ddc97; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { margin:0 0 4px; font-size:24px; }
+  .muted { color:var(--muted); font-size:13.5px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:16px; }
+  textarea { width:100%; min-height:90px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit; resize:vertical; }
+  .vozes { display:grid; gap:10px; margin-top:10px; }
+  .voz { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+  .voz b { flex:1; min-width:180px; }
+  .voz small { display:block; color:var(--muted); font-weight:400; }
+  button { border:0; border-radius:999px; padding:8px 16px; font:inherit; font-weight:700; cursor:pointer; background:var(--accent); color:#fff; }
+  button.sec { background:transparent; border:1px solid var(--line); color:var(--text); }
+  button:disabled { opacity:.55; cursor:wait; }
+  .estado { font-size:13px; color:var(--muted); min-width:120px; }
+  .estado.ok { color:var(--ok); }
+  .abas { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔊 Teste de voz do professor</h1>
+  <div class="muted">Vozes <b>Piper</b>: rodam no seu próprio aparelho, de graça e sem limite. Na primeira vez que você toca uma voz, ela é baixada (cerca de 60 MB) e fica guardada. Depois sai em 1 ou 2 segundos.</div>
+
+  <div class="card">
+    <b>Texto para o professor falar</b>
+    <div class="abas">
+      <button class="sec" data-texto="pt">Exemplo em português</button>
+      <button class="sec" data-texto="es">Ejemplo en español</button>
+    </div>
+    <textarea id="texto" style="margin-top:10px"></textarea>
+  </div>
+
+  <div class="card">
+    <b>🇧🇷 Português</b>
+    <div class="vozes" id="vozesPt"></div>
+  </div>
+  <div class="card">
+    <b>🇪🇸 Español</b>
+    <div class="vozes" id="vozesEs"></div>
+  </div>
+  <div class="card">
+    <b>Para comparar</b>
+    <div class="vozes"><div class="voz"><b>Voz do navegador<small>a voz que o app usava como reserva</small></b><button class="sec" id="btnNavegador">▶ Ouvir</button></div></div>
+  </div>
+</main>
+<script type="module">
+const EX = {
+  pt: "Muito bem. Você tirou o capítulo vinte e sete: filtração glomerular. Me explique como o rim controla a taxa de filtração e qual é o papel da arteríola aferente.",
+  es: "Muy bien. Te tocó el capítulo veintisiete: filtración glomerular. Explícame cómo el riñón controla la tasa de filtración y cuál es el papel de la arteriola aferente."
+};
+const VOZES = {
+  pt: [["pt_BR-faber-medium", "Faber", "Brasil · masculina · qualidade média"], ["pt_BR-edresson-low", "Edresson", "Brasil · masculina · qualidade baixa"], ["pt_PT-tugão-medium", "Tugão", "Portugal · masculina"]],
+  es: [["es_MX-claude-high", "Claude", "México · femenina · alta calidad"], ["es_MX-ald-medium", "Ald", "México · masculina"], ["es_ES-davefx-medium", "Davefx", "España · masculina"], ["es_ES-sharvard-medium", "Sharvard", "España · masculina/femenina"], ["es_ES-mls_10246-low", "MLS 10246", "España · masculina · baja calidad"], ["es_ES-mls_9972-low", "MLS 9972", "España · femenina · baja calidad"], ["es_ES-carlfm-x_low", "Carlfm", "España · masculina · muy liviana"]]
+};
+const $ = s => document.querySelector(s);
+const texto = $("#texto");
+texto.value = EX.pt;
+document.querySelectorAll("[data-texto]").forEach(b => b.onclick = () => { texto.value = EX[b.dataset.texto]; });
+let tts, tocando;
+const carregar = async () => tts ||= await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm");
+function linha([id, nome, desc]) {
+  const d = document.createElement("div"); d.className = "voz";
+  d.innerHTML = `<b>${nome}<small>${desc}</small></b><span class="estado"></span><button>▶ Ouvir</button>`;
+  const est = d.querySelector(".estado"), btn = d.querySelector("button");
+  btn.onclick = async () => {
+    btn.disabled = true; est.className = "estado"; est.textContent = "preparando…";
+    try {
+      const t = await carregar(), t0 = performance.now();
+      const wav = await t.predict({ text: texto.value.trim() || EX.pt, voiceId: id }, p => {
+        if (p?.total) est.textContent = `baixando a voz: ${Math.round(p.loaded / p.total * 100)}%`;
+      });
+      est.className = "estado ok"; est.textContent = `pronto em ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+      tocando?.pause(); tocando = new Audio(URL.createObjectURL(wav)); tocando.play();
+    } catch (e) { est.textContent = "erro: " + (e.message || e); }
+    btn.disabled = false;
+  };
+  return d;
+}
+VOZES.pt.forEach(v => $("#vozesPt").appendChild(linha(v)));
+VOZES.es.forEach(v => $("#vozesEs").appendChild(linha(v)));
+$("#btnNavegador").onclick = () => {
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(texto.value);
+  u.lang = /[ñ¿¡]|explícame|riñón/i.test(texto.value) ? "es-ES" : "pt-BR";
+  speechSynthesis.speak(u);
+};
+</script>
+</body>
+</html>
