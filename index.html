@@ -316,6 +316,8 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="txtCancelar">Cancelar</button><button class="pill" data-act="txtOk">Salvar</button></div>
   </div>
 </dialog>
+<dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
+<dialog id="dlgAdmin" style="width:min(560px,calc(100vw - 24px))"><div id="adminCorpo" class="stack"></div></dialog>
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
@@ -1195,6 +1197,7 @@ async function gerarGuiaEmPartes(c, foco) {
 async function gerar(tipo) {
   const c = atual();
   if (!ativos(c).length) return toast("Adicione materiais na aba Materiais primeiro.", true);
+  if (!podeUsar()) return; gastar();
   lerForm();
   const { qtd, dif, foco } = S.form;
   const f = foco ? `\nConcentre-se especificamente em: ${foco}.` : "";
@@ -1384,7 +1387,7 @@ function viewHome() {
     </div>`;
   };
   const avisoEndereco = location.hostname.endsWith("github.io") ? `<div class="aviso-nuvem">🏠 O Foco Prova mudou de endereço: <a href="https://focoprova.web.app" style="color:var(--accent);font-weight:800">focoprova.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
-  return `${avisoEndereco}${cartaoMeta()}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  return `${avisoEndereco}${cartaoPlano()}${cartaoMeta()}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}
@@ -1608,6 +1611,7 @@ function playerQuiz(c) {
 }
 function quizResponder(c, i) {
   const p = S.player; if (p.confirmado) return;
+  if (!podeUsar()) return; gastar();
   const q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]];
   p.escolha = i; p.confirmado = true;
   if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
@@ -1706,6 +1710,7 @@ async function entregar(forcado = false) {
   p.corrigindo = false;
   pv.tentativas.push({ data: Date.now(), nota: p.resultado.nota });
   contarResposta(pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
+  gastar("ia", pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
   await salvar(c); render(); window.scrollTo(0, 0);
 }
 
@@ -1959,6 +1964,7 @@ function smartIniciar(c, focoTopico = null) {
   else smartPrefetch(c);
 }
 async function smartResponder(c, acertou) {
+  if (!podeUsar()) { S.player.escolha = null; render(); return; } gastar();
   const p = S.player, it = p.fila[p.i], I = c.inteligente;
   const d = c.dominio[it.topico] ||= { score: 0, tentativas: 0, acertos: 0 };
   if (!(it.topico in p.inicioDominio)) p.inicioDominio[it.topico] = d.score;
@@ -2199,6 +2205,7 @@ function viewOral(c) {
 }
 
 function iniciarAteneo(c, idx, sorteado) {
+  if (!podeUsar("ateneo")) return; gastar("ateneo");
   fecharVoz();
   S.oralVoz = !!$("#oral-voz")?.checked; lsSet("fp-oral-voz", S.oralVoz);
   const prep = Math.max(0, Math.min(15, +($("#oral-prep")?.value ?? 3)));
@@ -2363,6 +2370,7 @@ function viewTutor(c) {
 }
 async function perguntar(txt) {
   const c = atual(); txt = txt.trim(); if (!txt || S.ocupado) return;
+  if (!podeUsar()) return; gastar();
   c.chat.push({ role: "user", content: txt });
   S.ocupado = "tutor"; render(); window.scrollTo(0, document.body.scrollHeight);
   try {
@@ -2416,6 +2424,8 @@ function desenharConta() {
     <button class="avatar" data-act="menuConta" title="${esc(u.email || "")}">${u.photoURL ? `<img src="${esc(u.photoURL)}" referrerpolicy="no-referrer" alt="" style="width:100%;height:100%;border-radius:50%">` : ini}</button>
     ${NUVEM.menu ? `<div class="conta-menu"><b>${esc(u.displayName || "Sua conta")}</b><span class="muted" style="font-size:13px">${esc(u.email || "")}</span>
       <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos, materiais e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar.</span>
+      <span style="font-size:12.5px;margin-bottom:4px">${ACESSO.admin ? "🛡️ Administrador" : ACESSO.liberado ? "✅ Acesso completo" : "🎁 Plano grátis"}</span>
+      ${ACESSO.admin ? `<button data-act="admin">🛡️ Painel do administrador</button>` : ACESSO.liberado ? "" : `<button data-act="pagar">🔓 Liberar acesso completo</button>`}
       <button data-act="syncAgora">🔄 Sincronizar agora</button><button data-act="sairConta">🚪 Sair da conta</button></div>` : ""}`;
 }
 function estadoNuvem(t) { NUVEM.estado = t; desenharConta(); }
@@ -2427,8 +2437,11 @@ async function iniciarNuvem() {
     const [app, A, F] = await Promise.all([appFirebase(), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
     Object.assign(NUVEM, { A, F, auth: A.getAuth(app), db: F.getFirestore(app) });
     A.getRedirectResult(NUVEM.auth).catch(() => {});
+    carregarPagamento();
     A.onAuthStateChanged(NUVEM.auth, async u => {
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
+      await verificarAcesso();
+      if ($("#dlgPagar").open) abrirPagamento(null);
       if (u) await sincronizarTudo();
     });
     window.addEventListener("focus", () => { if (NUVEM.user && Date.now() - NUVEM.ultimaBaixa > 60000) sincronizarTudo(); });
@@ -2449,6 +2462,114 @@ async function entrarGoogle() {
 async function sairConta() {
   await NUVEM.A.signOut(NUVEM.auth);
   toast("Você saiu. Os cadernos continuam neste aparelho e na sua conta.");
+}
+
+/* ================= acesso: plano grátis com limite + liberação manual (Pix) ================= */
+// liberados/{email} = acesso completo (só o administrador grava) · config/pagamento = chave Pix, WhatsApp, preço e limites
+const ACESSO = { liberado: false, admin: false, verificado: false, pag: { pix: "", whats: "", preco: 10, limite: 30, ateneos: 2, ...lsGet("fp-pag", {}) } };
+const emailUser = () => (NUVEM.user?.email || "").trim().toLowerCase();
+{ const a = lsGet("fp-acesso", null); if (a?.liberado) ACESSO.liberado = true; }
+const uso = () => ({ n: 0, ateneos: 0, ...lsGet("fp-uso", {}) });
+async function carregarPagamento() {
+  try { const d = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, "config/pagamento")); if (d.exists()) { Object.assign(ACESSO.pag, d.data()); lsSet("fp-pag", ACESSO.pag); } } catch {}
+}
+async function verificarAcesso() {
+  const u = NUVEM.user;
+  if (!u) { ACESSO.liberado = ACESSO.admin = false; lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
+  const F = NUVEM.F, db = NUVEM.db;
+  try { await F.getDocs(F.query(F.collection(db, "liberados"), F.limit(1))); ACESSO.admin = true; } catch { ACESSO.admin = false; }
+  let lib = ACESSO.admin;
+  if (!lib) { try { lib = (await F.getDoc(F.doc(db, "liberados/" + emailUser()))).exists(); } catch { lib = false; } }
+  ACESSO.liberado = lib; ACESSO.verificado = true;
+  lsSet("fp-acesso", { email: emailUser(), liberado: lib });
+  // o contador do plano grátis acompanha a conta (vale o maior entre o aparelho e a nuvem)
+  try {
+    const ref = F.doc(db, `${caminhoUser()}/conta/uso`), d = await F.getDoc(ref), nv = d.exists() ? d.data() : {}, lo = uso();
+    const m = { n: Math.max(lo.n, nv.n || 0), ateneos: Math.max(lo.ateneos, nv.ateneos || 0) };
+    lsSet("fp-uso", m); if (m.n !== nv.n || m.ateneos !== nv.ateneos) F.setDoc(ref, m).catch(() => {});
+  } catch {}
+  desenharConta(); render();
+}
+// Confere o limite antes de usar a IA. tipo: "ia" (perguntas, tutor, geração) ou "ateneo"
+function podeUsar(tipo = "ia") {
+  if (ACESSO.liberado) return true;
+  const u = uso(), p = ACESSO.pag;
+  if (tipo === "ateneo" ? u.ateneos < p.ateneos : u.n < p.limite) return true;
+  abrirPagamento(tipo); return false;
+}
+function gastar(tipo = "ia", qtd = 1) {
+  if (ACESSO.liberado) return;
+  const u = uso(); if (tipo === "ateneo") u.ateneos += qtd; else u.n += qtd;
+  lsSet("fp-uso", u);
+  if (NUVEM.user) NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/conta/uso`), u).catch(() => {});
+  const chip = $("#planoChip"); if (chip) chip.outerHTML = cartaoPlano();
+}
+function cartaoPlano() {
+  if (ACESSO.liberado) return "";
+  const u = uso(), p = ACESSO.pag;
+  return `<div class="aviso-nuvem" id="planoChip">🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Liberar acesso completo (R$ ${p.preco})</a></div>`;
+}
+function abrirPagamento(tipo) {
+  const p = ACESSO.pag, email = emailUser();
+  const acabou = tipo === "ateneo" ? `Você já fez os <b>${p.ateneos} Ateneos grátis</b>.` : tipo ? `Você usou as <b>${p.limite} interações grátis</b> com a IA.` : "";
+  const msg = `Olá! Fiz o Pix de R$ ${p.preco} do Foco Prova. Segue o comprovante. Meu e-mail de login: ${email || "(coloque aqui o seu Gmail)"}`;
+  const num = String(p.whats || "").replace(/\D/g, "");
+  $("#pagarCorpo").innerHTML = `<h2 style="margin:0">🔓 Liberar o Foco Prova</h2>
+    ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}
+    <p class="muted" style="margin:0">Acesso <b>completo e vitalício</b> por <b>R$ ${p.preco}</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite.</p>
+    ${!p.pix ? `<p class="aviso-nuvem" style="margin:0">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</p>` : `
+    <ol style="margin:0;padding-left:20px;display:grid;gap:12px">
+      <li>${NUVEM.user ? `Você está entrando como <b>${esc(email)}</b>. É esse e-mail que será liberado.` : `<b>Entre com sua conta Google</b> (é ela que será liberada).<br><button class="btn-google" data-act="entrar" style="margin-top:6px">${G_ICON}<span>Entrar com Google</span></button>`}</li>
+      <li>Faça um <b>Pix de R$ ${p.preco}</b> para a chave:<div class="row" style="margin-top:6px;align-items:center"><code style="font-size:15px;padding:6px 10px;border-radius:8px;background:var(--panel2,rgba(255,255,255,.08));word-break:break-all">${esc(p.pix)}</code><button class="btn small" data-act="copiarPix">📋 Copiar</button></div></li>
+      <li>Envie o <b>comprovante</b> e o <b>seu e-mail</b>${num ? ` pelo WhatsApp <b>${esc(p.whats)}</b>` : ""}:${num ? `<div style="margin-top:6px"><a class="pill" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">💬 Enviar pelo WhatsApp</a></div>` : ""}</li>
+      <li>Quando o acesso for liberado, toque em <b>"Já fui liberado"</b>.</li>
+    </ol>`}
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${NUVEM.user ? `<button class="pill" data-act="jaLiberado">✅ Já fui liberado</button>` : ""}</div>`;
+  const d = $("#dlgPagar"); if (!d.open) d.showModal();
+}
+async function abrirAdmin() {
+  const F = NUVEM.F, db = NUVEM.db, p = ACESSO.pag;
+  $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2><p class="muted"><span class="spin"></span> Carregando…</p>`;
+  const d = $("#dlgAdmin"); if (!d.open) d.showModal();
+  let lista = [];
+  try { lista = (await F.getDocs(F.collection(db, "liberados"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (b.data || 0) - (a.data || 0)); }
+  catch (e) { $("#adminCorpo").innerHTML = `<h2>🛡️ Painel do administrador</h2><p>Sem permissão: ${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`; return; }
+  $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2>
+    <div class="card stack" style="margin:0"><h3 style="margin:0">Liberar um e-mail</h3>
+      <div class="muted" style="font-size:13px">Depois de receber o Pix, digite o Gmail que a pessoa usa para entrar.</div>
+      <div class="row"><input type="email" id="admEmail" placeholder="pessoa@gmail.com" style="flex:1;min-width:200px"><input type="text" id="admNota" placeholder="observação (opcional)" style="flex:1;min-width:140px"><button class="pill" data-act="admLiberar">✅ Liberar</button></div>
+    </div>
+    <div class="card" style="margin:0"><h3 style="margin:0 0 8px">Liberados (${lista.length})</h3>
+      ${lista.length ? lista.map(x => `<div class="mrow" style="margin-top:6px"><span class="fi">✅</span><span class="nm">${esc(x.email)}<small>${x.data ? fmtData(x.data) : ""}${x.nota ? " · " + esc(x.nota) : ""}</small></span><button class="btn small ghost" data-act="admRemover" data-id="${esc(x.email)}" style="color:var(--bad)">Remover</button></div>`).join("") : `<p class="muted" style="margin:0">Ninguém liberado ainda.</p>`}
+    </div>
+    <div class="card stack" style="margin:0"><h3 style="margin:0">Pagamento e plano grátis</h3>
+      <label>Chave Pix<input type="text" id="admPix" value="${esc(p.pix || "")}" placeholder="CPF, e-mail, telefone ou chave aleatória"></label>
+      <label>WhatsApp para o comprovante (com DDD e país)<input type="tel" id="admWhats" value="${esc(p.whats || "")}" placeholder="+55 11 91234-5678"></label>
+      <div class="row">
+        <label style="flex:1">Preço (R$)<input type="number" id="admPreco" min="1" value="${p.preco}"></label>
+        <label style="flex:1">Interações grátis<input type="number" id="admLimite" min="0" value="${p.limite}"></label>
+        <label style="flex:1">Ateneos grátis<input type="number" id="admAteneos" min="0" value="${p.ateneos}"></label>
+      </div>
+      <div><button class="pill" data-act="admSalvarPag">💾 Salvar</button></div>
+    </div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`;
+}
+async function admLiberar() {
+  const email = ($("#admEmail").value || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Digite um e-mail válido.", true);
+  try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, "liberados/" + email), { data: Date.now(), nota: ($("#admNota").value || "").trim().slice(0, 120), por: emailUser() }); toast(`✅ ${email} liberado!`); abrirAdmin(); }
+  catch (e) { toast("Não consegui liberar: " + e.message, true); }
+}
+async function admRemover(email) {
+  if (!confirm(`Remover o acesso de ${email}?`)) return;
+  try { await NUVEM.F.deleteDoc(NUVEM.F.doc(NUVEM.db, "liberados/" + email)); toast("Acesso removido."); abrirAdmin(); }
+  catch (e) { toast("Não consegui remover: " + e.message, true); }
+}
+async function admSalvarPag() {
+  const n = (id, min) => Math.max(min, parseInt($(id).value) || 0);
+  const pag = { pix: $("#admPix").value.trim(), whats: $("#admWhats").value.trim(), preco: n("#admPreco", 1), limite: n("#admLimite", 0), ateneos: n("#admAteneos", 0) };
+  try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, "config/pagamento"), pag); Object.assign(ACESSO.pag, pag); lsSet("fp-pag", ACESSO.pag); toast("💾 Salvo!"); render(); }
+  catch (e) { toast("Não consegui salvar: " + e.message, true); }
 }
 
 const caminhoUser = () => `users/${NUVEM.user.uid}`;
@@ -2660,6 +2781,15 @@ document.addEventListener("click", async e => {
     case "menuConta": NUVEM.menu = !NUVEM.menu; desenharConta(); break;
     case "syncAgora": NUVEM.menu = false; sincronizarTudo(); break;
     case "sairConta": NUVEM.menu = false; sairConta(); break;
+    case "pagar": e.preventDefault(); NUVEM.menu = false; desenharConta(); abrirPagamento(null); break;
+    case "fecharPagar": $("#dlgPagar").close(); break;
+    case "copiarPix": navigator.clipboard?.writeText(ACESSO.pag.pix).then(() => toast("📋 Chave Pix copiada!"), () => toast("Copie a chave manualmente.", true)); break;
+    case "jaLiberado": await verificarAcesso(); if (ACESSO.liberado) { $("#dlgPagar").close(); toast("🎉 Acesso completo liberado! Bons estudos."); } else toast("Ainda não foi liberado. Assim que o administrador confirmar o Pix, toque de novo.", true); break;
+    case "admin": NUVEM.menu = false; desenharConta(); abrirAdmin(); break;
+    case "fecharAdmin": $("#dlgAdmin").close(); break;
+    case "admLiberar": admLiberar(); break;
+    case "admRemover": admRemover(id); break;
+    case "admSalvarPag": admSalvarPag(); break;
     case "menuKit": S.menuKit = S.menuKit === id ? null : id; render(); break;
     case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; k.materiaAuto = false; k.materiaTentada = true; await salvar(k); render(); }); break; }
     case "renomearKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Renomear caderno", k.nome, async v => { if (v) { k.nome = v; await salvar(k); render(); } }); break; }
