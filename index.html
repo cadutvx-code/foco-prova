@@ -232,6 +232,14 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .anel-nivel svg{position:absolute;inset:0;pointer-events:none}
 .anel-nivel .avatar{border:none !important}
 .nv-num{position:absolute;bottom:-3px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:linear-gradient(135deg,#4d8dff,#8b6bff);color:#fff;font-size:10.5px;font-weight:900;display:grid;place-items:center;border:2px solid var(--rail);line-height:1}
+.modos{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:6px}
+.modo{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:22px 14px 18px;border-radius:16px;border:1.5px solid var(--line);background:var(--elev);cursor:pointer;color:var(--text);transition:.15s}
+.modo:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+.modo svg.ico{width:58px;height:58px;stroke-width:1.35}
+.modo b{font-size:17px}
+.modo small{color:var(--muted);font-size:13px;line-height:1.35}
+.modo .selo{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
+@media (max-width:520px){.modos{grid-template-columns:1fr}}
 .cm-topo{display:flex;align-items:center;gap:12px;padding:10px 16px 12px}
 .cm-topo b{display:block;font-size:15px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cm-topo small{color:var(--muted);font-weight:600}
@@ -364,6 +372,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
+<dialog id="dlgComecar" style="width:min(620px,calc(100vw - 24px))"><div id="comecarCorpo"></div></dialog>
 <dialog id="dlgPublico" style="width:min(760px,calc(100vw - 24px))"><div id="publicoCorpo" class="stack"></div></dialog>
 <dialog id="dlgAdmin"style="width:min(560px,calc(100vw - 24px))"><div id="adminCorpo" class="stack"></div></dialog>
 <dialog id="dlgConfig">
@@ -1586,7 +1595,7 @@ function viewCaderno(c, emEstudo) {
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
-    <div class="kit-bar"><button class="pill" data-act="smartIniciar">▶ Começar a estudar</button>${barraNivel(c)}
+    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button>${barraNivel(c)}
       <label class="inline" title="Idioma das perguntas, respostas e explicações">🌐 <select id="idiomaCaderno" style="width:auto;padding:6px 10px;border-radius:999px">
         <option value="pt" ${idiomaCaderno(c) === "pt" ? "selected" : ""}>Português</option><option value="es" ${idiomaCaderno(c) === "es" ? "selected" : ""}>Español</option></select></label></div>
     ${corpo}`;
@@ -3216,6 +3225,22 @@ async function registrarConta(u) {
   } catch (e) { console.warn("conta não registrada:", e?.message); }
 }
 const quando = t => { if (!t) return "—"; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "agora" : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : m < 2880 ? "ontem" : `há ${Math.round(m / 1440)} dias`; };
+// Janela "Começar a estudar": escolhe o modo de estudo
+function abrirComecar() {
+  const c = atual(); if (!c) return;
+  if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); }
+  const modos = [
+    ["smart", "Estudo inteligente", "Perguntas personalizadas que se adaptam ao que você já domina", "Recomendado"],
+    ...(c.oficial && ATENEO_ATIVO ? [["oral", "Ateneo oral", "Tire um capítulo, explique e responda às perguntas do professor"]] : []),
+    ["resumo", "Guia de estudo", "Gere um guia ou um resumo dos seus materiais"],
+    ["flash", "Flashcards", "Cartões de memória para revisar definições e conceitos"],
+    ["quiz", "Quiz", "Perguntas de múltipla escolha com explicação de cada resposta"],
+    ["prova", "Teste", "Desafie-se com uma prova simulada e receba sua nota"]
+  ];
+  $("#comecarCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Como você quer estudar?</h2><button class="icon-btn" data-act="fecharComecar" title="Fechar">✕</button></div>
+    <div class="modos">${modos.map(([k, t, d, selo]) => `<button class="modo" data-act="escolherModo" data-id="${k}">${selo ? `<span class="selo">${selo}</span>` : ""}${svg(k)}<b>${t}</b><small>${d}</small></button>`).join("")}</div>`;
+  const dlg = $("#dlgComecar"); if (!dlg.open) dlg.showModal();
+}
 async function abrirPublico() {
   const F = NUVEM.F, db = NUVEM.db;
   $("#publicoCorpo").innerHTML = `<h2 style="margin:0">📊 Público</h2><p class="muted"><span class="spin"></span> Contando…</p>`;
@@ -3623,6 +3648,13 @@ document.addEventListener("click", async e => {
     }
       lsSet("fp-voz-piper", { es: $("#cfgVozEs").value, pt: $("#cfgVozPt").value }); if ($("#cfgMic")) lsSet("fp-mic", $("#cfgMic").value); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
+    case "comecar": abrirComecar(); break;
+    case "fecharComecar": $("#dlgComecar").close(); break;
+    case "escolherModo": {
+      $("#dlgComecar").close();
+      if (id === "smart") { S.aba = "smart"; smartIniciar(c); break; }
+      fecharVoz(); S.player = null; S.aba = id; render(); window.scrollTo(0, 0); break;
+    }
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
     case "inicio": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
     case "trocarIcone": { const i = ICONES_KIT.indexOf(c.icone || "📘"); c.icone = ICONES_KIT[(i + 1) % ICONES_KIT.length]; await salvar(c); render(); break; }
@@ -3687,7 +3719,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1446";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
