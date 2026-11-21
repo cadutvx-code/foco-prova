@@ -225,6 +225,10 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .cores-av button{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer}
 .cores-av button.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
 .conta-menu{padding:6px 0 !important;min-width:270px !important;gap:0 !important}
+.anel-nivel{position:relative;display:inline-grid;place-items:center;flex:none}
+.anel-nivel svg{position:absolute;inset:0;pointer-events:none}
+.anel-nivel .avatar{border:none !important}
+.nv-num{position:absolute;bottom:-3px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:linear-gradient(135deg,#4d8dff,#8b6bff);color:#fff;font-size:10.5px;font-weight:900;display:grid;place-items:center;border:2px solid var(--rail);line-height:1}
 .cm-topo{display:flex;align-items:center;gap:12px;padding:10px 16px 12px}
 .cm-topo b{display:block;font-size:15px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cm-topo small{color:var(--muted);font-weight:600}
@@ -1352,6 +1356,50 @@ function diasSeguidos() {
   while (q.dias[hojeStr(d)]) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
+/* ---------- XP e níveis (anel em volta da foto) ----------
+   +10 por acerto, +2 por erro, +20 ao bater a meta do dia, Teste: +3 por ponto da nota, Ateneo: +5 por ponto da nota.
+   Nível 1 vai até 100 XP; cada nível seguinte pede 50 XP a mais que o anterior (150, 200, 250…). */
+const XP_REGRAS = { acerto: 10, erro: 2, meta: 20, pontoTeste: 3, pontoAteneo: 5 };
+function xpParaNivel(n) { return 100 + 50 * (n - 1); }
+function nivelDoXp(xp) {
+  let nivel = 1, resto = Math.max(0, Math.floor(xp || 0));
+  while (resto >= xpParaNivel(nivel)) { resto -= xpParaNivel(nivel); nivel++; }
+  return { nivel, atual: resto, precisa: xpParaNivel(nivel), pct: resto / xpParaNivel(nivel) };
+}
+function xpTotal() {
+  let xp = lsGet("fp-xp", null);
+  if (xp === null) { xp = (S.cadernos || []).reduce((s, c) => s + (c.inteligente?.xp || 0), 0); lsSet("fp-xp", xp); } // quem já estudava não começa do zero
+  return xp;
+}
+let xpTimer = null;
+function ganharXP(qtd) {
+  qtd = Math.round(qtd); if (!(qtd > 0)) return;
+  const antes = nivelDoXp(xpTotal()).nivel, xp = xpTotal() + qtd;
+  lsSet("fp-xp", xp);
+  const depois = nivelDoXp(xp).nivel;
+  if (depois > antes) setTimeout(() => toast(`🎉 Subiu para o nível ${depois}!`), 400);
+  desenharConta();
+  clearTimeout(xpTimer);
+  xpTimer = setTimeout(() => { if (NUVEM.user) NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `users/${NUVEM.user.uid}/conta/nivel`), { xp: xpTotal(), atualizado: Date.now() }).catch(() => {}); }, 3000);
+}
+// Ao entrar: vale o maior XP entre este aparelho e a conta
+async function sincronizarXP() {
+  try {
+    const ref = NUVEM.F.doc(NUVEM.db, `users/${NUVEM.user.uid}/conta/nivel`), d = await NUVEM.F.getDoc(ref);
+    const nuvem = d.exists() ? d.data().xp || 0 : 0, local = xpTotal();
+    if (nuvem > local) { lsSet("fp-xp", nuvem); desenharConta(); }
+    else if (local > nuvem) await NUVEM.F.setDoc(ref, { xp: local, atualizado: Date.now() });
+  } catch {}
+}
+// Anel de progresso do nível em volta da foto
+function anelNivel(tam, conteudo) {
+  const nv = nivelDoXp(xpTotal()), r = tam / 2 + 4, c = 2 * Math.PI * r, w = tam + 12;
+  return `<span class="anel-nivel" style="width:${w}px;height:${w}px" title="Nível ${nv.nivel} · ${nv.atual}/${nv.precisa} XP">
+    <svg width="${w}" height="${w}" viewBox="0 0 ${w} ${w}"><defs><linearGradient id="gradNv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4d8dff"/><stop offset="1" stop-color="#8b6bff"/></linearGradient></defs>
+      <circle cx="${w / 2}" cy="${w / 2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="3.5"/>
+      <circle cx="${w / 2}" cy="${w / 2}" r="${r}" fill="none" stroke="url(#gradNv)" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${(c * Math.max(nv.pct, .02)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${w / 2} ${w / 2})"/></svg>
+    ${conteudo}<span class="nv-num">${nv.nivel}</span></span>`;
+}
 // Cada pergunta respondida (estudo inteligente, quiz, teste, ateneo) conta para a meta do dia
 function contarResposta(qtd = 1) {
   const q = sequencia(), h = hojeStr(), antes = q.dias[h] || 0;
@@ -1359,6 +1407,7 @@ function contarResposta(qtd = 1) {
   const limite = new Date(); limite.setDate(limite.getDate() - 120);
   for (const k of Object.keys(q.dias)) if (k < hojeStr(limite)) delete q.dias[k];
   lsSet("fp-sequencia", q);
+  if (antes < q.meta && antes + qtd >= q.meta) ganharXP(XP_REGRAS.meta);
   if (antes < q.meta && antes + qtd >= q.meta) toast(`🎉 Meta do dia batida: ${q.meta} perguntas! Sequência: ${diasSeguidos()} dia(s) 🔥`);
   const chip = $("#seqChip"); if (chip) chip.textContent = `🔥 ${diasSeguidos()}`;
 }
@@ -1687,6 +1736,7 @@ function quizResponder(c, i) {
   const q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]];
   p.escolha = i; p.confirmado = true;
   if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
+  ganharXP(i === q.correta ? XP_REGRAS.acerto : XP_REGRAS.erro);
   contarResposta(); render(); completarExplicacao(c, q, i);
 }
 function iniciarQuiz(id, ordem) {
@@ -1783,6 +1833,7 @@ async function entregar(forcado = false) {
   pv.tentativas.push({ data: Date.now(), nota: p.resultado.nota });
   contarResposta(pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
   gastar("ia", pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
+  ganharXP(p.resultado.nota * XP_REGRAS.pontoTeste);
   await salvar(c); render(); window.scrollTo(0, 0);
 }
 
@@ -2043,6 +2094,7 @@ async function smartResponder(c, acertou) {
   d.tentativas++; d.ultima = Date.now();
   if (acertou) { d.acertos++; d.score = d.score + (1 - d.score) * (0.12 + 0.08 * it.dificuldade); }
   else d.score = d.score * 0.65;
+  ganharXP(acertou ? XP_REGRAS.acerto : XP_REGRAS.erro);
   p.sessao.total++; I.respondidas++; contarResposta();
   if (acertou) { p.sessao.acertos++; p.sessao.combo++; I.acertos++; const ganho = 5 * it.dificuldade + Math.min(p.sessao.combo, 5) * 2; p.sessao.xp += ganho; I.xp += ganho; }
   else {
@@ -2589,6 +2641,7 @@ async function finalizarAteneo(c) {
   const p = S.player; p.etapa = "fim";
   const q = p.respostas.map(r => r?.nota ?? 0);
   p.final = (p.exp?.nota ?? 0) * 0.5 + (q[0] ?? 0) * 0.25 + (q[1] ?? 0) * 0.25;
+  ganharXP(p.final * XP_REGRAS.pontoAteneo);
   c.ateneos ||= [];
   c.ateneos.unshift({ id: uid(), data: Date.now(), capitulo: nomeCap(p.cap), media: p.final, exposicao: p.exp?.nota ?? 0, perguntas: q });
   // o resultado alimenta o domínio e o XP do estudo inteligente
@@ -2756,10 +2809,10 @@ function desenharConta() {
   const papel = ACESSO.admin ? "Administrador" : pro && ACESSO.expira ? `Estudante · Pro até ${dataCurta(ACESSO.expira)}` : pro ? "Estudante · Pro" : "Estudante";
   el.innerHTML = `<span class="sync" title="Sincronização com a nuvem">${esc(NUVEM.estado || "☁ Sincronizado")}</span>
     ${pro ? `<span class="pro-chip" title="Você está no Hipocampo Study Pro">👑 Pro</span>` : ""}
-    <span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<button class="avatar" data-act="menuConta" title="${esc(u.email || "")}" style="${pro ? "border-color:#f5a623" : ""}">${avatarHTML(34)}</button>${urgentes ? `<span style="position:absolute;top:-4px;right:-6px;background:var(--bad);color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px">${urgentes}</span>` : ""}</span>
+    <span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}${anelNivel(34, `<button class="avatar" data-act="menuConta" title="${esc(u.email || "")}" style="${pro ? "border-color:#f5a623" : ""}">${avatarHTML(34)}</button>`)}${urgentes ? `<span style="position:absolute;top:-4px;right:-6px;background:var(--bad);color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px">${urgentes}</span>` : ""}</span>
     ${NUVEM.menu ? `<div class="conta-menu">
       <div class="cm-topo"><span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<span class="avatar" style="width:44px;height:44px;cursor:default;${pro ? "border-color:#f5a623" : ""}">${avatarHTML(44)}</span></span>
-        <div style="min-width:0"><b>${esc(nomeUser())}</b><small>${esc(papel)}</small></div></div>
+        <div style="min-width:0;flex:1"><b>${esc(nomeUser())}</b><small>${esc(papel)}</small>${(() => { const nv = nivelDoXp(xpTotal()); return `<div style="display:flex;align-items:center;gap:6px;margin-top:5px"><small style="font-weight:800;color:var(--accent);white-space:nowrap">Nível ${nv.nivel}</small><div class="prog" style="flex:1;height:6px"><div style="width:${Math.round(nv.pct * 100)}%"></div></div><small style="white-space:nowrap">${nv.atual}/${nv.precisa} XP</small></div>`; })()}</div></div>
       <button class="cm-item" data-act="perfil">${icm("perfil")}Meu perfil</button>
       <button class="cm-item" data-act="conquistas">${icm("conquistas")}Conquistas</button>
       <button class="cm-item" data-act="temaChave"><span class="cm-chave ${temaEscuro() ? "on" : ""}"></span>Modo escuro</button>
@@ -2785,7 +2838,8 @@ function abrirConquistas() {
     ["fogo", "Imparável", "Estudar 30 dias seguidos", seq >= 30],
     ["mic", "Primeiro Ateneo", "Fazer um Ateneo oral", ateneos.length >= 1],
     ["estrela", "Nota de destaque", "Tirar 8 ou mais no Ateneo", melhor >= 8],
-    ["estrela", "Nível 5", "Chegar ao nível 5 em um caderno", nivel >= 5],
+    ["estrela", "Nível 5", "Chegar ao nível 5", nivelDoXp(xpTotal()).nivel >= 5],
+    ["estrela", "Nível 10", "Chegar ao nível 10", nivelDoXp(xpTotal()).nivel >= 10],
     ["coroa", "Pro", "Ativar o Hipocampo Study Pro", ACESSO.liberado]
   ];
   const feitas = lista.filter(x => x[3]).length;
@@ -2814,7 +2868,7 @@ async function iniciarNuvem() {
     carregarPagamento(); registrarVisita();
     A.onAuthStateChanged(NUVEM.auth, async u => {
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
-      await verificarAcesso(); if (u) registrarConta(u);
+      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
       if (u) await sincronizarTudo();
     });
@@ -3551,7 +3605,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1417";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
