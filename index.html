@@ -380,11 +380,11 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <div class="stack">
     <div class="muted" style="font-size:14px">🤖 IA usada: <b>Gemini</b> (Google) — grátis e rápida.</div>
     <select id="cfgProvider" hidden><option value="gemini">Gemini</option></select>
-    <div id="cfgWeb" class="stack" hidden>
+    <div id="cfgWeb" class="stack" style="display:none">
       <label>Tamanho da IA<select id="cfgWModel"></select></label>
       <div class="muted" style="font-size:13px;line-height:1.5">A IA é baixada uma única vez e depois roda no seu aparelho, sem custo e sem conta. Precisa do Chrome ou Edge atualizados. É mais simples que o Claude: para materiais grandes ela lê trechos de cada vez — use o campo “Foco” para direcionar.</div>
     </div>
-    <div id="cfgOllama" class="stack" hidden>
+    <div id="cfgOllama" class="stack" style="display:none">
       <label>Endereço do Ollama<input type="text" id="cfgOUrl" placeholder="http://localhost:11434"></label>
       <div class="row">
         <label class="grow">Modelo
@@ -408,7 +408,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
         Depois clique em “Detectar modelos”.
       </div>
     </div>
-    <div id="cfgAnth" class="stack" hidden>
+    <div id="cfgAnth" class="stack" style="display:none">
     <label>Chave da API da Anthropic
       <input type="password" id="cfgKey" placeholder="sk-ant-...">
     </label>
