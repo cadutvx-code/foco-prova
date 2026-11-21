@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hipocampo Study</title>
-<link rel="icon" href="favicon.svg?v=livro2" type="image/svg+xml">
-<link rel="icon" href="favicon-32.png?v=livro2" sizes="32x32" type="image/png">
-<link rel="shortcut icon" href="favicon.ico?v=livro2">
+<link rel="icon" href="favicon.svg?v=livro3" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png?v=livro3" sizes="32x32" type="image/png">
+<link rel="shortcut icon" href="favicon.ico?v=livro3">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icone-180.png">
 <meta name="theme-color" content="#6246ea">
@@ -3993,7 +3993,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1930";
+const VERSAO_APP = "2026-11-21-1933";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;

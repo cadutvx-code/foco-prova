@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7b55ff"/>
+      <stop offset="0.55" stop-color="#5a4cff"/>
+      <stop offset="1" stop-color="#2f6bff"/>
+    </linearGradient>
+    <radialGradient id="luz" cx="0.5" cy="0.42" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="sombra" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1a1060" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- fundo -->
+  <rect width="1080" height="1080" fill="url(#fundo)"/>
+  <circle cx="540" cy="440" r="430" fill="url(#luz)"/>
+
+  <g filter="url(#sombra)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- livro aberto (linhas brancas) -->
+    <g transform="translate(316 515) scale(7)">
+      <g stroke="#ffffff" stroke-width="3.6">
+        <path d="M32 12.5 C 25 8 13.5 7.1 4.6 9.3 V 49.6 C 13.5 47.6 25 48.4 32 53"/>
+        <path d="M32 12.5 C 39 8 50.5 7.1 59.4 9.3 V 49.6 C 50.5 47.6 39 48.4 32 53"/>
+        <path d="M32 12.5 V 53"/>
+        <path d="M1.9 15 V 54.8 C 12.5 52.8 24.5 53.8 32 58.4 C 39.5 53.8 51.5 52.8 62.1 54.8 V 15"/>
+      </g>
+      <!-- linhas do texto em dourado -->
+      <g stroke="#ffd76a" stroke-width="3">
+        <path d="M10 20 C 16 19 22.4 19.4 27.4 21.1"/>
+        <path d="M10 28.4 C 16 27.4 22.4 27.8 27.4 29.5"/>
+        <path d="M10 36.8 C 16 35.8 22.4 36.2 27.4 37.9"/>
+        <path d="M36.6 21.1 C 41.6 19.4 48 19 54 20"/>
+        <path d="M36.6 29.5 C 41.6 27.8 48 27.4 54 28.4"/>
+        <path d="M36.6 37.9 C 41.6 36.2 48 35.8 54 36.8"/>
+      </g>
+    </g>
+
+    <!-- cavalo-marinho em linhas, saindo do livro -->
+    <g transform="translate(232 161) scale(6.6)" stroke="#ffffff" stroke-width="4.2">
+      <path d="M12 18.6 L 29 14.2"/>
+      <path d="M29 14.2 C 30 6.4 38.4 3.6 42.2 8.2 C 45.4 12 44.2 17 41.2 19.6 C 48.6 23.6 50.2 33 45.2 39.6 C 42.2 43.6 38.6 45.2 37 49.2 C 35.2 54 37.8 59.6 43 59.4 C 47.6 59.2 48.6 53.6 45.2 52.2 C 43 51.4 41.2 53.4 42.4 55.2"/>
+      <path d="M30.6 19 C 23.4 24.6 23 34.6 29.6 39.6 C 32 41.4 34.6 42.6 37.6 44.6"/>
+      <path d="M33.4 5.6 L 35 1.9 L 37.6 5.1"/>
+      <path d="M46.8 27.2 C 51.6 26.8 53.6 31.8 50.6 35"/>
+    </g>
+  </g>
+  <!-- olho -->
+  <circle cx="468.3" cy="234.9" r="15" fill="#ffffff"/>
+
+  <!-- brilhos dourados -->
+  <path d="M300 138 C 306 164 313 171 339 177 C 313 183 306 190 300 216 C 294 190 287 183 261 177 C 287 171 294 164 300 138 Z" fill="#ffd76a"/>
+  <path d="M770 218 C 774 234 778 238 794 242 C 778 246 774 250 770 266 C 766 250 762 246 746 242 C 762 238 766 234 770 218 Z" fill="#ffd76a" opacity="0.9"/>
+  <path d="M750 420 C 753 431 756 434 767 437 C 756 440 753 443 750 454 C 747 443 744 440 733 437 C 744 434 747 431 750 420 Z" fill="#ffffff" opacity="0.75"/>
+</svg>
