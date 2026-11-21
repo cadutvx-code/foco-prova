@@ -3183,6 +3183,7 @@ async function iniciarPixAuto() {
   } catch (e) {
     console.warn("Pix automático indisponível:", e.message);
     caixa.innerHTML = `<small class="muted">O pagamento automático não funcionou agora (${esc(String(e.message).slice(0, 140))}). Pague pelo QR abaixo e envie o comprovante pelo WhatsApp (passo 3) que faremos a liberação.</small>`;
+    $("#pixChaveFixa")?.removeAttribute("hidden"); // automático falhou: mostra também a chave (liberação manual)
     const p = ACESSO.pag; if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(emailUser()) }); desenharQRPix(S.pixCodigo); }
   }
 }
@@ -3320,7 +3321,8 @@ function abrirPagamento(tipo) {
           <div id="pixQR" style="width:176px;height:176px;background:#fff;border-radius:12px;padding:10px;display:grid;place-items:center;flex:none"><span class="spin"></span></div>
           <div class="stack" style="gap:8px;min-width:0;flex:1 1 210px">
             <button class="pill" data-act="copiarPixCodigo">📋 Copiar Pix copia e cola</button>
-            <small class="muted">Ou pague pela chave Pix:<br><code style="word-break:break-all">${esc(p.pix)}</code> <button class="btn small ghost" data-act="copiarPix">Copiar chave</button></small>
+            <small class="muted">📱 <b>No celular?</b> Toque em <b>Copiar Pix copia e cola</b> e cole na área Pix do app do banco (Pix → Copia e cola). Esse código é só seu e o Pro é liberado sozinho.</small>
+            <small class="muted" id="pixChaveFixa" ${NUVEM.user ? "hidden" : ""}>Ou pague pela chave Pix (nesse caso a liberação é manual, pelo comprovante):<br><code style="word-break:break-all">${esc(p.pix)}</code> <button class="btn small ghost" data-act="copiarPix">Copiar chave</button></small>
           </div>
         </div></li>
       <li>Caso o seu Pro <b>não seja liberado automaticamente</b> em alguns minutos, envie o <b>comprovante</b>${num ? ` para o WhatsApp <b>${esc(p.whats)}</b>` : ""} que faremos a liberação.${num ? `<div style="margin-top:6px"><a class="btn small" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}">💬 Enviar comprovante pelo WhatsApp</a></div>` : ""}</li>
@@ -3920,7 +3922,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1911";
+const VERSAO_APP = "2026-11-21-1912";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
