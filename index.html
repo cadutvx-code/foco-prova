@@ -378,18 +378,13 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
-    <label>Qual IA usar
-      <select id="cfgProvider">
-        <option value="gemini">Gemini (nuvem do Google) — grátis, rápido, recomendado</option>
-        <option value="webllm">IA do navegador — grátis, roda no aparelho, sem internet</option>
-        <option value="anthropic">Claude (nuvem) — precisa de chave própria da Anthropic</option>
-      </select>
-    </label>
-    <div id="cfgWeb" class="stack">
+    <div class="muted" style="font-size:14px">🤖 IA usada: <b>Gemini</b> (Google) — grátis e rápida.</div>
+    <select id="cfgProvider" hidden><option value="gemini">Gemini</option></select>
+    <div id="cfgWeb" class="stack" hidden>
       <label>Tamanho da IA<select id="cfgWModel"></select></label>
       <div class="muted" style="font-size:13px;line-height:1.5">A IA é baixada uma única vez e depois roda no seu aparelho, sem custo e sem conta. Precisa do Chrome ou Edge atualizados. É mais simples que o Claude: para materiais grandes ela lê trechos de cada vez — use o campo “Foco” para direcionar.</div>
     </div>
-    <div id="cfgOllama" class="stack">
+    <div id="cfgOllama" class="stack" hidden>
       <label>Endereço do Ollama<input type="text" id="cfgOUrl" placeholder="http://localhost:11434"></label>
       <div class="row">
         <label class="grow">Modelo
@@ -413,7 +408,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
         Depois clique em “Detectar modelos”.
       </div>
     </div>
-    <div id="cfgAnth" class="stack">
+    <div id="cfgAnth" class="stack" hidden>
     <label>Chave da API da Anthropic
       <input type="password" id="cfgKey" placeholder="sk-ant-...">
     </label>
@@ -513,7 +508,7 @@ async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } ca
 function novoCaderno(nome) {
   return { id: uid(), nome, criado: Date.now(), atualizado: Date.now(), materiais: [], resumos: [], decks: [], quizzes: [], provas: [], chat: [] };
 }
-const cfg = () => ({ provider: "anthropic", apiKey: "", model: "claude-opus-5-5", effort: "medium", ollamaUrl: "http://localhost:11434", ollamaModel: "", ollamaCtx: 8192, ...lsGet("fp-config", {}) });
+const cfg = () => ({ provider: "anthropic", apiKey: "", model: "claude-opus-5-5", effort: "medium", ollamaUrl: "http://localhost:11434", ollamaModel: "", ollamaCtx: 8192, ...lsGet("fp-config", {}), provider: "gemini" }); // só o Gemini (as outras IAs foram tiradas)
 
 /* ================= Claude ================= */
 // Idioma do conteúdo gerado: escolhido no caderno; se não escolhido, o mesmo do material
@@ -911,36 +906,13 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
 
 async function chamar(opts) {
   const s = cfg();
-  if (s.provider === "ollama") s.provider = "webllm"; // o Ollama foi removido
-  if (s.provider === "gemini") {
-    if (GEMINI_OK()) {
-      try { return await chamarGemini(s, opts); }
-      catch (e) {
-        if (!e.reserva) throw e;
-        console.warn("Gemini falhou, usando a reserva:", e.message); // troca em silêncio: o resultado continua saindo
-      }
-    }
-    s.provider = "webllm";
+  let ultimo;
+  for (let volta = 0; volta < 3; volta++) {
+    if (volta) { await new Promise(r => setTimeout(r, volta * 5000)); for (const k in GEM_PAUSA) delete GEM_PAUSA[k]; }
+    try { return await chamarGemini(s, opts); }
+    catch (e) { ultimo = e; if (!e.reserva || opts.sinal?.aborted) break; console.warn("Gemini ocupado, tentando de novo:", e.message); }
   }
-  if (s.provider === "webllm") return umPorVez(sinal => chamarWebLLM(s, { ...opts, sinal }), opts.urgente, opts.fundo);
-  const { system, messages, schema, maxTokens = 32000 } = opts;
-  if (!s.apiKey) { abrirConfig(); throw new Error("Configure sua chave da API da Anthropic primeiro."); }
-  const client = new Anthropic({ apiKey: s.apiKey, dangerouslyAllowBrowser: true });
-  const params = { model: s.model, max_tokens: maxTokens, system, messages, output_config: { effort: s.effort } };
-  // limites de tamanho de lista são só para as IAs locais; a API recebe o esquema sem eles
-  if (schema) params.output_config.format = { type: "json_schema", schema: JSON.parse(JSON.stringify(schema, (k, v) => k === "maxItems" ? undefined : v)) };
-  let resp;
-  try {
-    // fallback no servidor: se o modelo recusar por engano, outro modelo continua
-    resp = await client.beta.messages.stream({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }).finalMessage();
-  } catch (e) {
-    if (e?.status === 400) resp = await client.messages.stream(params).finalMessage();
-    else throw e;
-  }
-  if (resp.stop_reason === "refusal") throw new Error("O modelo recusou esta solicitação. Tente reformular o foco.");
-  if (resp.stop_reason === "max_tokens") throw new Error("A resposta ficou longa demais e foi cortada. Peça menos itens.");
-  const texto = resp.content.filter(b => b.type === "text").map(b => b.text).join("");
-  return schema ? JSON.parse(texto) : texto;
+  throw ultimo;
 }
 
 function gerarJSON(c, instrucao, schema, foco = "", extra = {}) {
@@ -1189,11 +1161,37 @@ function lerForm() {
   if ($("#g-tipos")) S.form.tipos = [...document.querySelectorAll("#g-tipos input:checked")].map(i => i.value);
 }
 const REGRAS_PERGUNTA = `
-QUALIDADE DAS PERGUNTAS (estilo prova de medicina):
-- Faça perguntas elaboradas que exijam raciocínio: mecanismos fisiológicos, causa → consequência, comparações entre estruturas/processos, o que acontece quando algo falha, valores normais com unidade e casos clínicos curtos ("Um paciente com… apresenta… Qual é o mecanismo…?"). Evite perguntas triviais de decoreba ou de "qual destas é uma característica".
-- As 4 alternativas devem ser do MESMO tipo e formato (todas números com a mesma unidade, ou todas mecanismos, ou todas estruturas), plausíveis e com tamanho parecido; as erradas devem ser erros comuns de estudante, mas claramente erradas.
-- O ENUNCIADO é lido diretamente pelo estudante: escreva SÓ a pergunta. NUNCA mencione o estudante, o domínio, o desempenho, as preferências, o material, o texto, o livro, o professor ou estas instruções (nada como "recorde que o estudante…", "segundo o material…", "como visto no texto…").
-- CONFIRA O GABARITO antes de responder: a alternativa indicada em "correta" tem que estar 100% de acordo com o conteúdo — mesmos números, faixas e unidades (se o valor certo é 300–400 mL, a correta diz 300–400 mL). A "explicacao" tem que defender exatamente essa alternativa, com os mesmos valores. Se não tiver certeza do valor, faça outra pergunta.`;
+ESTILO DAS PERGUNTAS (diretas e fáceis de memorizar):
+- Pergunta CURTA e DIRETA, de uma linha, cobrando UM fato-chave por vez: função, principal causa/fonte, valor normal com unidade, onde fica/onde é produzido, o que aumenta ou diminui algo, causa → consequência simples. Exemplos do tom certo: "Qual é a principal fonte de energia do encéfalo em condições normais?", "Qual é o valor normal aproximado da pressão do líquido cefalorraquidiano?".
+- Alternativas CURTAS (de 1 a 6 palavras sempre que possível), do MESMO tipo e formato (todas números com a mesma unidade, ou todas substâncias, ou todas estruturas), plausíveis; as erradas são confusões comuns de estudante, mas claramente erradas.
+- Nada de enrolação, casos clínicos longos ou "qual destas é uma característica de…". Uma pergunta = um fato que dá para guardar.
+- NÃO REPITA FATOS: cada pergunta cobra um fato DIFERENTE. Nunca faça a mesma pergunta com outras palavras, nem a pergunta "inversa" do mesmo fato (ex.: "a fonte de energia do encéfalo é a glicose" e "a glicose é a fonte de energia de qual órgão" contam como a MESMA). Espalhe as perguntas por TODO o conteúdo, não só pelo começo.
+- O ENUNCIADO é lido diretamente pelo estudante: escreva SÓ a pergunta. NUNCA mencione o estudante, o domínio, o desempenho, as preferências, o material, o texto, o livro, o professor ou estas instruções (nada como "segundo o material…", "como visto no texto…").
+- CONFIRA O GABARITO antes de responder: a alternativa indicada em "correta" tem que estar 100% de acordo com o conteúdo — mesmos números, faixas e unidades. A "explicacao" tem que defender exatamente essa alternativa, com os mesmos valores. Se não tiver certeza, faça outra pergunta.
+- "explicacao": 2 ou 3 tópicos curtos em lista (cada linha começando com "- "), cada um com no máximo 20 palavras, com o fato principal em **negrito**, do jeito mais fácil de memorizar (pode usar um macete).`;
+// Perguntas repetidas: compara as palavras importantes da pergunta + resposta certa com as já feitas
+const PALAVRAS_VAZIAS = new Set("que qual quais cual cuales como para por com con uma una dos das del los las nos nas mais menos muy muito entre sobre principal principais normal normales normais valor aproximado aproximadamente condicoes condiciones verdadeiro verdadero falso este esta isso esto ser sao son tem tiene quando cuando acontece ocurre sucede pasa ocorre afirmacao afirmacion".split(" "));
+function termosDe(t) {
+  return new Set(String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").split(" ")
+    .filter(w => w.length > 2 && !PALAVRAS_VAZIAS.has(w)).map(w => w.slice(0, 6)));
+}
+// um "fato" = palavras da pergunta (q) + palavras da resposta certa (r); aceita item ou linha do histórico ("pergunta → resposta")
+function fatoDe(it) {
+  if (typeof it === "string") { const [q, r = ""] = it.split(" → "); return { q: termosDe(q.replace(/\((verdade\w*|falso)\)\s*$/i, "")), r: termosDe(r) }; }
+  return { q: termosDe(it.enunciado || it.frente || ""), r: termosDe(it.tipo === "vf" ? "" : (it.alternativas?.[it.correta] ?? it.verso ?? "")) };
+}
+function sobreposicao(a, b, porMenor) {
+  if (!a.size || !b.size) return 0;
+  let n = 0; for (const w of a) if (b.has(w)) n++;
+  return n / (porMenor ? Math.min(a.size, b.size) : new Set([...a, ...b]).size);
+}
+// mesma resposta + pergunta parecida, ou quase as mesmas palavras no total
+function mesmoFato(a, b) {
+  if (a.r.size && b.r.size && sobreposicao(a.r, b.r, true) >= 0.6 && sobreposicao(a.q, b.q, true) > 0.5) return true;
+  const ta = new Set([...a.q, ...a.r]), tb = new Set([...b.q, ...b.r]);
+  return ta.size >= 3 && tb.size >= 3 && sobreposicao(ta, tb) >= 0.6;
+}
+function repetida(it, anteriores) { const f = fatoDe(it); return anteriores.some(a => mesmoFato(f, a)); }
 const ROTULO_RESPOSTA = /^\s*(correta|correto|certa|errada|errado|incorreta|correcta|correcto|incorrecta|incorrecto|correct|incorrect|verdadeir[oa]|fals[oa])\s*[:\-–.]\s*/i;
 // Descarta questões com alternativas vazias, repetidas ou sem gabarito (comum em IAs pequenas)
 function altsValidas(x) {
@@ -1233,23 +1231,38 @@ function numerosDe(t) {
   for (const m of String(t).matchAll(RE_NUM_UNID)) for (const v of [m[1], m[2]]) if (v) out.add(String(parseFloat(v.replace(",", "."))));
   return out;
 }
-// IAs pequenas (navegador/local) erram mais com listas longas: gera em lotes e junta
+// Gera em lotes pequenos e junta: pedir 30 de uma vez estourava o limite da resposta e perdia tudo.
+// Se um lote falhar, tenta de novo; se continuar falhando, entrega o que já ficou pronto.
 async function emLotes(qtd, campo, chave, fn) {
-  const p = cfg().provider, lote = p === "webllm" ? 4 : p === "ollama" ? 8 : qtd;
-  let res = null, tentativas = 0;
-  while (!res || res[campo].length < qtd) {
-    const falta = qtd - (res ? res[campo].length : 0);
-    const ev = res ? `\nNão repita estes itens já criados:\n${res[campo].map(x => "- " + String(x[chave]).slice(0, 100)).join("\n")}` : "";
-    if (lote < qtd) progressoIA(`Gerando… ${res ? res[campo].length : 0} de ${qtd}`, (res ? res[campo].length : 0) / qtd);
-    const r = await fn(Math.min(lote, falta), ev);
-    const chaveN = x => String(x[chave]).toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
-    const vistos = new Set((res ? res[campo] : []).map(chaveN));
-    const novos = (r[campo] || []).filter(x => x?.[chave] && altsValidas(x) && !vistos.has(chaveN(x)) && vistos.add(chaveN(x)));
-    if (!res) res = { ...r, [campo]: novos }; else res[campo].push(...novos);
-    if (!novos.length || ++tentativas >= Math.ceil(qtd / lote) + 2) break;
+  const lote = 6;
+  const res = { [campo]: [] }, termos = [];
+  let falhasSeguidas = 0, vazios = 0, ultimoErro = null;
+  while (res[campo].length < qtd) {
+    const feitos = res[campo].length, falta = qtd - feitos;
+    const ev = feitos ? `\nJÁ CRIADOS — não repita nenhum destes fatos (nem com outras palavras); cubra OUTRAS partes do conteúdo:\n${res[campo].map(x => "- " + String(x[chave]).slice(0, 110)).join("\n")}` : "";
+    progressoIA(`Gerando… ${feitos} de ${qtd}`, feitos / qtd);
+    let r;
+    try { r = await fn(Math.min(lote, falta), ev); falhasSeguidas = 0; }
+    catch (e) {
+      ultimoErro = e; console.warn("lote falhou:", e.message);
+      if (++falhasSeguidas >= 3) break;
+      await new Promise(ok => setTimeout(ok, 3000)); continue;
+    }
+    if (!res.titulo && r.titulo) res.titulo = r.titulo;
+    const novos = (r[campo] || []).filter(x => {
+      if (!x?.[chave] || !altsValidas(x)) return false;
+      const f = fatoDe(x);
+      if (termos.some(a => mesmoFato(f, a))) return false;
+      termos.push(f); return true;
+    });
+    res[campo].push(...novos);
+    if (!novos.length && ++vazios >= 3) break;
   }
-  res[campo] = res[campo].slice(0, qtd);
   progressoIA("", null);
+  if (!res[campo].length) throw ultimoErro || new Error("A IA não devolveu itens válidos. Tente de novo.");
+  if (res[campo].length < qtd) toast(`Saíram ${res[campo].length} de ${qtd} — a IA ficou ocupada no meio. Pode gerar de novo para completar.`);
+  res[campo] = res[campo].slice(0, qtd);
+  res.titulo ||= campo === "cards" ? "Flashcards" : "Questões";
   return res;
 }
 
@@ -1305,7 +1318,7 @@ async function gerar(tipo) {
       const r = await emLotes(qtd, "cards", "frente", (n, ev) => gerarJSON(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${d}${f}${ev}`, SCH.flash, foco));
       c.decks.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, cards: r.cards.map(k => ({ ...k, caixa: 0, proxima: 0 })) });
     } else if (tipo === "quiz") {
-      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas plausíveis e apenas uma correta ("correta" é o índice 0-3). Em "explicacao", diga por que a correta está certa. Em "explicacoes", dê 4 textos curtos, um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada.${REGRAS_PERGUNTA} ${d}${f}${ev}`, SCH.quiz, foco));
+      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras), um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada.${REGRAS_PERGUNTA} ${d}${f}${ev}`, SCH.quiz, foco));
       r.questoes.forEach(normalizarMultipla);
       c.quizzes.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, questoes: r.questoes, tentativas: [] });
     } else if (tipo === "prova") {
@@ -1346,6 +1359,12 @@ function explicacaoHTML(q, escolha) {
   const certa = det.certa || (agora ? "" : (q.explicacao || "").trim() || porQue(q.correta));
   const errada = marcouErrada ? (det.erradas?.[escolha] || (agora ? "" : porQue(escolha))) : "";
   const n1 = q.correta + 1, n2 = escolha + 1;
+  if (q.tipo === "vf") {
+    const certoTxt = q.alternativas[q.correta];
+    let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `Es <b>${certoTxt}</b>.` : `É <b>${certoTxt}</b>.`) : (es ? `✘ Incorrecto — es <b>${certoTxt}</b>.` : `✘ Errado — é <b>${certoTxt}</b>.`)}</p>`;
+    h += `<p style="margin:12px 0 4px"><b>💡 ${es ? "Para memorizar" : "Para memorizar"}</b></p>${certa ? md(certa) : carregando}`;
+    return `<div class="expl md">${h}</div>`;
+  }
   let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `La respuesta correcta es la ${n1}.` : `A resposta certa é a ${n1}.`) : (es ? `✘ Incorrecto — la correcta es la ${n1}.` : `✘ Errado — a certa é a ${n1}.`)}</p>`;
   if (marcouErrada) h += `<p style="margin-bottom:4px"><b>${es ? `❌ Por qué la ${n2} es incorrecta` : `❌ Por que a ${n2} está errada`}</b></p>${errada ? md(errada) : carregando}`;
   h += `<p style="margin:12px 0 4px"><b>${es ? `✅ Por qué la ${n1} es correcta` : `✅ Por que a ${n1} está certa`}</b></p>${certa ? md(certa) : carregando}`;
@@ -1366,7 +1385,7 @@ async function completarExplicacao(c, q, escolha) {
     const r = await chamar({
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + `
 Você é um professor de medicina corrigindo uma questão de prova, falando direto com o aluno.
-- Explique o CONTEÚDO de verdade: o conceito, o mecanismo fisiológico, causa e efeito. Nada de frases vagas como "isso é importante para o funcionamento do organismo".
+- Seja CURTO e fácil de memorizar, como um resumo de revisão: tópicos rápidos, sem enrolação. Explique o conceito de verdade (causa e efeito), nada de frases vagas como "isso é importante para o funcionamento do organismo".
 - NUNCA use expressões como "segundo o material", "o livro diz", "de acordo com o texto", "conforme o material" ou "o material menciona": afirme os fatos diretamente, como um professor.
 - Use **negrito** nos termos-chave. Não repita o enunciado nem as alternativas inteiras.` }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.alternativas.join(" ")} ${q.topico || ""}`, cfg().provider === "webllm" ? 1500 : 5000) }],
       messages: [{ role: "user", content: `Questão: ${q.enunciado}
@@ -1375,8 +1394,8 @@ ${alts}
 A correta é a ${n1}.${n2 ? ` O aluno marcou a ${n2}.` : ""}
 
 Responda em JSON:
-- "errada": ${n2 ? `por que a alternativa ${n2} está ERRADA, em 3 a 5 frases: o que exatamente ela afirma de errado, qual é o fato correto no lugar dela e o mecanismo por trás. Se ela confunde dois conceitos, diga qual é a confusão.` : `deixe vazio ("").`}
-- "certa": por que a alternativa ${n1} está CERTA, em 4 a 6 frases: explique o mecanismo ou conceito passo a passo (causa → efeito) mostrando por que ela responde a pergunta. Depois, em um parágrafo separado (pule uma linha), escreva "💡" seguido de uma dica curta para memorizar, no mesmo idioma da resposta e sem a palavra "Dica".` }],
+- "errada": ${n2 && q.tipo !== "vf" ? `por que a alternativa ${n2} está ERRADA, em 1 ou 2 frases curtas: o erro concreto e qual é o fato certo no lugar.` : `deixe vazio ("").`}
+- "certa": ${q.tipo === "vf" ? `por que a afirmação é ${String(q.alternativas[q.correta]).toUpperCase()}` : `por que a alternativa ${n1} está CERTA`}, em 2 ou 3 tópicos curtos em lista (cada linha começando com "- ", no máximo 20 palavras cada), com o fato principal em **negrito**. Depois, numa linha separada, escreva "💡" seguido de um macete curto para memorizar, no mesmo idioma da resposta e sem a palavra "Dica".` }],
       schema: obj({ errada: str, certa: str }), maxTokens: cfg().provider === "anthropic" ? 6000 : 1100, rotulo: "Explicando a resposta", urgente: true
     });
     if (r.certa?.trim()) q.det.certa = r.certa.trim();
@@ -1876,7 +1895,7 @@ async function entregar(forcado = false) {
 
 /* ---------- Estudo inteligente (adaptativo) ---------- */
 // Perguntas primeiro (a 1ª aparece mais cedo); lista de tópicos curta no fim
-SCH.smart = obj({ itens: arr(obj({ topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str) })), topicos: { type: "array", items: str, maxItems: 10 } });
+SCH.smart = obj({ itens: arr(obj({ tipo: { type: "string", enum: ["multipla", "vf"] }, topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str, explicacoes: arr(str) })), topicos: { type: "array", items: str, maxItems: 10 } });
 // Versão leve para a IA no processador: menos texto por pergunta (a explicação completa é gerada quando você responde)
 SCH.smartLeve = obj({ itens: arr(obj({ topico: str, dificuldade: int, enunciado: str, alternativas: arr(str), correta: int, explicacao: str })), topicos: { type: "array", items: str, maxItems: 8 } });
 const topicoValido = t => { t = String(t || "").trim(); return t.length >= 2 && t.length <= 80 && !/[<>{}]|^(t[óo]pico|topic|name|nome)\s*\d*$/i.test(t); };
@@ -1921,7 +1940,8 @@ async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false, leve = fa
   const cpu = cfg().provider === "webllm" && (WL.modo === "cpu" || !navigator.gpu);
   n = cpu ? Math.min(n || 2, 2) : (n || (local ? 4 : 8));
   const dom = I.topicos.map(t => { const d = c.dominio[t]; return d?.tentativas ? `- ${t}: domínio ${Math.round(d.score * 100)}% (${d.acertos}/${d.tentativas} acertos) → dificuldade alvo ${nivelDe(d.score)}` : `- ${t}: ainda não praticado`; }).join("\n");
-  const jaFeitas = [...I.historico.slice(-40), ...(I.banco || []).map(b => b.enunciado.slice(0, 100))];
+  const naFila = S.player?.tipo === "smart" ? S.player.fila.slice(S.player.i) : [];
+  const jaFeitas = [...I.historico.slice(-150), ...[...(I.banco || []), ...naFila].map(b => b.enunciado.slice(0, 100))];
   const hist = jaFeitas.map(h => "- " + h).join("\n") || "(nenhuma)";
   const instr = `Você conduz uma sessão de ESTUDO ADAPTATIVO, como um professor particular. Gere exatamente ${n} perguntas.
 ${I.topicos.length ? `Tópicos conhecidos e domínio atual do estudante:\n${dom}` : `Primeira sessão: identifique os principais tópicos dos materiais (de 4 a 12, nomes curtos) e liste-os em "topicos". Comece com perguntas de dificuldade 1 e 2 sobre os tópicos mais importantes.`}
@@ -1929,23 +1949,29 @@ ${focoTopico ? `\nO estudante pediu para focar SOMENTE no tópico: "${focoTopico
 Regras de adaptação:
 - Cerca de 60% das perguntas nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
-- TODAS são de múltipla escolha com EXATAMENTE 4 alternativas plausíveis e só uma correta ("correta" = índice 0 a 3 da certa). Varie a posição da certa.
-- "explicacao" (OBRIGATÓRIO, nunca vazio): por que a correta está certa, em 1 a 2 frases com o conceito em si (sem dizer "segundo o material" ou "o livro diz").
+- Cerca de 3 em cada 4 são de múltipla escolha ("tipo": "multipla") com EXATAMENTE 4 alternativas curtas e só uma correta ("correta" = índice 0 a 3 da certa; varie a posição). As outras são de verdadeiro ou falso ("tipo": "vf"): o enunciado é UMA afirmação curta (sem "verdadeiro ou falso?" no texto), "alternativas" = ["${idiomaCaderno(c) === "es" ? "Verdadero" : "Verdadeiro"}", "Falso"] e "correta" = 0 se for verdadeira ou 1 se for falsa. Faça afirmações falsas também, trocando UM detalhe importante (o valor, o órgão, aumenta/diminui).
+- "explicacao" (OBRIGATÓRIO, nunca vazio): 2 ou 3 tópicos curtos em lista ("- "), fáceis de memorizar, com o fato em **negrito** (sem dizer "segundo o material" ou "o livro diz").
 - "explicacoes" (OBRIGATÓRIO): 4 textos MUITO curtos (até 12 palavras cada), um por alternativa NA MESMA ORDEM. Comece cada uma com "Correta:" ou "Errada:" (só UMA pode ser "Correta:", a mesma de "correta"); nas erradas, diga o erro concreto (ex.: "Errada: quem produz ATP é a mitocôndria, não o ribossomo"). Evite perguntas com mais de uma resposta defensável.
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar novos).
 - As informações acima sobre o estudante (domínio, preferências, histórico) são SÓ para você escolher os temas e a dificuldade: nunca as escreva nas perguntas.${REGRAS_PERGUNTA}
-- Não repita estas perguntas:
+- NÃO REPITA nenhum destes fatos já perguntados (nem com outras palavras, nem invertendo a pergunta). Pergunte sobre OUTROS pontos do conteúdo:
 ${hist}
 ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
   const foco = focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" ");
   // No processador cada palavra lida custa tempo: instrução curta e direta
   const instrFinal = !cpu ? (leve ? instr.replace(/^- "explicacoes".*$/m, "- As alternativas são só o texto da opção, sem rótulos como \"Correta\" ou \"Errada\".") : instr) : `Crie ${n} perguntas de múltipla escolha sobre o material, em ${idiomaCaderno(c) === "es" ? "espanhol" : "português"}. Cada uma com 4 alternativas e só uma correta ("correta" = índice 0 a 3). "explicacao": por que a correta está certa (1 frase). "topico": assunto curto (ex.: "Edema").${focoTopico ? ` Só sobre: ${focoTopico}.` : foco ? ` Priorize: ${foco.slice(0, 120)}.` : ""}${I.historico.length ? ` Não repita: ${I.historico.slice(-5).map(h => h.slice(0, 50)).join("; ")}.` : ""}${I.prefs ? ` Preferência: ${I.prefs.slice(0, 150)}.` : ""}`;
+  // fatos já cobrados (respondidas, guardadas e na fila): a IA às vezes repete com outras palavras, então confere aqui também
+  const anteriores = [...I.historico.slice(-200), ...(I.banco || []), ...naFila].map(fatoDe);
   const preparar = bruto => {
-    const it = { ...bruto, tipo: "multipla" };
+    const vf = bruto.tipo === "vf" || (Array.isArray(bruto.alternativas) && bruto.alternativas.length === 2 && /^verdade/i.test(String(bruto.alternativas[0])));
+    const it = { ...bruto, tipo: vf ? "vf" : "multipla" };
+    if (vf) { it.alternativas = idiomaCaderno(c) === "es" ? ["Verdadero", "Falso"] : ["Verdadeiro", "Falso"]; it.correta = it.correta === 1 ? 1 : 0; delete it.explicacoes; it.enunciado = String(it.enunciado || "").replace(/^\s*¿?(verdadeiro ou falso|verdadero o falso)\s*[?:.\-–]*\s*/i, ""); }
     if (!it.enunciado || !altsValidas(it)) return null;
+    if (repetida(it, anteriores)) return null;
+    anteriores.push(fatoDe(it));
     if (!topicoValido(it.topico)) it.topico = "Geral";
     if (!I.topicos.includes(it.topico)) I.topicos.push(it.topico);
-    normalizarMultipla(it);
+    if (!vf) normalizarMultipla(it);
     it.dificuldade = Math.min(3, Math.max(1, it.dificuldade || 1));
     return it;
   };
@@ -2142,11 +2168,17 @@ async function smartResponder(c, acertou) {
     const resp = it.tipo === "flashcard" ? it.explicacao : `**${it.alternativas[it.correta]}**\n\n${it.explicacao}`;
     deck.cards.push({ frente: it.enunciado, verso: resp, topico: it.topico, caixa: 0, proxima: 0 });
   }
-  I.historico.push(it.enunciado.slice(0, 140)); if (I.historico.length > 80) I.historico.splice(0, I.historico.length - 80);
+  registrarFato(I, it);
   p.confirmado = true; render(); completarExplicacao(c, it, p.escolha); smartPrefetch(c); await salvar(c);
+}
+function registrarFato(I, it) {
+  if (!it?.enunciado) return;
+  const resp = it.tipo === "vf" ? `(${it.alternativas[it.correta]})` : it.alternativas?.[it.correta] ? `→ ${it.alternativas[it.correta]}` : "";
+  I.historico.push(`${it.enunciado.slice(0, 120)} ${resp}`.trim()); if (I.historico.length > 250) I.historico.splice(0, I.historico.length - 250);
 }
 function smartProx(c) {
   const p = S.player, it = p.fila[p.i];
+  if (it && !p.confirmado && it.tipo !== "licao") registrarFato(c.inteligente, it); // pulada também não volta
   if (it?.tipo === "licao") { c.inteligente.historico.push("[lição] " + it.enunciado.slice(0, 80)); }
   p.i++; p.escolha = null; p.confirmado = false; p.virado = false;
   if (p.i >= p.fila.length) { render(); smartCarregar(c); return; }
@@ -3552,12 +3584,7 @@ function abrirConfig() {
   mostrarProvedor();
   $("#dlgConfig").showModal();
 }
-function mostrarProvedor() {
-  const v = $("#cfgProvider").value;
-  $("#cfgOllama").style.display = "none"; // o Ollama foi removido
-  $("#cfgAnth").style.display = v === "anthropic" ? "" : "none";
-  $("#cfgWeb").style.display = v === "webllm" ? "" : "none";
-}
+function mostrarProvedor() {} // só existe o Gemini
 async function detectarModelos() {
   const url = ($("#cfgOUrl").value.trim() || "http://localhost:11434").replace(/\/$/, "");
   try {
@@ -3569,7 +3596,7 @@ async function detectarModelos() {
     toast(models.length ? `${models.length} modelo(s) encontrado(s).` : "Ollama está rodando, mas sem modelos baixados.");
   } catch { toast("Não encontrei o Ollama nesse endereço. Ele está instalado e aberto?", true); }
 }
-const nomeIA = () => { const s = cfg(); return (s.provider === "gemini" && GEMINI_OK()) ? "Gemini (nuvem)" : s.provider === "webllm" ? (WL.modo === "cpu" ? "IA do navegador (processador)" : `IA do navegador: ${(MODELOS_WEB[s.webModel]?.nome || "").split(" ")[0] || "Completa"}`) : `Claude: ${s.model.replace("claude-", "")}`; };
+const nomeIA = () => "Gemini";
 function aplicarTema() {
   const t = lsGet("fp-tema", null);
   if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
@@ -3770,7 +3797,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1531";
+const VERSAO_APP = "2026-11-21-1848";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -3906,42 +3933,14 @@ catch (e) { toast("Armazenamento local indisponível — os dados não serão sa
 render();
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
 iniciarNuvem();
-setTimeout(() => {
-  const s = cfg();
-  if (s.provider === "webllm" && navigator.gpu) umPorVez(async () => {
-    const eng = await motorWebLLM(s.webModel || "Qwen2.5-3B-Instruct-q4f16_1-MLC");
-    const r = await eng.chat.completions.create({ messages: [{ role: "user", content: "ok" }], max_tokens: 2 });
-    return r;
-  }, false, true).catch(() => {});
-}, 2500);
 // Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)
 navigator.serviceWorker?.getRegistrations?.().then(regs => {
   const velhos = regs.filter(r => /coi-serviceworker/.test(r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || ""));
   if (velhos.length) Promise.all(velhos.map(r => r.unregister())).then(() => { if (crossOriginIsolated) location.reload(); });
 }).catch(() => {});
 setTimeout(detectarPendentes, 1500);
-// Ao abrir: o Gemini é a IA padrão (quando configurado); senão, a IA do navegador
-(async () => {
-  const s = cfg();
-  if (s.provider === "ollama") lsSet("fp-config", { ...lsGet("fp-config", {}), provider: GEMINI_OK() ? "gemini" : "webllm", escolhaManual: false });
-  const s2 = cfg();
-  if (GEMINI_OK()) {
-    if (s2.provider !== "gemini" && !s2.escolhaManual) { lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "gemini" }); render(); }
-    return;
-  }
-  if (s2.provider === "webllm" || s2.apiKey) return;
-  // Sem Gemini: usa a IA grátis que roda no próprio navegador (celular ou PC)
-  if (navigator.gpu) {
-    const celular = matchMedia("(pointer: coarse)").matches || (navigator.deviceMemory && navigator.deviceMemory <= 4);
-    const fraco = navigator.deviceMemory && navigator.deviceMemory <= 3;
-    const modelo = fraco ? "Qwen2.5-0.5B-Instruct-q4f16_1-MLC" : celular ? "Qwen2.5-1.5B-Instruct-q4f16_1-MLC" : "Qwen2.5-3B-Instruct-q4f16_1-MLC";
-    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: modelo });
-    render(); toast("Usando a IA grátis do navegador. Na primeira geração ela é baixada uma vez.");
-  } else {
-    lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "webllm", webModel: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC" });
-    WL.modo = "cpu"; render(); toast("Usando a IA grátis no processador deste aparelho. Na primeira geração ela é baixada uma vez (~1 GB).");
-  }
-})();
+// Só existe o Gemini: grava isso também nas configurações antigas (quem usava Claude ou a IA do navegador)
+if (lsGet("fp-config", {}).provider !== "gemini") lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "gemini" });
 </script>
 </body>
 </html>

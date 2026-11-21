@@ -58,7 +58,17 @@ function emailDaRef(ref) {
   if (ref.includes("@")) return ref.toLowerCase();
   try { const b = ref.replace(/-/g, "+").replace(/_/g, "/"); return decodeURIComponent(escape(atob(b + "===".slice((b.length + 3) % 4)))).toLowerCase(); } catch { return ""; }
 }
+// Credencial de TESTE gera QR falso (o banco diz "chave não existe"): nesse caso nem tenta, e o site usa o Pix comum
+let contaCache = { teste: null, ate: 0 };
+async function contaDeTeste(env) {
+  if (String(env.MP_TOKEN || "").startsWith("TEST-")) return true;
+  if (contaCache.teste !== null && Date.now() < contaCache.ate) return contaCache.teste;
+  const u = await mp(env, "/users/me");
+  contaCache = { teste: (u.tags || []).includes("test_user"), ate: Date.now() + 10 * 60000 };
+  return contaCache.teste;
+}
 async function criarPix(env, email) {
+  if (await contaDeTeste(env)) { console.log("MP_TOKEN é de conta de TESTE: troque pela credencial de produção"); throw new Error("pagamento automático em manutenção"); }
   try { return await criarPixOrders(env, email); }
   catch (e) { console.log("Orders recusou, tentando Pagamentos:", e.message); return await criarPixPagamento(env, email); }
 }
