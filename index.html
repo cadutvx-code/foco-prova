@@ -224,6 +224,25 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .cores-av{display:flex;gap:8px;flex-wrap:wrap}
 .cores-av button{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer}
 .cores-av button.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+.conta-menu{padding:6px 0 !important;min-width:270px !important;gap:0 !important}
+.cm-topo{display:flex;align-items:center;gap:12px;padding:10px 16px 12px}
+.cm-topo b{display:block;font-size:15px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cm-topo small{color:var(--muted);font-weight:600}
+.conta-menu .cm-item{display:flex;align-items:center;gap:12px;width:100%;padding:11px 16px !important;border-radius:0 !important;border-top:1px solid var(--line) !important;font-weight:600 !important;font-size:15px;color:var(--text)}
+.conta-menu .cm-item svg{width:21px;height:21px;flex:none}
+.conta-menu .cm-item .badge{margin-left:auto;background:var(--bad);color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 7px}
+.cm-chave{width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;flex:none;transition:.2s}
+.cm-chave::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s}
+.cm-chave.on{background:var(--accent)}
+.cm-chave.on::after{left:19px}
+.cm-idiomas{display:flex;gap:6px;padding:0 16px 10px 49px}
+.cm-idiomas button{border:1px solid var(--line) !important;border-radius:999px !important;padding:5px 12px !important;font-size:13px}
+.cm-idiomas button.on{background:var(--accent) !important;color:#fff;border-color:var(--accent) !important}
+.conquistas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.conquista{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:14px 10px;border-radius:14px;border:1px solid var(--line);background:var(--elev)}
+.conquista svg{width:34px;height:34px;color:var(--accent)}
+.conquista.off{opacity:.42;filter:grayscale(1)}
+.conquista b{font-size:14px} .conquista small{color:var(--muted);font-size:12px;line-height:1.3}
 .conta-menu button{background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700}
 .conta-menu button:hover{background:var(--panel2)}
 .btn-google{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 14px;font-weight:800;cursor:pointer;font-size:13.5px;white-space:nowrap}
@@ -297,9 +316,9 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <button class="brand" data-act="inicio"><img class="logo" src="icone-192.png" alt=""><span class="nome">Hipocampo<b>Study</b></span></button>
   <div class="sp"></div>
   <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
-  <div class="conta" id="conta"></div>
   <button class="ia-chip" id="seqChip" data-act="metaDia" title="Dias seguidos estudando — clique para mudar a meta diária">🔥 0</button>
-  <button class="icon-btn" data-act="tema" title="Tema claro/escuro">🌓</button>
+  <button class="icon-btn" id="temaTopo" data-act="tema" title="Tema claro/escuro">🌓</button>
+  <div class="conta" id="conta"></div>
 </header>
 <div class="shell">
   <nav class="rail" id="rail"></nav>
@@ -2690,24 +2709,91 @@ const FB_VER = "13.3.0";
 const NUVEM = { A: null, F: null, auth: null, db: null, user: null, estado: "", menu: false, pendentes: new Set(), timer: null, ultimaBaixa: 0, ocupada: false };
 const G_ICON = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>`;
 
+// Ícones do menu da conta (linha, preto e branco)
+const ICM = {
+  perfil: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20.5c.8-3.8 3.6-5.8 7-5.8s6.2 2 7 5.8"/>',
+  conquistas: '<path d="M3.5 8l4.2 3.6L12 5l4.3 6.6L20.5 8l-1.8 10H5.3z"/><path d="M5.5 20.5h13"/>',
+  lua: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  idioma: '<rect x="2.8" y="5" width="18.4" height="14" rx="2"/><path d="M6.6 15.2l2.5-6.4 2.5 6.4M7.4 13.2h3.4"/><path d="M14.2 9.4h4.4M16.4 8.2v1.2M17.9 9.4c-.4 2.2-1.6 3.8-3.6 4.7M15.4 11.6c.8 1 1.8 1.9 3.1 2.5"/>',
+  sino: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2H4.4z"/><path d="M10 20.6a2 2 0 0 0 4 0"/>',
+  escudo: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8-7.5 9.5-4.3-1.5-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/>',
+  grafico: '<path d="M3 20.5h18"/><path d="M6 20.5v-6M11 20.5V6M16 20.5v-9.5M21 20.5V3.5"/>',
+  coroa: '<path d="M3.5 8l4.2 3.6L12 5l4.3 6.6L20.5 8l-1.8 10H5.3z"/>',
+  sync: '<path d="M20 11a8 8 0 0 0-14.4-4.6M4 13a8 8 0 0 0 14.4 4.6"/><path d="M5 2.8v4h4M19 21.2v-4h-4"/>',
+  fogo: '<path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.4 2.4-5.4 3.6-8.3.5 1.6 1.4 2.6 2.5 3.1.2-2.8 1.4-5.2 3.6-6.6-.3 2.6.6 4.4 2 6.1 1.2 1.5 1.8 3.1 1.8 5.1 0 4-2.8 6.8-7 6.8z"/>',
+  alvo: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  mic: '<rect x="9" y="2.8" width="6" height="11" rx="3"/><path d="M5.5 10.8a6.5 6.5 0 0 0 13 0M12 17.3V21M8.8 21h6.4"/>',
+  estrela: '<path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"/>',
+  livro: '<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7.5h6M8 11h6"/>'
+};
+const icm = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICM[k]}</svg>`;
+const temaEscuro = () => (document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+// Avisos que aparecem no sino
+function notificacoes() {
+  const out = [];
+  if (ACESSO.admin && ACESSO.pedidos) out.push({ ic: "coroa", t: `${ACESSO.pedidos} pedido(s) de Pro esperando sua aprovação`, act: "admin" });
+  if (ACESSO.liberado && !ACESSO.admin && ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS) out.push({ ic: "coroa", t: `Seu Pro acaba em ${diasRestam(ACESSO.expira)} dia(s), no dia ${dataCurta(ACESSO.expira)}. Renove para não perder o acesso.`, act: "pagar" });
+  if (!ACESSO.liberado && ACESSO.vencido && ACESSO.expira) out.push({ ic: "coroa", t: `Seu Pro venceu em ${dataCurta(ACESSO.expira)}.`, act: "pagar" });
+  if (!ACESSO.liberado && ACESSO.pedido) out.push({ ic: "sino", t: "Seu pedido de Pro foi enviado. Assim que o Pix for confirmado, ele é liberado.", act: "pagar" });
+  const q = sequencia(), feitas = q.dias[hojeStr()] || 0;
+  if (feitas < q.meta) out.push({ ic: "alvo", t: `Meta de hoje: ${feitas}/${q.meta} perguntas.`, act: "inicio" });
+  return out;
+}
 function desenharConta() {
   const el = $("#conta"); if (!el) return;
+  const temaTopo = $("#temaTopo"); if (temaTopo) temaTopo.style.display = NUVEM.user ? "none" : "";
   if (!FB_CONFIG) { el.innerHTML = ""; return; }
   const u = NUVEM.user;
   if (!u) { el.innerHTML = `<button class="btn-google" data-act="entrar">${G_ICON}<span>Entrar com Google</span></button>`; return; }
-  const pro = ACESSO.liberado, ped = ACESSO.pedidos || 0;
+  const pro = ACESSO.liberado, ped = ACESSO.pedidos || 0, avisos = notificacoes(), urgentes = avisos.filter(a => a.ic !== "alvo").length;
+  const papel = ACESSO.admin ? "Administrador" : pro && ACESSO.expira ? `Estudante · Pro até ${dataCurta(ACESSO.expira)}` : pro ? "Estudante · Pro" : "Estudante";
   el.innerHTML = `<span class="sync" title="Sincronização com a nuvem">${esc(NUVEM.estado || "☁ Sincronizado")}</span>
     ${pro ? `<span class="pro-chip" title="Você está no Hipocampo Study Pro">👑 Pro</span>` : ""}
-    <span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<button class="avatar" data-act="menuConta" title="${esc(u.email || "")}" style="${pro ? "border-color:#f5a623" : ""}">${avatarHTML(34)}</button>${ACESSO.admin && ped ? `<span style="position:absolute;top:-4px;right:-6px;background:var(--bad);color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px">${ped}</span>` : ""}</span>
+    <span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<button class="avatar" data-act="menuConta" title="${esc(u.email || "")}" style="${pro ? "border-color:#f5a623" : ""}">${avatarHTML(34)}</button>${urgentes ? `<span style="position:absolute;top:-4px;right:-6px;background:var(--bad);color:#fff;border-radius:999px;font-size:11px;font-weight:900;padding:1px 6px">${urgentes}</span>` : ""}</span>
     ${NUVEM.menu ? `<div class="conta-menu">
-      <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap"><span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<span class="avatar" style="width:46px;height:46px;cursor:default;${pro ? "border-color:#f5a623" : ""}">${avatarHTML(46)}</span></span>
-        <div style="min-width:0"><b>${esc(nomeUser())}</b><div class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis">${esc(u.email || "")}</div></div></div>
-      ${pro ? `<span class="pro-chip" style="align-self:flex-start;margin:4px 0">👑 Você está no Pro${ACESSO.admin ? " · Administrador" : ACESSO.expira ? ` até ${dataCurta(ACESSO.expira)}` : ""}</span>` : `<span style="font-size:12.5px;margin:4px 0">🎁 Plano grátis${ACESSO.vencido ? " · Pro vencido" : ""}</span>`}
-      ${pro && !ACESSO.admin && ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS ? `<button data-act="pagar">⏳ Renovar o Pro</button>` : ""}
-      <button data-act="perfil">🎨 Editar perfil (foto, nome, avatar)</button>
-      ${ACESSO.admin ? `<button data-act="admin">🛡️ Painel do administrador${ped ? ` <b style="color:var(--bad)">(${ped} pedido${ped > 1 ? "s" : ""})</b>` : ""}</button>` : pro ? "" : `<button data-act="pagar">👑 Quero o Pro</button>`}
-      <span class="muted" style="font-size:12px;margin:4px 0">Seus cadernos e progresso ficam salvos na nuvem e aparecem em qualquer aparelho em que você entrar. Seu nome e e-mail ficam guardados para a conta funcionar.</span>
-      <button data-act="syncAgora">🔄 Sincronizar agora</button><button data-act="sairConta">🚪 Sair da conta</button></div>` : ""}`;
+      <div class="cm-topo"><span class="av-wrap">${pro ? `<span class="coroa">👑</span>` : ""}<span class="avatar" style="width:44px;height:44px;cursor:default;${pro ? "border-color:#f5a623" : ""}">${avatarHTML(44)}</span></span>
+        <div style="min-width:0"><b>${esc(nomeUser())}</b><small>${esc(papel)}</small></div></div>
+      <button class="cm-item" data-act="perfil">${icm("perfil")}Meu perfil</button>
+      <button class="cm-item" data-act="conquistas">${icm("conquistas")}Conquistas</button>
+      <button class="cm-item" data-act="temaChave"><span class="cm-chave ${temaEscuro() ? "on" : ""}"></span>Modo escuro</button>
+      <button class="cm-item" data-act="idiomaMenu">${icm("idioma")}Mudar idioma</button>
+      ${S.idiomaMenu ? `<div class="cm-idiomas"><button data-act="idiomaUi" data-id="pt" class="${lsGet("fp-ui", "pt") === "pt" ? "on" : ""}">Português</button><button data-act="idiomaUi" data-id="es" class="${lsGet("fp-ui", "pt") === "es" ? "on" : ""}">Español</button></div>` : ""}
+      <button class="cm-item" data-act="notificacoes">${icm("sino")}Notificações${avisos.length ? `<span class="badge">${avisos.length}</span>` : ""}</button>
+      ${ACESSO.admin ? `<button class="cm-item" data-act="admin">${icm("escudo")}Painel do administrador${ped ? `<span class="badge">${ped}</span>` : ""}</button><button class="cm-item" data-act="publico">${icm("grafico")}Público</button>` : ""}
+      ${!ACESSO.admin && (!pro || (ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS)) ? `<button class="cm-item" data-act="pagar">${icm("coroa")}${pro ? "Renovar o Pro" : "Quero o Pro"}</button>` : ""}
+      <button class="cm-item" data-act="syncAgora">${icm("sync")}Sincronizar agora</button>
+      <button class="cm-item" data-act="sairConta">Sair</button></div>` : ""}`;
+}
+// Conquistas (calculadas a partir do que a pessoa já fez)
+function abrirConquistas() {
+  const q = sequencia(), seq = diasSeguidos(), respondidas = Object.values(q.dias).reduce((a, b) => a + b, 0);
+  const ateneos = S.cadernos.flatMap(c => c.ateneos || []), melhor = Math.max(0, ...ateneos.map(a => a.media || 0));
+  const nivel = Math.max(1, ...S.cadernos.map(c => nivelCaderno(c).nivel));
+  const lista = [
+    ["livro", "Primeiros passos", "Responder a primeira pergunta", respondidas >= 1],
+    ["alvo", "Aquecendo", "Responder 50 perguntas", respondidas >= 50],
+    ["alvo", "Maratonista", "Responder 500 perguntas", respondidas >= 500],
+    ["fogo", "Constância", "Estudar 3 dias seguidos", seq >= 3],
+    ["fogo", "Semana perfeita", "Estudar 7 dias seguidos", seq >= 7],
+    ["fogo", "Imparável", "Estudar 30 dias seguidos", seq >= 30],
+    ["mic", "Primeiro Ateneo", "Fazer um Ateneo oral", ateneos.length >= 1],
+    ["estrela", "Nota de destaque", "Tirar 8 ou mais no Ateneo", melhor >= 8],
+    ["estrela", "Nível 5", "Chegar ao nível 5 em um caderno", nivel >= 5],
+    ["coroa", "Pro", "Ativar o Hipocampo Study Pro", ACESSO.liberado]
+  ];
+  const feitas = lista.filter(x => x[3]).length;
+  $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Conquistas</h2><span class="muted" style="font-weight:700">${feitas} de ${lista.length}</span></div>
+    <div class="muted" style="font-size:13px">${respondidas} pergunta(s) respondida(s) · sequência atual: ${seq} dia(s) · ${ateneos.length} Ateneo(s)</div>
+    <div class="conquistas">${lista.map(([ic, t, d, ok]) => `<div class="conquista ${ok ? "" : "off"}">${icm(ic)}<b>${t}</b><small>${d}</small></div>`).join("")}</div>
+    <div class="row" style="justify-content:flex-end"><button class="pill" data-act="perfilCancelar">Fechar</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+function abrirNotificacoes() {
+  const avisos = notificacoes();
+  $("#perfilCorpo").innerHTML = `<h2 style="margin:0">Notificações</h2>
+    ${avisos.length ? avisos.map(a => `<button class="mrow" data-act="${a.act}" style="width:100%;text-align:left;cursor:pointer;align-items:center;gap:12px"><span style="width:22px;height:22px;flex:none;color:var(--accent)">${icm(a.ic)}</span><span style="font-weight:600;font-size:14px">${esc(a.t)}</span></button>`).join("") : `<p class="muted">Nenhuma notificação por enquanto.</p>`}
+    <div class="row" style="justify-content:flex-end"><button class="pill" data-act="perfilCancelar">Fechar</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
 }
 function estadoNuvem(t) { NUVEM.estado = t; desenharConta(); }
 
@@ -3283,6 +3369,11 @@ document.addEventListener("click", async e => {
     case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
     case "pedirPro": pedirPro(); break;
+    case "temaChave": { lsSet("fp-tema", temaEscuro() ? "light" : "dark"); aplicarTema(); desenharConta(); break; }
+    case "idiomaMenu": S.idiomaMenu = !S.idiomaMenu; desenharConta(); break;
+    case "idiomaUi": if (lsGet("fp-ui", "pt") !== id) { lsSet("fp-ui", id); location.reload(); } break;
+    case "conquistas": NUVEM.menu = false; desenharConta(); abrirConquistas(); break;
+    case "notificacoes": NUVEM.menu = false; desenharConta(); abrirNotificacoes(); break;
     case "perfil": NUVEM.menu = false; desenharConta(); S.perfilEd = null; abrirPerfil(); break;
     case "perfilUpload": $("#perfilFoto").click(); break;
     case "perfilGoogle": S.perfilEd = { ...S.perfilEd, tipo: "google", foto: "", nome: $("#perfilNome").value }; abrirPerfil(); break;
@@ -3416,7 +3507,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1412";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
