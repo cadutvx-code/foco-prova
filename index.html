@@ -2680,6 +2680,7 @@ function abrirPagamento(tipo) {
   }
   $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Foco Prova Pro</h2>
     ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}
+    <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${p.preco} servem só para ajudar a manter o site e a IA funcionando para todo mundo. É uma <b>taxa única e vitalícia</b>: sem mensalidade e sem cobrança escondida.</div>
     <p class="muted" style="margin:0">Acesso <b>completo e vitalício</b> por <b>R$ ${p.preco}</b>: perguntas, Ateneos, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
     ${ACESSO.pedido ? `<p class="aviso-nuvem" style="margin:0">📨 <b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado. Toque em "Verificar" para conferir.</p>` : ""}
     ${!p.pix ? `<p class="aviso-nuvem" style="margin:0">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</p>` : `
@@ -3117,7 +3118,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-0257";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
