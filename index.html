@@ -3123,7 +3123,7 @@ function abrirPagamento(tipo) {
       <li>Pague o <b>Pix de R$ ${reais(p.preco)}</b>: abra o app do seu banco e <b>aponte a câmera para o QR Code</b>, ou toque em <b>Copiar Pix copia e cola</b> e cole na área Pix do banco. O valor já vai preenchido.
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:8px">
           <div id="pixQR" style="width:176px;height:176px;background:#fff;border-radius:12px;padding:10px;display:grid;place-items:center;flex:none"><span class="spin"></span></div>
-          <div class="stack" style="gap:8px;min-width:0;flex:1">
+          <div class="stack" style="gap:8px;min-width:0;flex:1 1 210px">
             <button class="pill" data-act="copiarPixCodigo">📋 Copiar Pix copia e cola</button>
             <small class="muted">Ou pague pela chave Pix:<br><code style="word-break:break-all">${esc(p.pix)}</code> <button class="btn small ghost" data-act="copiarPix">Copiar chave</button></small>
           </div>
@@ -3719,7 +3719,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1452";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
