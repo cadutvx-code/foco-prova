@@ -1179,6 +1179,12 @@ function lerForm() {
   if ($("#g-tempo")) S.form.tempo = Math.max(0, +$("#g-tempo").value || 0);
   if ($("#g-tipos")) S.form.tipos = [...document.querySelectorAll("#g-tipos input:checked")].map(i => i.value);
 }
+const REGRAS_PERGUNTA = `
+QUALIDADE DAS PERGUNTAS (estilo prova de medicina):
+- Faça perguntas elaboradas que exijam raciocínio: mecanismos fisiológicos, causa → consequência, comparações entre estruturas/processos, o que acontece quando algo falha, valores normais com unidade e casos clínicos curtos ("Um paciente com… apresenta… Qual é o mecanismo…?"). Evite perguntas triviais de decoreba ou de "qual destas é uma característica".
+- As 4 alternativas devem ser do MESMO tipo e formato (todas números com a mesma unidade, ou todas mecanismos, ou todas estruturas), plausíveis e com tamanho parecido; as erradas devem ser erros comuns de estudante, mas claramente erradas.
+- O ENUNCIADO é lido diretamente pelo estudante: escreva SÓ a pergunta. NUNCA mencione o estudante, o domínio, o desempenho, as preferências, o material, o texto, o livro, o professor ou estas instruções (nada como "recorde que o estudante…", "segundo o material…", "como visto no texto…").
+- CONFIRA O GABARITO antes de responder: a alternativa indicada em "correta" tem que estar 100% de acordo com o conteúdo — mesmos números, faixas e unidades (se o valor certo é 300–400 mL, a correta diz 300–400 mL). A "explicacao" tem que defender exatamente essa alternativa, com os mesmos valores. Se não tiver certeza do valor, faça outra pergunta.`;
 const ROTULO_RESPOSTA = /^\s*(correta|correto|certa|errada|errado|incorreta|correcta|correcto|incorrecta|incorrecto|correct|incorrect|verdadeir[oa]|fals[oa])\s*[:\-–.]\s*/i;
 // Descarta questões com alternativas vazias, repetidas ou sem gabarito (comum em IAs pequenas)
 function altsValidas(x) {
@@ -1196,8 +1202,27 @@ function altsValidas(x) {
     // rótulos trocados nas explicações: mantém a pergunta e descarta só as explicações (a certa é escrita quando você responder)
     if (certas.length !== 1 || certas[0] !== x.correta) delete x.explicacoes;
   }
+  // texto "de bastidor" vazado no enunciado (instruções, perfil do estudante, "segundo o material"…): descarta
+  if (BASTIDOR.test(String(x.enunciado || ""))) return false;
+  // gabarito conferido pelos números: os valores da explicação precisam estar na alternativa marcada como certa
+  const exp = String(x.explicacao || ""), nExp = numerosDe(exp), nAlts = alts.map(numerosDe);
+  if (nExp.size && nAlts[x.correta].size) {
+    const bate = s => [...s].some(v => nExp.has(v));
+    const todasNumericas = nAlts.every(s => s.size), outraBate = nAlts.some((s, i) => i !== x.correta && bate(s));
+    // ex.: alternativas de 1 a 3 mL e explicação falando de 300 a 400 mL; ou explicação que defende outra alternativa
+    if (!bate(nAlts[x.correta]) && (todasNumericas || outraBate)) return false;
+  }
   x.alternativas = alts;
   return true;
+}
+const BASTIDOR = /\b(o|a|os|as|el|la|los|las|do|da|del)\s+(estudante|aluno|aluna|alumno|alumna|estudiante)s?\b|\bdom[íi]nio (atual|do estudante|del estudiante)|prefer[êe]ncias? do|\b(segundo|conforme|de acordo com|según|como (visto|se vio|vimos) en) (o|a|el|la|los|las)? ?(material|texto|documento|livro|libro|apunte)|\b(recorde|lembre[- ]se|recuerda|recordá) que (o|el) (estudante|aluno|alumno|estudiante)|\binstru[cç][õo]es\b|\binstrucciones\b/i;
+// números COM unidade de um texto (inclui faixas: "300 a 400 mL" → 300 e 400); números soltos como "fase 4" não contam
+const UNIDADE = "(?:%|mm\\s?Hg|mmHg|cm\\s?H2O|mL|ml|L|l|dL|dl|µL|uL|mg|g|kg|µg|ug|ng|mEq|mmol|µmol|mOsm|mosm|mV|V|min|s|seg|h|horas?|dias?|anos?|kcal|cal|°C|ºC|bpm|lpm|mm|cm|m|µm|nm|U|UI|mU)";
+const RE_NUM_UNID = new RegExp("(\\d+(?:[.,]\\d+)?)(?:\\s*(?:a|-|–|y|e|to|até|hasta)\\s*(\\d+(?:[.,]\\d+)?))?\\s*" + UNIDADE + "(?![\\p{L}])", "giu");
+function numerosDe(t) {
+  const out = new Set();
+  for (const m of String(t).matchAll(RE_NUM_UNID)) for (const v of [m[1], m[2]]) if (v) out.add(String(parseFloat(v.replace(",", "."))));
+  return out;
 }
 // IAs pequenas (navegador/local) erram mais com listas longas: gera em lotes e junta
 async function emLotes(qtd, campo, chave, fn) {
@@ -1271,7 +1296,7 @@ async function gerar(tipo) {
       const r = await emLotes(qtd, "cards", "frente", (n, ev) => gerarJSON(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${d}${f}${ev}`, SCH.flash, foco));
       c.decks.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, cards: r.cards.map(k => ({ ...k, caixa: 0, proxima: 0 })) });
     } else if (tipo === "quiz") {
-      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas plausíveis e apenas uma correta ("correta" é o índice 0-3). Em "explicacao", diga por que a correta está certa. Em "explicacoes", dê 4 textos curtos, um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada. ${d}${f}${ev}`, SCH.quiz, foco));
+      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas plausíveis e apenas uma correta ("correta" é o índice 0-3). Em "explicacao", diga por que a correta está certa. Em "explicacoes", dê 4 textos curtos, um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada.${REGRAS_PERGUNTA} ${d}${f}${ev}`, SCH.quiz, foco));
       r.questoes.forEach(normalizarMultipla);
       c.quizzes.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, questoes: r.questoes, tentativas: [] });
     } else if (tipo === "prova") {
@@ -1899,6 +1924,7 @@ Regras de adaptação:
 - "explicacao" (OBRIGATÓRIO, nunca vazio): por que a correta está certa, em 1 a 2 frases com o conceito em si (sem dizer "segundo o material" ou "o livro diz").
 - "explicacoes" (OBRIGATÓRIO): 4 textos MUITO curtos (até 12 palavras cada), um por alternativa NA MESMA ORDEM. Comece cada uma com "Correta:" ou "Errada:" (só UMA pode ser "Correta:", a mesma de "correta"); nas erradas, diga o erro concreto (ex.: "Errada: quem produz ATP é a mitocôndria, não o ribossomo"). Evite perguntas com mais de uma resposta defensável.
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar novos).
+- As informações acima sobre o estudante (domínio, preferências, histórico) são SÓ para você escolher os temas e a dificuldade: nunca as escreva nas perguntas.${REGRAS_PERGUNTA}
 - Não repita estas perguntas:
 ${hist}
 ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
@@ -3618,7 +3644,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1429";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
