@@ -426,7 +426,10 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
       <span class="muted" style="font-size:12px">Cada caderno também tem o seu seletor 🌐 ao lado de “Começar a estudar”.</span>
     </div>
     <div class="stack" id="cfgVozBloco" style="gap:8px;padding-top:6px;border-top:1px solid var(--line)">
-      <b style="font-size:14px">🔊 Voz do professor (Ateneo)</b>
+      <b style="font-size:14px">🎙️ Microfone (Ateneo)</b>
+      <div class="row"><label class="grow">Qual microfone usar<select id="cfgMic"><option value="">Padrão do aparelho</option></select></label><button class="btn small" data-act="testarMic">▶ Testar</button></div>
+      <div id="micTeste" class="muted" style="font-size:12.5px;display:none"><div class="prog" style="margin:4px 0"><div id="micNivel" style="width:0;transition:width .1s"></div></div><span id="micMsg">Fale alguma coisa…</span></div>
+      <b style="font-size:14px;margin-top:6px">🔊 Voz do professor (Ateneo)</b>
       <div class="row"><label class="grow">Em espanhol<select id="cfgVozEs"></select></label><button class="btn small" data-act="testarVoz" data-id="es">▶ Probar</button></div>
       <div class="row"><label class="grow">Em português (quando o Ateneo estiver em português)<select id="cfgVozPt"></select></label><button class="btn small" data-act="testarVoz" data-id="pt">▶ Testar</button></div>
       <span class="muted" style="font-size:12px">Vozes Piper: rodam no seu aparelho, grátis e sem limite. Na primeira vez a voz é baixada (cerca de 60 MB) e fica guardada.</span>
@@ -2195,7 +2198,11 @@ async function gravar(streamTeste) {
   let stream = streamTeste;
   if (!stream) {
     if (!navigator.mediaDevices?.getUserMedia) return toast("Este navegador não grava áudio. Escreva a resposta.", true);
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    const micId = lsGet("fp-mic", ""), base = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    try {
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: micId ? { ...base, deviceId: { exact: micId } } : base }); }
+      catch (e) { if (!micId || /NotAllowed|Permission/i.test(e.name + e.message)) throw e; stream = await navigator.mediaDevices.getUserMedia({ audio: base }); }
+    }
     catch (e) {
       try { ctxAudio?.close(); } catch {}
       if (/NotAllowed|Permission/i.test(e.name + e.message)) return toast("Permita o uso do microfone (no ícone do cadeado, ao lado do endereço) para responder falando.", true);
@@ -2299,7 +2306,7 @@ async function pararGravacao() {
     if (mudo && g.pedacos?.length) mudo = (await volumeGravacao(new Blob(g.pedacos, { type: g.mr.mimeType || "audio/webm" }))) < 0.002; // confere na própria gravação
     if (mudo) {
       p.transcrevendo = false; p.resp = p.base.trim(); render();
-      toast(navigator.brave ? "🦁 O Brave entregou o microfone mudo (sem som nenhum). Use o Chrome ou o Edge, ou toque no leão do Brave e desative os escudos (Shields) para este site." : "O microfone chegou mudo (sem som nenhum). Confira se ele está ligado e se é o microfone certo, no cadeado ao lado do endereço.", true);
+      toast(navigator.brave ? "🦁 O Brave entregou o microfone mudo (sem som nenhum). Escolha outro microfone em Ajustes → Microfone (tem um botão Testar), use o Chrome/Edge, ou desative os escudos (leão) para este site." : "O microfone chegou mudo (sem som nenhum). Escolha o microfone certo em Ajustes → Microfone (tem um botão Testar).", true);
       return;
     }
     if (!p.ouvido && g.pedacos?.length) {
@@ -3278,7 +3285,43 @@ async function criarCaderno() {
 }
 
 /* ================= config ================= */
+// Lista os microfones do aparelho (os nomes só aparecem depois que o site recebe permissão)
+async function preencherMics() {
+  const sel = $("#cfgMic"); if (!sel || !navigator.mediaDevices?.enumerateDevices) return;
+  try {
+    const mics = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput" && d.deviceId !== "default" && d.deviceId !== "communications");
+    const salvo = lsGet("fp-mic", "");
+    sel.innerHTML = `<option value="">Padrão do aparelho</option>` + mics.map((d, i) => `<option value="${esc(d.deviceId)}">${esc(d.label || `Microfone ${i + 1} (toque em Testar para ver o nome)`)}</option>`).join("");
+    sel.value = mics.some(d => d.deviceId === salvo) ? salvo : "";
+  } catch {}
+}
+// Testa o microfone escolhido por 6 segundos, mostrando o volume
+async function testarMic() {
+  const caixa = $("#micTeste"), barra = $("#micNivel"), msg = $("#micMsg"), id = $("#cfgMic").value;
+  lsSet("fp-mic", id); caixa.style.display = ""; msg.textContent = "Abrindo o microfone…";
+  let stream, ctx;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: id ? { deviceId: { exact: id }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    ctx = new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume?.();
+    const an = ctx.createAnalyser(); an.fftSize = 2048; ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize); let max = 0;
+    const nome = stream.getAudioTracks()[0]?.label || "microfone";
+    msg.textContent = `Fale alguma coisa no "${nome}"…`;
+    preencherMics(); // agora os nomes aparecem
+    const fim = Date.now() + 6000;
+    while (Date.now() < fim) {
+      an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; const rms = Math.sqrt(s / buf.length);
+      max = Math.max(max, rms); barra.style.width = Math.min(100, Math.round(Math.sqrt(rms) * 260)) + "%";
+      await new Promise(r => setTimeout(r, 80));
+    }
+    barra.style.width = "0";
+    msg.innerHTML = max > 0.01 ? `✅ <b>Funcionando!</b> O "${esc(nome)}" está ouvindo você.` : max > 0.002 ? `⚠️ Ouvi bem baixinho no "${esc(nome)}". Fale mais perto ou escolha outro microfone.` : `❌ <b>Nenhum som</b> no "${esc(nome)}". Escolha outro microfone na lista e teste de novo.${navigator.brave ? " No Brave, se nenhum funcionar, toque no leão ao lado do endereço e desative os escudos para este site, ou use o Chrome." : ""}`;
+  } catch (e) {
+    msg.textContent = /NotAllowed|Permission/i.test(e.name + e.message) ? "O navegador não deixou usar o microfone. Permita no cadeado ao lado do endereço." : "Não consegui abrir esse microfone: " + (e.message || e.name);
+  } finally { stream?.getTracks().forEach(t => t.stop()); try { ctx?.close(); } catch {} }
+}
 function preencherVozes() {
+  preencherMics();
   $("#cfgUi").value = lsGet("fp-ui", "pt");
   $("#cfgIdiomaPadrao").value = lsGet("fp-idioma-padrao", "auto");
   for (const [id, idioma] of [["#cfgVozEs", "es"], ["#cfgVozPt", "pt"]]) {
@@ -3369,6 +3412,7 @@ document.addEventListener("click", async e => {
     case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
     case "pedirPro": pedirPro(); break;
+    case "testarMic": testarMic(); break;
     case "temaChave": { lsSet("fp-tema", temaEscuro() ? "light" : "dark"); aplicarTema(); desenharConta(); break; }
     case "idiomaMenu": S.idiomaMenu = !S.idiomaMenu; desenharConta(); break;
     case "idiomaUi": if (lsGet("fp-ui", "pt") !== id) { lsSet("fp-ui", id); location.reload(); } break;
@@ -3441,7 +3485,7 @@ document.addEventListener("click", async e => {
       lsSet("fp-ui", uiNovo); lsSet("fp-idioma-padrao", $("#cfgIdiomaPadrao").value);
       if (uiAntes !== uiNovo) setTimeout(() => location.reload(), 300); // recarrega para trocar todos os textos
     }
-      lsSet("fp-voz-piper", { es: $("#cfgVozEs").value, pt: $("#cfgVozPt").value }); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
+      lsSet("fp-voz-piper", { es: $("#cfgVozEs").value, pt: $("#cfgVozPt").value }); if ($("#cfgMic")) lsSet("fp-mic", $("#cfgMic").value); lsSet("fp-config", { provider: $("#cfgProvider").value, apiKey: $("#cfgKey").value.trim(), model: $("#cfgModel").value, effort: $("#cfgEffort").value, ollamaUrl: $("#cfgOUrl").value.trim() || "http://localhost:11434", ollamaModel: $("#cfgOModel").value, ollamaCtx: +$("#cfgOCtx").value, webModel: $("#cfgWModel").value, escolhaManual: true }); $("#dlgConfig").close(); toast("Configurações salvas."); render(); break;
     case "detectar": detectarModelos(); break;
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
     case "inicio": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.atual = null; S.player = null; render(); break;
@@ -3507,7 +3551,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-1415";
+const VERSAO_APP = "2026-11-21c";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
