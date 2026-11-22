@@ -4438,7 +4438,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1906";
+const VERSAO_APP = "2026-11-22-1907";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5925,7 +5925,7 @@ async function gerarMapa() {
     const material = m ? `### ${m.nome}\n${m.texto.slice(0, 45000)}` : blocoMateriais(c, foco, 45000);
     const dados = await chamar({
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: material }],
-      messages: [{ role: "user", content: `Crie um MAPA MENTAL de estudo do conteúdo acima${foco ? `, com foco em: ${foco}` : ""}, para revisar antes da prova.\n- "titulo": nome do mapa (até 6 palavras).\n- "centro": o tema central (até 4 palavras).\n- "subtitulo": um dado-chave curtíssimo do tema (ex.: um valor normal), ou "".\n- "ramos": de 4 a 7 ramos principais com "titulo" (até 4 palavras) e "itens": de 2 a 6 fatos curtos (até 9 palavras cada) que caem em prova, com valores e unidades quando houver.\n- Sem emojis, sem markdown. Não repita fatos entre ramos.` }],
+      messages: [{ role: "user", content: `Crie um MAPA MENTAL de estudo do conteúdo acima${foco ? `, com foco em: ${foco}` : ""}, para revisar antes da prova.\n- "titulo": nome do mapa (até 6 palavras).\n- "centro": o tema central (até 4 palavras).\n- "subtitulo": um dado-chave curtíssimo do tema (ex.: um valor normal), ou "".\n- "ramos": de 4 a 7 ramos principais com "titulo" (até 4 palavras) e "itens": de 2 a 6 fatos curtos (até 9 palavras cada) que caem em prova, com valores e unidades quando houver.\n- Escreva com acentuação e ortografia corretas. Sem emojis, sem markdown. Não repita fatos entre ramos.` }],
       schema: obj({ titulo: str, centro: str, subtitulo: str, ramos: arr(obj({ titulo: str, itens: arr(str) })) }), maxTokens: 3000, urgente: true
     });
     let estiloIA = null;
@@ -6033,10 +6033,10 @@ function mapa2D(svgEl, dados, o) {
   const fs = 12.5, raio = o.forma === "retangulo" ? 4 : o.forma === "circulo" ? 20 : 17;
   const traco = o.linha === "tracejada" ? 'stroke-dasharray="6 5"' : "";
   const linha = (x1, y1, x2, y2, cor, lw, curva = o.linha !== "reta", dir = 1) => curva ? `<path d="M${x1} ${y1} C ${x1 + dir * Math.abs(x2 - x1) * .5} ${y1}, ${x2 - dir * Math.abs(x2 - x1) * .5} ${y2}, ${x2} ${y2}" stroke="${cor}" stroke-width="${lw}" fill="none" stroke-linecap="round" ${traco}/>` : `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${cor}" stroke-width="${lw}" stroke-linecap="round" ${traco}/>`;
-  const caixa = (x, y, t, cor, larg = 128) => `<g><rect x="${x - larg / 2}" y="${y - 17}" width="${larg}" height="34" rx="${raio}" fill="${cor}"/><text x="${x}" y="${y + 5}" text-anchor="middle" font-size="13.5" font-weight="800" fill="#1b1d3a" font-family='${o.fonte}'>${esc2(t.length > 18 ? t.slice(0, 17) + "…" : t)}</text></g>`;
+  const caixa = (x, y, t, cor) => { const tt = t.length > 30 ? t.slice(0, 29) + "…" : t, larg = Math.max(120, Math.min(230, tt.length * 7.8 + 30)); return `<g><rect x="${x - larg / 2}" y="${y - 17}" width="${larg}" height="34" rx="${raio}" fill="${cor}"/><text x="${x}" y="${y + 5}" text-anchor="middle" font-size="13.5" font-weight="800" fill="#1b1d3a" font-family='${o.fonte}'>${esc2(tt)}</text></g>`; };
   let s = "";
   if (o.layout === "arvore") {
-    const x0 = Math.max(110, w * .16), x1 = w * .42, xf = w * .55, alt = h - 60, passo = alt / n;
+    const x0 = Math.max(110, w * .14), x1 = w * .38, xf = w * .52, alt = h - 60, passo = alt / n;
     dados.ramos.forEach((r, i) => { const cor = o.cores[i % o.cores.length], y = 30 + passo * (i + .5);
       s += linha(x0 + 70, h / 2, x1 - 64, y, cor, 4);
       r.itens.forEach((t, j) => { const fy = y + (j - (r.itens.length - 1) / 2) * Math.min(22, passo / Math.max(1, r.itens.length)); s += linha(x1 + 64, y, xf, fy, cor, 1.8) + `<text x="${xf + 6}" y="${fy + 4}" font-size="${fs}" font-weight="600" fill="${o.corTexto}" font-family='${o.fonte}'>${esc2(t)}</text>`; });
