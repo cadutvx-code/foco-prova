@@ -4364,7 +4364,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1842";
+const VERSAO_APP = "2026-11-22-1843";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5322,16 +5322,22 @@ async function gerarPanico() {
 function cartaoPanico(c) {
   const p = c.panico; if (!p || Date.now() - p.criado > (p.horas + 24) * 3600000) return "";
   const ic = { estudo: "🧠", flashcards: "🃏", guia: "📖", pausa: "☕", ateneo: "🎤" }, feitos = p.blocos.filter(b => b.feito).length;
-  const fim = p.criado + p.horas * 3600000, falta = Math.max(0, fim - Date.now()), h = Math.floor(falta / 3600000), m = Math.round((falta % 3600000) / 60000);
+  const fim = p.criado + p.horas * 3600000, falta = Math.max(0, fim - Date.now()), h = Math.floor(falta / 3600000), m = Math.floor((falta % 3600000) / 60000);
   return `<div class="card panico-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">🚨 ${esc(p.titulo)}</h3><small class="muted">${falta ? `prova em ~${h ? h + " h " : ""}${m} min` : "boa prova! 🍀"} · ${feitos}/${p.blocos.length} feitos</small></div>
     ${p.dica ? `<div class="muted" style="font-size:13.5px;margin:6px 0 4px">💡 ${esc(p.dica)}</div>` : ""}
     <div class="pan-blocos">${p.blocos.map((b, i) => `<div class="pan-bloco ${b.feito ? "feito" : ""}"><button class="pan-check" data-act="panFeito" data-id="${i}" title="Marcar como feito">${b.feito ? "✔" : ""}</button>
-      <div style="flex:1;min-width:0"><b>${ic[b.atividade] || "📌"} ${esc(b.titulo)}</b> <small class="muted">${b.minutos} min</small><div class="muted" style="font-size:13px">${esc(b.objetivo)}</div></div>
-      ${b.atividade !== "pausa" && !b.feito ? `<button class="btn small" data-act="panIr" data-id="${i}">▶</button>` : ""}</div>`).join("")}</div>
+      <div style="flex:1;min-width:0"><b>${ic[tipoBloco(b)]} ${esc(b.titulo)}</b> <small class="muted">${b.minutos} min</small><div class="muted" style="font-size:13px">${esc(b.objetivo)}</div></div>
+      ${tipoBloco(b) !== "pausa" && !b.feito ? `<button class="btn small" data-act="panIr" data-id="${i}">▶</button>` : ""}</div>`).join("")}</div>
     <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn small ghost" data-act="panApagar">Apagar plano</button></div></div>`;
+}
+// a IA às vezes escreve a atividade com outras palavras ("revisão", "descanso"…): normaliza
+function tipoBloco(b) {
+  const a = String(b.atividade || "").toLowerCase();
+  return /pausa|descans|dormir|sono|intervalo/.test(a) ? "pausa" : /flash|cart/.test(a) ? "flashcards" : /guia|resumo|leitura|ler/.test(a) ? "guia" : /ateneo|oral/.test(a) ? "ateneo" : "estudo";
 }
 function panIr(i) {
   const c = atual(), b = c?.panico?.blocos[i]; if (!b) return;
+  b.atividade = tipoBloco(b);
   if (b.atividade === "flashcards") { S.aba = "flash"; render(); return; }
   if (b.atividade === "guia") { S.aba = "resumo"; render(); return; }
   if (b.atividade === "ateneo" && c.oficial) { S.aba = "oral"; render(); return; }
