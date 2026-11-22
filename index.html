@@ -104,6 +104,14 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head h2{margin:0 6px 0 0;font-size:21px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
+.mais-mat{width:30px;height:30px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:21px;font-weight:800;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0 0 2px;box-shadow:0 3px 10px rgba(61,123,245,.35);transition:transform .15s}
+.mais-mat:hover{transform:scale(1.1)}
+.mkit-novo{width:250px;height:156px;border-radius:18px;border:2px dashed var(--line);background:transparent;color:var(--muted);font:inherit;font-weight:800;font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:.15s}
+.mkit-novo span{font-size:38px;line-height:1;color:var(--accent)}
+.mkit-novo:hover{border-color:var(--accent);color:var(--text)}
+.ig-link{display:inline-flex;align-items:center;gap:8px;color:var(--text);font-weight:800;text-decoration:none;padding:9px 16px;border-radius:999px;border:1px solid var(--line);background:var(--panel)}
+.ig-link:hover{border-color:#d6338a;color:#d6338a}
+.rodape-contato{display:flex;flex-direction:column;align-items:center;gap:8px;margin:28px 0 8px;text-align:center}
 .mkit{position:relative;width:250px;height:156px;border-radius:18px;padding:16px 16px 14px;color:#fff;cursor:pointer;overflow:hidden;text-align:left;border:none;display:flex;flex-direction:column;box-shadow:var(--shadow);transition:.15s}
 .mkit:hover{transform:translateY(-3px);filter:brightness(1.05)}
 .mkit b{font-size:15px;line-height:1.3;max-width:85%;text-shadow:0 1px 2px rgba(0,0,0,.15)}
@@ -1609,9 +1617,10 @@ function viewHome() {
   return `${avisoEndereco}${cartaoPlano()}${cartaoMeta()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
+        <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
         ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}<button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
       </div>
-      <div class="mkits">${grupos[m].sort((a, b) => b.atualizado - a.atualizado).map(cartao).join("")}</div>
+      <div class="mkits">${grupos[m].sort((a, b) => b.atualizado - a.atualizado).map(cartao).join("")}<button class="mkit-novo" data-act="novoNaMateria" data-id="${esc(m)}"><span>+</span>Adicionar material</button></div>
     </section>`).join("")}
   ${S.cadernos.length ? "" : `<div class="card" style="max-width:640px"><h2>Como funciona</h2>
     <ol class="steps">
@@ -1619,7 +1628,9 @@ function viewHome() {
       <li><div><b>A IA identifica a matéria</b> (ex.: Nutrição Clínica, Fisiologia) e organiza seus cadernos por ela.</div></li>
       <li><div><b>Clique em “Começar a estudar”:</b> perguntas que focam nos seus pontos fracos.</div></li>
     </ol>
-    <p class="muted" style="font-size:13px;margin-bottom:0">IA em uso: <b>${esc(nomeIA())}</b> — troque em Ajustes.</p></div>`}`;
+    <p class="muted" style="font-size:13px;margin-bottom:0">IA em uso: <b>${esc(nomeIA())}</b> — troque em Ajustes.</p></div>`}
+  <div class="rodape-contato"><span class="muted" style="font-size:13px">Dúvidas, sugestões ou problemas? Fale com a gente:</span>
+    <a class="ig-link" href="https://www.instagram.com/hipocampostudy/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>@hipocampostudy</a></div>`;
 }
 
 // A IA lê o começo do material e diz a matéria (reaproveita as que você já tem)
@@ -3011,6 +3022,7 @@ function desenharConta() {
       ${ACESSO.admin ? `<button class="cm-item" data-act="admin">${icm("escudo")}Painel do administrador${ped ? `<span class="badge">${ped}</span>` : ""}</button><button class="cm-item" data-act="publico">${icm("grafico")}Público</button>` : ""}
       ${!ACESSO.admin && (!pro || (ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS)) ? `<button class="cm-item" data-act="pagar">${icm("coroa")}${pro ? "Renovar o Pro" : "Quero o Pro"}</button>` : ""}
       <button class="cm-item" data-act="syncAgora">${icm("sync")}Sincronizar agora</button>
+      <a class="cm-item" href="https://www.instagram.com/hipocampostudy/" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Contato (Instagram)</a>
       <button class="cm-item" data-act="sairConta">Sair</button></div>` : ""}`;
 }
 // Conquistas (calculadas a partir do que a pessoa já fez)
@@ -3835,9 +3847,9 @@ async function sincronizarTudo() {
 }
 
 /* ================= novo caderno ================= */
-function abrirNovo(arquivos = []) {
+function abrirNovo(arquivos = [], materia = "") {
   S.novo = { icone: ICONES_KIT[Math.floor(Math.random() * 6)], arquivos: [...arquivos] };
-  $("#novoMateria").value = ""; atualizarListaMaterias();
+  $("#novoMateria").value = materia; atualizarListaMaterias();
   $("#novoNome").value = arquivos[0] ? arquivos[0].name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").slice(0, 80) : "";
   desenharNovo();
   $("#dlgNovo").showModal();
@@ -3944,6 +3956,7 @@ document.addEventListener("click", async e => {
   const act = el.dataset.act, id = el.dataset.id, c = atual();
   switch (act) {
     case "novo": abrirNovo(); break;
+    case "novoNaMateria": abrirNovo([], id === SEM_MATERIA ? "" : id); break;
     case "metaDia": e.preventDefault(); { const q = sequencia(); pedirTexto("Meta diária (perguntas por dia)", String(q.meta), v => { const n = Math.max(1, Math.min(500, parseInt(v) || q.meta)); lsSet("fp-sequencia", { ...sequencia(), meta: n }); render(); toast(`Meta diária: ${n} perguntas.`); }); break; }
     case "oralSortear": { const n = listaAteneo(c).length; if (n) iniciarAteneo(c, Math.floor(Math.random() * n), true); break; }
     case "ateneoAbrir": abrirAteneo(id); break;
@@ -4147,7 +4160,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2045";
+const VERSAO_APP = "2026-11-21-2333";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4763,7 +4776,8 @@ const UI_ES = {
   "(nenhuma)": "(ninguna)",
   "o professor está escrevendo a explicação…": "el profesor está escribiendo la explicación…",
   "múltipla escolha (5 alternativas)": "opción múltiple (5 alternativas)",
-  "🔒 Suba de nível estudando para liberar mais avatares.": "🔒 Sube de nivel estudiando para liberar más avatares."
+  "🔒 Suba de nível estudando para liberar mais avatares.": "🔒 Sube de nivel estudiando para liberar más avatares.",
+  "Adicionar material": "Agregar material", "Dúvidas, sugestões ou problemas? Fale com a gente:": "¿Dudas, sugerencias o problemas? Habla con nosotros:", "Contato (Instagram)": "Contacto (Instagram)"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
