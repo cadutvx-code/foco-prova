@@ -104,6 +104,28 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head h2{margin:0 6px 0 0;font-size:21px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
+.entrada{display:grid;grid-template-columns:1.2fr 1fr;gap:22px;align-items:center;padding:26px;border-radius:24px;margin-bottom:18px;background:radial-gradient(120% 140% at 0% 0%,rgba(123,85,255,.32),transparent 60%),radial-gradient(120% 140% at 100% 100%,rgba(47,107,255,.28),transparent 55%),var(--panel);border:1px solid var(--line)}
+.entrada-selo{display:inline-block;font-size:12px;font-weight:800;padding:5px 10px;border-radius:999px;background:rgba(255,215,106,.16);color:#f5b83a;margin-bottom:10px}
+.entrada h1{font-size:clamp(26px,4.4vw,42px);line-height:1.08;margin:0 0 12px;letter-spacing:-.02em}
+.entrada h1 span{background:linear-gradient(90deg,#8b6bff,#3d8bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.entrada p{color:var(--muted);font-size:15.5px;line-height:1.55;margin:0 0 16px}
+.entrada-cta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.entrada-cta .btn-google{padding:11px 18px;font-size:15px}
+.entrada-demo{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px}
+.entrada-demo .hipo-svg{animation:hipoBoia 3s ease-in-out infinite;margin-bottom:-6px;z-index:1}
+.demo-q{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 16px 40px rgba(0,0,0,.25);transform:rotate(-1.5deg)}
+.demo-q b{display:block;font-size:14.5px;margin-bottom:10px}
+.demo-alt{padding:9px 12px;border-radius:10px;background:var(--panel2);margin-top:7px;font-size:13.5px;display:flex;justify-content:space-between}
+.demo-alt.certa{animation:demoCerta 3.6s ease-in-out infinite}
+.demo-xp{text-align:right;font-weight:900;color:#f5b83a;margin-top:10px;font-size:13px;animation:demoXp 3.6s ease-in-out infinite}
+@keyframes demoCerta{0%,35%{background:var(--panel2);box-shadow:none}45%,90%{background:rgba(46,204,113,.22);box-shadow:inset 0 0 0 2px #2ecc71}100%{background:var(--panel2)}}
+@keyframes demoXp{0%,42%{opacity:0;transform:translateY(6px)}50%,90%{opacity:1;transform:none}100%{opacity:0}}
+.entrada-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.entrada-item{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border-radius:14px;background:var(--bg);border:1px solid var(--line)}
+.entrada-item span{font-size:22px}
+.entrada-item b{font-size:14px}
+.entrada-item small{color:var(--muted);font-size:12.5px;line-height:1.4}
+@media (max-width:760px){.entrada{grid-template-columns:1fr;padding:18px}.entrada-grid{grid-template-columns:1fr 1fr}}
 .duelo-btn{border-color:rgba(255,183,77,.6)!important;color:#ffb74d!important;font-weight:800}
 .duelo-placar{display:flex;flex-direction:column;gap:8px;max-width:420px;margin:0 auto;width:100%}
 .duelo-linha,.rank-linha{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;margin-top:6px;background:var(--panel)}
@@ -1692,7 +1714,7 @@ function viewHome() {
     </div>`;
   };
   const avisoEndereco = (location.hostname.endsWith("github.io") || location.hostname.startsWith("focoprova")) ? `<div class="aviso-nuvem">🐴 O Foco Prova agora se chama <b>Hipocampo Study</b> e mudou de endereço: <a href="https://hipocampo.web.app" style="color:var(--accent);font-weight:800">hipocampo.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
-  return `${avisoEndereco}${cartaoPlano()}${cartaoHipo()}${cartaoRevisaoDia()}${cartaoMeta()}${cartaoRanking()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  return `${avisoEndereco}${cartaoPlano()}${cartaoEntrada() || cartaoHipo() + cartaoRevisaoDia()}${cartaoMeta()}${cartaoRanking()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
@@ -2749,7 +2771,8 @@ function cartaoAteneos() {
       const c = cadernoAteneo(a.id), ok = c && ativos(c).length;
       return `<button class="papel" data-act="ateneoAbrir" data-id="${a.id}" ${a.pronto ? "" : "disabled"} style="flex:1;min-width:190px;text-align:left;padding:12px 14px;${a.pronto ? "" : "opacity:.55;cursor:not-allowed"}">
         <b style="font-size:16px">${a.nome}</b><br><small class="muted">${UI_ESP() ? (UI_ES[a.sub] || a.sub) : a.sub}</small><br><small style="color:${ok ? "var(--ok)" : "var(--accent)"};font-weight:700">${UI_ESP() ? (!a.pronto ? "Próximamente" : ok ? "✅ Material listo" : "⬇️ Descargar material") : (!a.pronto ? "Em breve" : ok ? "✅ Material pronto" : "⬇️ Baixar material")}</small></button>`;
-    }).join("")}</div></div>`;
+    }).join("")}</div>
+    <div class="muted" style="font-size:12.5px;margin-top:10px">📚 Quer o material da sua matéria aqui, pronto para estudar? <a href="#" data-act="feedback" style="color:var(--accent);font-weight:800">Mande para a gente</a> pelo Feedback.</div></div>`;
 }
 function cartaoBaixarAteneo(id) {
   const a = ATENEOS.find(x => x.id === id);
@@ -4341,7 +4364,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1841";
+const VERSAO_APP = "2026-11-22-1842";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4994,7 +5017,8 @@ const UI_ES = {
   "⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link pro seu amigo.": "⚔️ ¡Duelo creado! Responde tú primero; al final aparece el botón para mandarle el link a tu amigo.",
   "🏆 Ranking da semana": "🏆 Ranking de la semana", "Ver tudo": "Ver todo", "👥 Entrar numa turma": "👥 Unirme a un curso", "Ninguém da sua turma pontuou ainda nesta semana. Seja o primeiro!": "Nadie de tu curso sumó puntos esta semana. ¡Sé el primero!",
   "Responda perguntas para entrar no ranking. Coloque o código da sua turma para competir com os colegas.": "Responde preguntas para entrar al ranking. Pon el código de tu curso para competir con tus compañeros.",
-  "Código da sua turma (combine com os colegas, ex.: FISIO1-C)": "Código de tu curso (combínalo con tus compañeros, ej.: FISIO1-C)", "Salvar": "Guardar", "Ninguém pontuou ainda nesta semana.": "Nadie sumó puntos esta semana.", "⚔️ Meus duelos": "⚔️ Mis duelos", "Turma removida.": "Curso quitado."
+  "Código da sua turma (combine com os colegas, ex.: FISIO1-C)": "Código de tu curso (combínalo con tus compañeros, ej.: FISIO1-C)", "Salvar": "Guardar", "Ninguém pontuou ainda nesta semana.": "Nadie sumó puntos esta semana.", "⚔️ Meus duelos": "⚔️ Mis duelos", "Turma removida.": "Curso quitado.",
+  "Mande para a gente": "Mándanoslo", "pelo Feedback.": "por el Feedback.", "📚 Quer o material da sua matéria aqui, pronto para estudar?": "📚 ¿Quieres el material de tu materia aquí, listo para estudiar?"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
@@ -5513,6 +5537,35 @@ async function salvarTurma() {
   PERFIL = { ...PERFIL, turma: t }; lsSet("fp-perfil", { uid: NUVEM.user?.uid, ...PERFIL });
   try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/conta/perfil`), PERFIL, { merge: true }); } catch {}
   await enviarRanking(); S.ranking = null; toast(t ? `👥 Turma ${t} salva!` : "Turma removida."); abrirRanking();
+}
+
+
+/* ================= 🚪 Página de entrada (visitante sem conta e sem cadernos) ================= */
+function cartaoEntrada() {
+  if (NUVEM.user || S.cadernos.some(c => !c.oficial)) return "";
+  const es = lsGet("fp-ui", "pt") === "es";
+  const T = (pt, e) => es ? e : pt;
+  const itens = [
+    ["🧠", T("Perguntas que não se repetem", "Preguntas que no se repiten"), T("A IA mapeia os fatos do seu material e só volta no que você errou.", "La IA mapea los datos de tu material y solo vuelve a lo que fallaste.")],
+    ["🔤", T("Tradutor PT ↔ ES na hora", "Traductor PT ↔ ES al instante"), T("Selecione qualquer termo e veja a tradução médica certinha.", "Selecciona cualquier término y mira la traducción médica correcta.")],
+    ["🎤", T("Treino de Ateneo oral", "Práctica de Ateneo oral"), T("O professor pergunta em voz alta, você responde falando e leva nota.", "El profesor pregunta en voz alta, respondes hablando y te pone nota.")],
+    ["🔁", T("Revisão do dia em 5 min", "Repaso del día en 5 min"), T("O que você está quase esquecendo, na hora certa.", "Lo que estás por olvidar, en el momento justo.")],
+    ["⚔️", T("Duelo com amigos", "Duelo con amigos"), T("Desafie a turma pelo WhatsApp e suba no ranking.", "Desafía a tu curso por WhatsApp y sube en el ranking.")],
+    ["🎧", T("Resumo em áudio", "Resumen en audio"), T("Ouça o capítulo no ônibus, como um podcast.", "Escucha el capítulo en el colectivo, como un podcast.")]
+  ];
+  return `<section class="entrada">
+    <div class="entrada-txt">
+      <span class="entrada-selo">${T("🇧🇷 Feito por estudante de medicina, para estudante de medicina 🇵🇾", "🇵🇾 Hecho por un estudiante de medicina, para estudiantes de medicina 🇧🇷")}</span>
+      <h1>${T("Estude medicina em espanhol <span>sem se perder.</span>", "Estudia medicina <span>sin perderte.</span>")}</h1>
+      <p>${T("Mande seus PDFs e slides: a IA transforma em perguntas, flashcards, resumo em áudio e treino de Ateneo, focando no que você ainda não domina.", "Sube tus PDFs y diapositivas: la IA los convierte en preguntas, flashcards, resumen en audio y práctica de Ateneo, enfocada en lo que aún no dominas.")}</p>
+      <div class="entrada-cta"><button class="btn-google" data-act="entrar">${G_ICON}<span>${T("Começar grátis com Google", "Empezar gratis con Google")}</span></button><button class="btn ghost" data-act="novo">${T("Testar sem conta →", "Probar sin cuenta →")}</button></div>
+    </div>
+    <div class="entrada-demo" aria-hidden="true">${hipoSVG("festa", 64)}
+      <div class="demo-q"><b>${T("Qual é a principal fonte de energia do encéfalo?", "¿Cuál es la principal fuente de energía del encéfalo?")}</b>
+        <div class="demo-alt">${T("Ácidos graxos", "Ácidos grasos")}</div><div class="demo-alt certa">${T("Glicose", "Glucosa")} <span>✔</span></div><div class="demo-alt">${T("Lactato", "Lactato")}</div>
+        <div class="demo-xp">+10 XP · 🔥 3</div></div></div>
+    <div class="entrada-grid">${itens.map(([ic, t, d]) => `<div class="entrada-item"><span>${ic}</span><b>${t}</b><small>${d}</small></div>`).join("")}</div>
+  </section>`;
 }
 
 /* ================= início ================= */
