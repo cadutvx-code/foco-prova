@@ -175,6 +175,9 @@ h3{font-size:16px;margin:0 0 6px}
 .lab-res{font-weight:900;font-size:14px}.lab-res.ok{color:#2ecc71}.lab-res.no{color:#ff4d6d}
 .lab-hipo{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:18px;background:linear-gradient(160deg,rgba(123,85,255,.18),rgba(47,107,255,.12));border:1px solid rgba(123,85,255,.4);animation:labEntra .35s ease-out}
 .lab-hipo-fig{flex:none}
+.card .lab-hipo{margin-top:16px}
+.lab-hipo.espera{opacity:.75;animation:none}
+#labPagina{display:flex;flex-direction:column;gap:14px}
 .lab-hipo.falando .hipo-svg{animation:labFala .5s ease-in-out infinite alternate}
 .lab-hipo-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .lab-status{font-size:12.5px;font-weight:800;color:var(--accent)}
@@ -1914,7 +1917,7 @@ function pedirTexto(titulo, valor, aoSalvar) {
 function viewCaderno(c, emEstudo) {
   if (S.aba === "oral" && !(c.oficial && ATENEO_ATIVO)) S.aba = "materiais";
   if (c.oficial && !ativos(c).length) return cartaoBaixarAteneo(c.oficial);
-  const corpo ={ materiais: viewMateriais, smart: viewSmart, oral: viewOral, resumo: viewResumo, mapa: viewMapa, flash: viewFlash, quiz: viewQuiz, prova: viewProva, tutor: viewTutor }[S.aba](c);
+  const corpo ={ materiais: viewMateriais, smart: viewSmart, oral: viewOral, resumo: viewResumo, mapa: viewMapa, flash: viewFlash, quiz: viewQuiz, louco: viewLouco, prova: viewProva, tutor: viewTutor }[S.aba](c);
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
@@ -4348,13 +4351,14 @@ document.addEventListener("click", async e => {
     case "provaModo": iniciarModoProva(id); break;
     case "provasFechar": S.dlgProvas = false; $("#dlgPerfil").close(); break;
     case "provaAntigaApagar": if (confirm("Tirar esta prova antiga?")) { c.provasAntigas = (c.provasAntigas || []).filter(x => x.id !== id); await salvar(c); render(); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); } break;
-    case "labCaderno": { labParar(); const temMat = c && ((c.materiais || []).length || c.oficial); S.lab = { fonte: temMat ? c.id : "exemplos", i: -1, feitas: [] }; abrirLab(); break; }
+    case "labCaderno": if (c) iniciarQuizLouco(c); break;
+    case "labIdioma": lsSet("fp-lab-idioma", id); if (S.lab) { S.lab.idioma = id; S.lab.pronta = null; labAquecerVoz(); proxLab(); } break;
     case "lab": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); abrirLab(); break;
     case "labFechar": fecharLab(); break;
     case "labResp": labResponder(+id); break;
     case "labProx": proxLab(); break;
     case "labOuvir": labFalar(); break;
-    case "labJeito": if (id === "semfiltro" && labJeito() !== "semfiltro" && !confirm("Modo Sem filtro: o Hipo fala palavrões e zoa você pesado, de brincadeira. É para maiores de 18. Ativar?")) break; lsSet("fp-lab-jeito", id); desenharLab(); break;
+    case "labJeito": if (id === "semfiltro" && labJeito() !== "semfiltro" && !confirm("Modo Sem filtro: o Hipo fala palavrões e zoa você pesado, de brincadeira. É para maiores de 18. Ativar?")) break; lsSet("fp-lab-jeito", id); if (S.lab) { S.lab.pronta = null; if (S.lab.q && S.lab.escolha == null) labGarantirFalas(S.lab.q); } desenharLab(); break;
     case "labVoz": lsSet("fp-lab-voz", id); desenharLab(); if (S.lab?.fala) labFalar(); break;
     case "guia": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); iniciarTour(atual() ? "caderno" : "casa"); break;
     case "guiaPular": fecharGuia(); break;
@@ -4454,7 +4458,7 @@ document.addEventListener("click", async e => {
     case "ocr": lerComOCR(id); break;
     case "gerar": gerar(id); break;
     case "excluir": if (confirm("Excluir este item?")) { c[el.dataset.tipo] = c[el.dataset.tipo].filter(x => x.id !== id); await salvar(c); render(); } break;
-    case "sair": fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
+    case "sair": fecharVoz(); if (S.player?.tipo === "louco") { labParar(); S.lab = null; S.aba = "quiz"; } if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
     case "estudarDeck": iniciarFlash(id, false); break;
     case "estudarTudo": iniciarFlash(id, true); break;
     case "verDeck": S.verDeck = S.verDeck === id ? null : id; render(); break;
@@ -4494,7 +4498,7 @@ document.addEventListener("click", async e => {
     case "escolherModo": {
       $("#dlgComecar").close();
       if (id === "smart") { S.aba = "smart"; smartIniciar(c); break; }
-      if (id === "louco") { labParar(); S.lab = { fonte: c.id, i: -1, feitas: [] }; abrirLab(); break; }
+      if (id === "louco") { iniciarQuizLouco(c); break; }
       fecharVoz(); S.player = null; S.aba = id; render(); window.scrollTo(0, 0); break;
     }
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
@@ -4544,6 +4548,10 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && S.mapaAberto) { fecharMapa(); return; }
   if (e.target.id === "pergunta" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); perguntar(e.target.value); return; }
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+  if (S.player?.tipo === "louco" && S.lab?.q && !document.querySelector("dialog[open]")) {
+    if (/^[1-5]$/.test(e.key) && S.lab.escolha == null && +e.key <= S.lab.q.alternativas.length) { e.preventDefault(); labResponder(+e.key - 1); return; }
+    if (e.key === "Enter" && S.lab.escolha != null) { e.preventDefault(); proxLab(); return; }
+  }
   // Atalhos: 1–4 responde, Enter continua (estudo inteligente e quiz)
   if (S.player?.tipo === "smart" || S.player?.tipo === "quiz") {
     const smart = S.player.tipo === "smart";
@@ -4575,7 +4583,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2016";
+const VERSAO_APP = "2026-11-22-2022";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5270,7 +5278,8 @@ const UI_ES = {
   "Modo Sem filtro: o Hipo fala palavrões e zoa você pesado, de brincadeira. É para maiores de 18. Ativar?": "Modo Sin filtro: Hipo dice groserías y se burla de ti fuerte, en broma. Es para mayores de 18. ¿Activar?",
   "Sequência:": "Racha:", "Recorde:": "Récord:",
   "Quiz louco": "Quiz loco",
-  "Perguntas de múltipla escolha sem filtro, com voz: o Hipo te zoa quando você erra": "Preguntas de opción múltiple sin filtro, con voz: Hipo se burla de ti cuando fallas", "Novo": "Nuevo"
+  "Perguntas de múltipla escolha sem filtro, com voz: o Hipo te zoa quando você erra": "Preguntas de opción múltiple sin filtro, con voz: Hipo se burla de ti cuando fallas", "Novo": "Nuevo",
+  "Idioma da voz": "Idioma de la voz", "Voz": "Voz", "Responda que eu comento…": "Responde y yo comento…", "Próxima pergunta →": "Siguiente pregunta →"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
@@ -6267,9 +6276,11 @@ async function baixarMapa() {
 }
 
 
-/* ================= Laboratório: Hipo explica (área de TESTE, separada do quiz normal) =================
-   Responda; o Hipo explica falando, com voz de desenho e uma comparação engraçada do dia a dia.
-   A voz é o Piper tocado mais rápido e sem manter o tom (fica aguda, de personagem). A boca mexe conforme o volume. */
+/* ================= Quiz louco do Hipo =================
+   Página igual à do Quiz (dentro do caderno, em "Começar a estudar") + espaço do Hipo; no menu da conta abre em janela com exemplos.
+   RAPIDEZ: enquanto a pessoa lê a pergunta, a IA já escreve a fala do Hipo para CADA alternativa (numa chamada só; no caderno,
+   junto com a própria pergunta) e o Piper já sintetiza a 1ª frase de cada uma. Ao responder, a voz começa quase na hora.
+   Voz de desenho = Piper tocado mais rápido sem manter o tom. A boca do Hipo segue o volume do áudio. */
 const LAB_VOZES = [["desenho", "Desenho animado", 1.22], ["esquilo", "Esquilo", 1.45], ["grandao", "Grandão", 0.8], ["normal", "Normal", 1]];
 const LAB_EXEMPLOS = {
   pt: [
@@ -6287,7 +6298,6 @@ const LAB_EXEMPLOS = {
     { enunciado: "¿Qué cámara del corazón bombea sangre a la aorta?", alternativas: ["Aurícula derecha", "Ventrículo derecho", "Aurícula izquierda", "Ventrículo izquierdo"], correta: 3 }
   ]
 };
-const labEs = () => lsGet("fp-ui", "pt") === "es";
 const LAB_JEITOS = [["fofo", "Fofo"], ["zoeiro", "Zoeiro"], ["semfiltro", "Sem filtro +18"]];
 const labJeito = () => lsGet("fp-lab-jeito", "zoeiro");
 const LAB_PERSONA = {
@@ -6297,95 +6307,164 @@ const LAB_PERSONA = {
 LIMITES (obrigatório): nunca ofenda aparência, corpo, peso, raça, cor, gênero, orientação sexual, religião, origem, deficiência ou doença; nunca fale de morte, suicídio, violência ou ameaça; nada sexual. A zoeira é só sobre a resposta errada.`
 };
 const labVoz = () => LAB_VOZES.find(v => v[0] === lsGet("fp-lab-voz", "desenho")) || LAB_VOZES[0];
-function labLang() {
-  const c = S.lab?.fonte !== "exemplos" ? S.cadernos.find(x => x.id === S.lab?.fonte) : null;
-  return c ? vozIdioma(c) : labEs() ? "es-ES" : "pt-BR";
+const labIdioma = () => S.lab?.idioma || (lsGet("fp-ui", "pt") === "es" ? "es" : "pt");
+const labLang = () => labIdioma() === "es" ? "es-ES" : "pt-BR";
+const labCad = () => S.lab?.fonte && S.lab.fonte !== "exemplos" ? S.cadernos.find(x => x.id === S.lab.fonte) : null;
+const labEl = () => $("#dlgLab").open ? $("#labCorpo") : $("#labPagina");
+const labChave = () => labJeito() + "|" + labIdioma();
+function novoLab(fonte, idioma, naPagina) { labParar(); return { fonte, idioma: idioma || lsGet("fp-lab-idioma", "") || (lsGet("fp-ui", "pt") === "es" ? "es" : "pt"), naPagina, i: -1, feitas: [], acertos: 0, erros: 0, seq: 0, melhor: 0 }; }
+function labFrases(t) { return (String(t).replace(/\s+/g, " ").match(/[^.!?¡¿]+[.!?]+|[^.!?]+$/g) || [t]).map(x => x.trim()).filter(Boolean); }
+function labAquecerVoz() { audioPiper(labIdioma() === "es" ? "Hola." : "Oi.", labLang()).catch(() => {}); }
+
+// página dentro do caderno, igual ao Quiz
+function iniciarQuizLouco(c) {
+  fecharVoz();
+  S.lab = novoLab(c.id, lsGet("fp-lab-idioma", "") || idiomaCaderno(c), true);
+  S.aba = "louco"; S.player = { tipo: "louco" }; render(); window.scrollTo(0, 0);
+  labAquecerVoz(); proxLab();
 }
+function viewLouco(c) {
+  if (S.player?.tipo !== "louco" || !S.lab?.naPagina) { S.aba = "quiz"; return viewQuiz(c); }
+  const L = S.lab;
+  return `<div class="sticky-bar"><button class="btn small" data-act="sair">← Sair</button><b>Quiz louco</b><span class="muted">${L.acertos} ✔ · ${L.erros} ✘</span></div>
+    <div class="prog" style="margin-bottom:18px"><div style="width:${Math.min(100, L.seq * 10)}%"></div></div>
+    <div id="labPagina">${labMiolo()}</div>`;
+}
+// menu da conta → janela com exemplos (ou o caderno escolhido)
 function abrirLab() {
-  S.lab ||= { fonte: "exemplos", i: -1, feitas: [] };
+  if (!S.lab || S.lab.naPagina) S.lab = novoLab("exemplos");
   if (!S.lab.q && !S.lab.gerando) proxLab();
   desenharLab();
   const d = $("#dlgLab"); if (!d.open) d.showModal();
+  labAquecerVoz();
 }
-$("#dlgLab").addEventListener("close", () => labParar());
 function fecharLab() { labParar(); $("#dlgLab").open && $("#dlgLab").close(); }
+
+function labAjustes() {
+  const chips = (lista, atual, act, extra = () => "") => `<div class="lab-vozes">${lista.map(v => `<button class="${atual === v[0] ? "on" : ""} ${extra(v)}" data-act="${act}" data-id="${v[0]}">${v[1]}</button>`).join("")}</div>`;
+  return `<div class="lab-opcoes">
+      <div><div class="lab-rot">Jeito do Hipo</div>${chips(LAB_JEITOS, labJeito(), "labJeito", v => v[0] === "semfiltro" ? "quente" : "")}</div>
+      <div><div class="lab-rot">Voz</div>${chips(LAB_VOZES, labVoz()[0], "labVoz")}</div>
+      <div><div class="lab-rot">Idioma da voz</div>${chips([["pt", "Português"], ["es", "Español"]], labIdioma(), "labIdioma")}</div>
+    </div>`;
+}
+function labHipoHTML() {
+  const L = S.lab, resp = L.escolha != null;
+  const status = L.pensando ? `<span class="spin"></span> Hipo está pensando…` : L.falando ? "Hipo está falando…" : L.erroFala ? esc(L.erroFala) : resp ? "" : "Responda que eu comento…";
+  return `<div class="lab-hipo ${L.falando ? "falando" : ""} ${resp ? "" : "espera"}">
+      <div class="lab-hipo-fig">${hipoSVG("falando", 120)}</div>
+      <div class="lab-hipo-txt"><div class="lab-status">${status}</div>
+        ${L.fala ? `<div class="lab-fala">${esc(L.fala)}</div>` : ""}
+        ${L.fala && !L.falando ? `<div class="lab-botoes"><button class="btn small" data-act="labOuvir">${iconeSVG("play")} Ouvir de novo</button></div>` : ""}</div>
+    </div>`;
+}
+function labMiolo() {
+  const L = S.lab; if (!L) return "";
+  const q = L.q, resp = L.escolha != null, pag = L.naPagina;
+  const cads = S.cadernos.filter(c => (c.materiais || []).length || c.oficial);
+  const cab = pag ? "" : `<div class="lab-topo"><div><span class="lab-selo">Teste</span><h2>Quiz louco do Hipo</h2></div><button class="icon-btn" data-act="labFechar" title="Fechar">${iconeSVG("x")}</button></div>
+      <label style="font-size:13px">Perguntas de<select id="labFonte"><option value="exemplos">Exemplos prontos</option>${cads.map(c => `<option value="${c.id}" ${L.fonte === c.id ? "selected" : ""}>${esc(c.nome || "Caderno")}</option>`).join("")}</select></label>`;
+  const placar = !pag && (L.acertos || L.erros) ? `<div class="lab-placar"><span class="ok">${L.acertos} ${L.acertos === 1 ? "acerto" : "acertos"}</span><span class="no">${L.erros} ${L.erros === 1 ? "erro" : "erros"}</span><span>Sequência: <b>${L.seq}</b></span>${L.melhor > 1 ? `<span>Recorde: <b>${L.melhor}</b></span>` : ""}</div>` : "";
+  const pergunta = L.gerando || !q ? `<div class="card"><span class="spin"></span> Criando a pergunta…</div>` : `<div class="card">
+      ${q.topico ? `<div class="muted" style="font-size:12px">${esc(q.topico)}</div>` : ""}
+      <div class="q-text md">${md(q.enunciado)}</div>
+      ${altsHTML(q, { confirmado: resp, escolha: L.escolha }, "labResp")}
+      ${labHipoHTML()}
+      <div class="study-foot"><span class="l"></span>${resp ? `<button class="pill" data-act="labProx">Próxima pergunta →</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
+  return `${cab}${labAjustes()}${placar}${pergunta}`;
+}
+function desenharLab() {
+  const el = labEl(); if (!el || !S.lab) return;
+  if (S.lab.naPagina && !$("#dlgLab").open) { render(); return; }
+  el.innerHTML = labMiolo();
+}
+
+// ---------- a IA: pergunta + falas de cada alternativa ----------
+function labSistema() {
+  const es = labIdioma() === "es";
+  return `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina, engraçado e didático, que fala como personagem de desenho animado e trata o estudante como um amigo da mesma idade (nada de "netinho", "querido" ou jeito de avô).\n${LAB_PERSONA[labJeito()]}\nAs falas serão FALADAS em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos. O conteúdo tem que estar CERTO. Escreva TUDO em ${es ? "espanhol (se for zoar com palavrões, use os de espanhol: carajo, mierda, pendejo, boludo etc.)" : "português do Brasil"}.`;
+}
+const LAB_REGRA_FALAS = `"falas": uma fala do Hipo para CADA alternativa, na mesma ordem e com o mesmo número de itens de "alternativas":
+- para a alternativa CERTA: comemore${"" /* jeito entra pelo sistema */} em no máximo 2 frases curtas e diga por que está certo;
+- para cada alternativa ERRADA: no máximo 3 frases curtas — comece reagindo ao erro (no seu jeito), use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença entre o que a pessoa marcou e o certo, e termine com a regra certa numa frase simples.
+Cada fala é sobre AQUELA alternativa específica.`;
+async function labGerarFalas(q) {
+  const r = await chamar({
+    system: labSistema(), schema: obj({ falas: arr(str) }), maxTokens: 1400, rotulo: "Hipo pensando", fundo: true, zoeira: labJeito() !== "fofo",
+    messages: [{ role: "user", content: `Pergunta: "${q.enunciado}"\nAlternativas:\n${q.alternativas.map((a, i) => `${i}) ${a}${i === q.correta ? "  (CERTA)" : ""}`).join("\n")}\n\n${LAB_REGRA_FALAS}` }]
+  });
+  return r.falas;
+}
+async function labGerarPergunta(c, L) {
+  const r = await chamar({
+    system: [{ type: "text", text: labSistema() }, { type: "text", text: blocoMateriais(c, ""), cache_control: { type: "ephemeral" } }],
+    schema: obj({ topico: str, enunciado: str, alternativas: arr(str), correta: int, falas: arr(str) }), maxTokens: 2000, rotulo: "Criando a pergunta", fundo: true, zoeira: labJeito() !== "fofo",
+    messages: [{ role: "user", content: `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas sobre um ponto importante do material acima ("correta" = índice da certa, "topico" = assunto em 2-4 palavras).\n${REGRAS_PERGUNTA}\nA pergunta e as alternativas também em ${labIdioma() === "es" ? "espanhol" : "português do Brasil"}.${L.feitas.length ? `\nNão repita estas:\n${L.feitas.slice(-15).map(x => "- " + x).join("\n")}` : ""}\n\n${LAB_REGRA_FALAS}` }]
+  });
+  if (!(r.alternativas?.length >= 2 && r.correta >= 0 && r.correta < r.alternativas.length)) throw new Error("a IA não devolveu uma pergunta válida");
+  return { ...r, falasDe: labChave() };
+}
+// garante as falas da pergunta e já prepara a 1ª frase de cada uma na voz
+function labGarantirFalas(q) {
+  const chave = labChave();
+  if (q.falasPr && q.falasKey === chave) return q.falasPr;
+  q.falasKey = chave;
+  if (q.falas?.length === q.alternativas.length && q.falasDe === chave) q.falasPr = Promise.resolve(q.falas);
+  else {
+    if (!podeUsarSilencioso()) { q.falasPr = Promise.resolve(null); return q.falasPr; }
+    q.falasPr = labGerarFalas(q).then(f => { if (f?.length !== q.alternativas.length) return null; gastar(); q.falas = f; q.falasDe = chave; return f; }).catch(() => null);
+  }
+  const lang = labLang();
+  q.falasPr.then(f => { if (f && S.lab?.q === q) f.forEach(t => { const p = labFrases(t)[0]; if (p) audioPiper(p, lang).catch(() => {}); }); });
+  return q.falasPr;
+}
+
 async function proxLab() {
-  const L = S.lab; labParar();
+  const L = S.lab; if (!L) return; labParar();
   Object.assign(L, { escolha: null, fala: "", pensando: false, falando: false, erroFala: "" });
   if (L.fonte === "exemplos") {
-    const lista = LAB_EXEMPLOS[labEs() ? "es" : "pt"];
-    L.i = (L.i + 1) % lista.length; L.q = lista[L.i]; desenharLab(); return;
+    const lista = LAB_EXEMPLOS[labIdioma()];
+    L.i = (L.i + 1) % lista.length; L.q = { ...lista[L.i] }; desenharLab(); labGarantirFalas(L.q); return;
   }
-  const c = S.cadernos.find(x => x.id === L.fonte);
+  const c = labCad();
   if (!c) { L.fonte = "exemplos"; return proxLab(); }
-  if (L.pronta?.fonte === L.fonte) {
+  if (L.pronta?.fonte === L.fonte && L.pronta.chave === labChave()) {
     const pr = L.pronta; L.pronta = null; L.q = null; L.gerando = true; desenharLab();
     const q = await pr.promessa.catch(() => null);
     if (S.lab !== L) return;
-    if (q) { L.q = q; L.gerando = false; desenharLab(); return; }
+    if (q) { L.q = q; L.gerando = false; desenharLab(); labGarantirFalas(q); labPreparar(); return; }
   }
-  if (!podeUsar()) return;
+  if (!podeUsar()) { L.gerando = false; return; }
   L.q = null; L.gerando = true; desenharLab();
-  try {
-    const r = await gerarJSON(c, `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas ("correta" = índice da certa), sobre um ponto importante do material.\n${REGRAS_PERGUNTA}${L.feitas.length ? `\nNão repita estas:\n${L.feitas.slice(-15).map(x => "- " + x).join("\n")}` : ""}`, SCH.quiz, "", { rotulo: "Criando a pergunta" });
-    const q = r.questoes?.find(x => x.alternativas?.length >= 2 && x.correta >= 0 && x.correta < x.alternativas.length);
-    if (!q) throw new Error("a IA não devolveu uma pergunta válida");
-    gastar(); L.q = q; L.feitas.push(String(q.enunciado).slice(0, 100));
-  } catch (e) { toast("Não consegui criar a pergunta: " + erroMsg(e), true); L.fonte = "exemplos"; L.gerando = false; return proxLab(); }
-  L.gerando = false; desenharLab();
+  try { const q = await labGerarPergunta(c, L); gastar(); if (S.lab !== L) return; L.q = q; L.feitas.push(String(q.enunciado).slice(0, 100)); }
+  catch (e) { if (S.lab !== L) return; toast("Não consegui criar a pergunta: " + erroMsg(e), true); L.gerando = false; L.fonte = "exemplos"; return proxLab(); }
+  L.gerando = false; desenharLab(); labGarantirFalas(L.q); labPreparar();
 }
-function desenharLab() {
-  const L = S.lab, el = $("#labCorpo"); if (!L || !el) return;
-  const q = L.q, resp = L.escolha != null, acertou = resp && L.escolha === q.correta;
-  const cads = S.cadernos.filter(c => (c.materiais || []).length || c.oficial);
-  el.innerHTML = `<div class="lab-topo"><div><span class="lab-selo">Teste</span><h2>Quiz louco do Hipo</h2></div><button class="icon-btn" data-act="labFechar" title="Fechar">${iconeSVG("x")}</button></div>
-    <p class="muted lab-intro">Responda. Se errar, o Hipo te zoa e explica falando, com uma comparação absurda para você nunca mais esquecer.</p>
-    <div class="lab-opcoes">
-      <label>Perguntas de<select id="labFonte"><option value="exemplos">Exemplos prontos</option>${cads.map(c => `<option value="${c.id}" ${L.fonte === c.id ? "selected" : ""}>${esc(c.nome || "Caderno")}</option>`).join("")}</select></label>
-      <div><div class="lab-rot">Jeito do Hipo</div><div class="lab-vozes">${LAB_JEITOS.map(v => `<button class="${labJeito() === v[0] ? "on" : ""} ${v[0] === "semfiltro" ? "quente" : ""}" data-act="labJeito" data-id="${v[0]}">${v[1]}</button>`).join("")}</div></div>
-      <div><div class="lab-rot">Voz do Hipo</div><div class="lab-vozes">${LAB_VOZES.map(v => `<button class="${labVoz()[0] === v[0] ? "on" : ""}" data-act="labVoz" data-id="${v[0]}">${v[1]}</button>`).join("")}</div></div>
-    </div>
-    ${(L.acertos || L.erros) ? `<div class="lab-placar"><span class="ok">${L.acertos || 0} ${L.acertos === 1 ? "acerto" : "acertos"}</span><span class="no">${L.erros || 0} ${L.erros === 1 ? "erro" : "erros"}</span><span>Sequência: <b>${L.seq || 0}</b></span>${L.melhor > 1 ? `<span>Recorde: <b>${L.melhor}</b></span>` : ""}</div>` : ""}
-    ${L.gerando || !q ? `<div class="lab-q"><span class="spin"></span> Criando a pergunta…</div>` : `
-    <div class="lab-q"><div class="lab-enun">${esc(q.enunciado)}</div>
-      <div class="lab-alts">${q.alternativas.map((a, i) => `<button class="lab-alt ${resp ? (i === q.correta ? "certa" : i === L.escolha ? "errada" : "apagada") : ""}" data-act="labResp" data-id="${i}" ${resp ? "disabled" : ""}><b>${"ABCDE"[i]}</b><span>${esc(a)}</span></button>`).join("")}</div>
-      ${resp ? `<div class="lab-res ${acertou ? "ok" : "no"}">${acertou ? "Acertou!" : "Não exatamente"}</div>` : ""}
-    </div>`}
-    ${resp ? `<div class="lab-hipo ${L.falando ? "falando" : ""}">
-      <div class="lab-hipo-fig">${hipoSVG("falando", 132)}</div>
-      <div class="lab-hipo-txt"><div class="lab-status">${L.pensando ? `<span class="spin"></span> Hipo está pensando…` : L.falando ? "Hipo está falando…" : L.erroFala ? esc(L.erroFala) : ""}</div>
-        ${L.fala ? `<div class="lab-fala">${esc(L.fala)}</div>` : ""}
-        <div class="lab-botoes">${L.fala ? `<button class="btn small" data-act="labOuvir">${iconeSVG("play")} Ouvir de novo</button>` : ""}<button class="pill" data-act="labProx">Próxima pergunta</button></div></div>
-    </div>` : ""}`;
+// já cria a PRÓXIMA pergunta (com as falas) enquanto a pessoa responde esta
+function labPreparar() {
+  const L = S.lab, c = labCad(); if (!c || L.pronta || !podeUsarSilencioso()) return;
+  const fonte = L.fonte, chave = labChave();
+  L.pronta = { fonte, chave, promessa: labGerarPergunta(c, { feitas: [...L.feitas, String(L.q?.enunciado || "").slice(0, 100)] }).then(q => { gastar(); L.feitas.push(String(q.enunciado).slice(0, 100)); return q; }) };
+  L.pronta.promessa.catch(() => { if (L.pronta?.fonte === fonte) L.pronta = null; });
 }
+function podeUsarSilencioso() { conferirValidade(); if (ACESSO.liberado) return true; const u = uso(); return u.n < ACESSO.pag.limite; }
+
 async function labResponder(i) {
-  const L = S.lab, q = L?.q; if (!q || L.escolha != null) return;
+  const L = S.lab, q = L?.q; if (!q || L.escolha != null || L.gerando) return;
   L.escolha = i; const certo = i === q.correta;
-  if (certo) { L.acertos = (L.acertos || 0) + 1; L.seq = (L.seq || 0) + 1; L.melhor = Math.max(L.melhor || 0, L.seq); } else { L.erros = (L.erros || 0) + 1; L.seq = 0; }
-  if (L.fonte !== "exemplos") labPreparar();
-  if (!podeUsar()) { L.fala = ""; desenharLab(); return; }
+  if (certo) { L.acertos++; L.seq++; L.melhor = Math.max(L.melhor, L.seq); } else { L.erros++; L.seq = 0; }
+  try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro); contarResposta(); } catch {}
   L.pensando = true; desenharLab();
-  setTimeout(() => $("#labCorpo .lab-hipo")?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
-  const es = /^es/.test(labLang());
-  const jeito = labJeito(), zoa = jeito !== "fofo";
-  const pedido = certo
-    ? `O estudante ACERTOU a pergunta "${q.enunciado}" (resposta: "${q.alternativas[q.correta]}")${L.seq > 2 ? ` e já está com ${L.seq} acertos seguidos` : ""}. ${zoa ? "Comemore surpreso e zoando, como se fosse um milagre ele acertar," : "Comemore de um jeito engraçado"} e diga em 1 frase por que está certo. No máximo 2 frases curtas.`
-    : `Pergunta: "${q.enunciado}". O estudante respondeu "${q.alternativas[i]}", mas a certa é "${q.alternativas[q.correta]}"${L.erros > 1 ? ` (e ele já errou ${L.erros} nesta sessão)` : ""}. Em no máximo 3 frases curtas: ${zoa ? "comece zoando o erro do estudante" : "comece com uma reação engraçada ao erro"}, depois use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença (ex.: o coração só entrega o sangue, como o motoboy entrega a pizza; quem fabrica é a medula, a pizzaria) e termine com a regra certa numa frase simples.`;
-  try {
-    const t = await chamar({
-      system: `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina, engraçado e didático, que fala como personagem de desenho animado e trata o estudante como um amigo da mesma idade (nada de "netinho", "querido" ou jeito de avô).\n${LAB_PERSONA[jeito]}\nO texto será FALADO em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos. A explicação do conteúdo tem que estar CERTA. Escreva em ${es ? "espanhol (se for zoar com palavrões, use os de espanhol: carajo, mierda, pendejo, boludo etc.)" : "português do Brasil"}.`,
-      messages: [{ role: "user", content: pedido }], maxTokens: 400, rotulo: "Hipo pensando", zoeira: zoa
-    });
-    gastar();
-    if (S.lab !== L || L.q !== q) return;
-    L.fala = String(t).replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
-  } catch (e) {
-    if (S.lab !== L || L.q !== q) return;
-    L.fala = certo ? (es ? "¡Eso! Respuesta correcta." : "Isso! Resposta certa.") : (es ? `Casi. La correcta es: ${q.alternativas[q.correta]}.` : `Quase. A certa é: ${q.alternativas[q.correta]}.`);
-  }
+  setTimeout(() => labEl()?.querySelector(".lab-hipo")?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
+  let f = await labGarantirFalas(q);
+  if (S.lab !== L || L.q !== q) return;
+  if (!f && podeUsar()) { q.falasPr = null; q.falasKey = null; f = await labGarantirFalas(q); if (S.lab !== L || L.q !== q) return; }
+  const es = labIdioma() === "es";
+  L.fala = String(f?.[i] || (certo ? (es ? "¡Eso! Respuesta correcta." : "Isso! Resposta certa.") : (es ? `Casi. La correcta es: ${q.alternativas[q.correta]}.` : `Quase. A certa é: ${q.alternativas[q.correta]}.`))).replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
   L.pensando = false; desenharLab(); labFalar();
 }
-// toca a fala com a voz de desenho e mexe a boca do Hipo conforme o volume
+
+// ---------- voz ----------
 let LAB_CTX = null;
 function labParar() {
   const L = S.lab; if (!L) return;
@@ -6396,23 +6475,15 @@ function labParar() {
 }
 async function labFalar() {
   const L = S.lab; if (!L?.fala) return;
-  labParar(); const id = L.falaId, [, , taxa] = labVoz(), lang = labLang();
-  const vivo = () => S.lab === L && L.falaId === id && $("#dlgLab").open;
+  labParar(); const id = L.falaId, taxa = labVoz()[2], lang = labLang();
+  const vivo = () => S.lab === L && L.falaId === id && !!labEl();
+  const boca = () => labEl()?.querySelector(".hipo-boca");
   L.falando = true; L.erroFala = ""; desenharLab();
-  const boca = () => document.querySelector("#labCorpo .hipo-boca");
   const fim = () => { if (!vivo()) return; L.falando = false; cancelAnimationFrame(L.raf); desenharLab(); };
+  const partes = labFrases(L.fala);
   try {
-    const url = await audioPiper(L.fala, lang); if (!vivo()) return;
-    const a = L.audio = new Audio(url);
-    a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false;
-    a.playbackRate = taxa;
-    let an = null;
-    try {
-      LAB_CTX ||= new (window.AudioContext || window.webkitAudioContext)(); await LAB_CTX.resume();
-      const src = LAB_CTX.createMediaElementSource(a); an = LAB_CTX.createAnalyser(); an.fftSize = 512;
-      src.connect(an); an.connect(LAB_CTX.destination);
-    } catch { an = null; }
-    const buf = an ? new Uint8Array(an.fftSize) : null;
+    let an = null, buf = null;
+    try { LAB_CTX ||= new (window.AudioContext || window.webkitAudioContext)(); LAB_CTX.resume(); } catch {}
     const animar = () => {
       if (!vivo()) return;
       let v = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 90));
@@ -6420,33 +6491,28 @@ async function labFalar() {
       const b = boca(); if (b) b.setAttribute("ry", (0.8 + v * 4.2).toFixed(2));
       L.raf = requestAnimationFrame(animar);
     };
-    a.onended = fim; a.onerror = fim;
-    await a.play(); animar();
+    for (let k = 0; k < partes.length; k++) {
+      const url = await audioPiper(partes[k], lang); if (!vivo()) return;
+      if (partes[k + 1]) audioPiper(partes[k + 1], lang).catch(() => {}); // já prepara a próxima frase
+      const a = L.audio = new Audio(url);
+      a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false; a.playbackRate = taxa;
+      try { const src = LAB_CTX.createMediaElementSource(a); an = LAB_CTX.createAnalyser(); an.fftSize = 512; buf = new Uint8Array(an.fftSize); src.connect(an); an.connect(LAB_CTX.destination); } catch { an = null; }
+      await new Promise((ok, erro) => { a.onended = ok; a.onerror = erro; a.play().then(() => { cancelAnimationFrame(L.raf); animar(); }).catch(erro); });
+      if (!vivo()) return;
+    }
+    fim();
   } catch (e) {
     if (!vivo()) return;
-    // sem o Piper: voz do navegador, aguda
-    try {
-      const u = new SpeechSynthesisUtterance(L.fala); u.lang = lang; u.pitch = Math.min(2, 1 + (taxa - 1) * 2.5 + 0.4); u.rate = Math.max(0.7, Math.min(1.4, taxa));
+    try { // sem o Piper: voz do navegador, aguda
+      const u = new SpeechSynthesisUtterance(L.fala); u.lang = lang; u.pitch = Math.min(2, 1.4 + (taxa - 1) * 2.5); u.rate = Math.max(0.7, Math.min(1.5, taxa + 0.1));
       u.onend = fim; u.onerror = fim;
       const animar = () => { if (!vivo() || !L.falando) return; const b = boca(); if (b) b.setAttribute("ry", (0.8 + 4 * Math.abs(Math.sin(performance.now() / 85))).toFixed(2)); L.raf = requestAnimationFrame(animar); };
       speechSynthesis.speak(u); animar();
     } catch { L.erroFala = "Não consegui tocar a voz neste navegador."; fim(); }
   }
 }
-// já cria a próxima pergunta enquanto o Hipo fala
-function labPreparar() {
-  const L = S.lab, c = S.cadernos.find(x => x.id === L?.fonte); if (!c || L.pronta || !podeUsarSilencioso()) return;
-  const fonte = L.fonte;
-  L.pronta = { fonte, promessa: (async () => {
-    const r = await gerarJSON(c, `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas ("correta" = índice da certa), sobre um ponto importante do material.\n${REGRAS_PERGUNTA}\nNão repita estas:\n${[...L.feitas.slice(-15), String(L.q?.enunciado || "").slice(0, 100)].map(x => "- " + x).join("\n")}`, SCH.quiz, "", { rotulo: "Criando a pergunta", fundo: true });
-    const q = r.questoes?.find(x => x.alternativas?.length >= 2 && x.correta >= 0 && x.correta < x.alternativas.length);
-    if (!q) return null;
-    gastar(); L.feitas.push(String(q.enunciado).slice(0, 100)); return q;
-  })() };
-  L.pronta.promessa.catch(() => { if (L.pronta?.fonte === fonte) L.pronta = null; });
-}
-function podeUsarSilencioso() { conferirValidade(); if (ACESSO.liberado) return true; const u = uso(); return u.n < ACESSO.pag.limite; }
 document.addEventListener("change", e => { if (e.target.id === "labFonte" && S.lab) { S.lab.pronta = null; S.lab.fonte = e.target.value; S.lab.i = -1; proxLab(); } });
+$("#dlgLab").addEventListener("close", () => { if (!S.lab?.naPagina) labParar(); });
 
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
