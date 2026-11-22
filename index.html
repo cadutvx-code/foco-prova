@@ -4583,7 +4583,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2022";
+const VERSAO_APP = "2026-11-22-2023";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6313,7 +6313,7 @@ const labCad = () => S.lab?.fonte && S.lab.fonte !== "exemplos" ? S.cadernos.fin
 const labEl = () => $("#dlgLab").open ? $("#labCorpo") : $("#labPagina");
 const labChave = () => labJeito() + "|" + labIdioma();
 function novoLab(fonte, idioma, naPagina) { labParar(); return { fonte, idioma: idioma || lsGet("fp-lab-idioma", "") || (lsGet("fp-ui", "pt") === "es" ? "es" : "pt"), naPagina, i: -1, feitas: [], acertos: 0, erros: 0, seq: 0, melhor: 0 }; }
-function labFrases(t) { return (String(t).replace(/\s+/g, " ").match(/[^.!?¡¿]+[.!?]+|[^.!?]+$/g) || [t]).map(x => x.trim()).filter(Boolean); }
+function labFrases(t) { return (String(t).replace(/\s+/g, " ").match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [t]).map(x => x.trim()).filter(Boolean); }
 function labAquecerVoz() { audioPiper(labIdioma() === "es" ? "Hola." : "Oi.", labLang()).catch(() => {}); }
 
 // página dentro do caderno, igual ao Quiz
@@ -6326,7 +6326,7 @@ function iniciarQuizLouco(c) {
 function viewLouco(c) {
   if (S.player?.tipo !== "louco" || !S.lab?.naPagina) { S.aba = "quiz"; return viewQuiz(c); }
   const L = S.lab;
-  return `<div class="sticky-bar"><button class="btn small" data-act="sair">← Sair</button><b>Quiz louco</b><span class="muted">${L.acertos} ✔ · ${L.erros} ✘</span></div>
+  return `<div class="sticky-bar"><button class="btn small" data-act="sair">← Sair</button><b>Quiz louco</b><span class="muted">${L.acertos} ${L.acertos === 1 ? "acerto" : "acertos"} · ${L.erros} ${L.erros === 1 ? "erro" : "erros"}</span></div>
     <div class="prog" style="margin-bottom:18px"><div style="width:${Math.min(100, L.seq * 10)}%"></div></div>
     <div id="labPagina">${labMiolo()}</div>`;
 }
