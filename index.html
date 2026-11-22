@@ -106,6 +106,9 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
 .provas-card{border-color:rgba(91,141,255,.45)}
+.tempo-ops{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tempo-ops button{padding:10px 6px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-weight:800;cursor:pointer}
+.tempo-ops button.on{border-color:var(--accent);background:rgba(91,141,255,.15)}
 .modos-prova{display:flex;flex-direction:column;gap:8px}
 .modo-prova{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;cursor:pointer}
 .modo-prova:hover:not(:disabled){border-color:var(--accent)}
@@ -2073,6 +2076,24 @@ function playerProva(c) {
       <div class="md" style="margin:6px 0 10px;font-weight:500">${md(q.enunciado)}</div>${corpo}</div>`;
   }).join("")}</div>
   ${r ? "" : `<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-act="entregar" ${p.corrigindo ? "disabled" : ""}>Entregar prova</button></div>`}`;
+}
+// Antes de começar: escolher o tempo limite (o cronômetro conta a partir do início da prova)
+function escolherTempoProva(id) {
+  const pv = atual()?.provas.find(x => x.id === id); if (!pv) return;
+  const atualT = pv.tempo || 0, opcoes = [0, 10, 15, 20, 30, 45, 60, 90];
+  S.tempoEscolhido = atualT;
+  $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Tempo da prova</h2><button class="icon-btn" data-act="perfilCancelar" title="Fechar">${iconeSVG("x")}</button></div>
+    <div class="muted" style="font-size:13.5px">${pv.questoes.length} questões. Escolha quanto tempo você quer ter. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha.</div>
+    <div class="tempo-ops">${opcoes.map(m => `<button class="${m === atualT ? "on" : ""}" data-act="tempoOp" data-id="${m}">${m ? m + " min" : "Sem limite"}</button>`).join("")}</div>
+    <label>Ou digite outro tempo (minutos)<input type="number" id="tempoLivre" min="1" max="300" placeholder="ex.: 25"></label>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="perfilCancelar">Cancelar</button><button class="pill" data-act="tempoComecar" data-id="${id}">Começar a prova</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+async function comecarProvaComTempo(id) {
+  const c = atual(), pv = c?.provas.find(x => x.id === id); if (!pv) return;
+  const livre = parseInt($("#tempoLivre")?.value, 10);
+  pv.tempo = livre > 0 ? Math.min(300, livre) : (S.tempoEscolhido || 0);
+  await salvar(c); $("#dlgPerfil").close(); iniciarProva(id);
 }
 function iniciarProva(id) {
   const pv = atual().provas.find(x => x.id === id);
@@ -4350,7 +4371,9 @@ document.addEventListener("click", async e => {
     case "escolher-alt": quizResponder(c, +id); break;
     case "confirmar": { const p = S.player, q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]]; p.confirmado = true; if (p.escolha === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]); render(); break; }
     case "proxima": { const p = S.player; p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
-    case "fazerProva": iniciarProva(id); break;
+    case "fazerProva": escolherTempoProva(id); break;
+    case "tempoOp": S.tempoEscolhido = +id; document.querySelectorAll(".tempo-ops button").forEach(b => b.classList.toggle("on", b.dataset.id === id)); if ($("#tempoLivre")) $("#tempoLivre").value = ""; break;
+    case "tempoComecar": comecarProvaComTempo(id); break;
     case "entregar": entregar(); break;
     case "sugestao": perguntar(el.textContent); break;
     case "enviar": perguntar($("#pergunta").value); break;
@@ -4456,7 +4479,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1935";
+const VERSAO_APP = "2026-11-22-1936";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5129,11 +5152,12 @@ const UI_ES = {
   "Perguntas no formato da prova, focadas no que mais cai.": "Preguntas con el formato del examen, enfocadas en lo que más entra.", "Simulado": "Simulacro", "Uma prova completa no estilo da professora, com nota.": "Un examen completo con el estilo de la profesora, con nota.",
   "Quiz rápido": "Quiz rápido", "10 questões de múltipla escolha no estilo da prova.": "10 preguntas de opción múltiple con el estilo del examen.", "Envie uma prova ou cole perguntas para liberar esses modos.": "Sube un examen o pega preguntas para habilitar estos modos.",
   "Estilo da prova": "Estilo del examen", "Perguntas da professora salvas.": "Preguntas de la profesora guardadas.", "Perguntas da professora removidas.": "Preguntas de la profesora quitadas.",
-  "Material muito grande: desative alguns arquivos para a IA ler melhor.": "Material muy grande: desactiva algunos archivos para que la IA lea mejor."
+  "Material muito grande: desative alguns arquivos para a IA ler melhor.": "Material muy grande: desactiva algunos archivos para que la IA lea mejor.",
+  "Tempo da prova": "Tiempo del examen", "Sem limite": "Sin límite", "Ou digite outro tempo (minutos)": "O escribe otro tiempo (minutos)", "Começar a prova": "Empezar el examen"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
