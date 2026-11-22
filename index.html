@@ -4565,7 +4565,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2009";
+const VERSAO_APP = "2026-11-22-2011";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6325,13 +6325,14 @@ async function labResponder(i) {
   L.escolha = i; const certo = i === q.correta;
   if (!podeUsar()) { L.fala = ""; desenharLab(); return; }
   L.pensando = true; desenharLab();
+  setTimeout(() => $("#labCorpo .lab-hipo")?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
   const es = /^es/.test(labLang());
   const pedido = certo
     ? `O estudante ACERTOU a pergunta "${q.enunciado}" (resposta: "${q.alternativas[q.correta]}"). Comemore de um jeito engraçado e diga em 1 frase por que está certo, com uma comparação divertida do dia a dia. No máximo 2 frases curtas.`
     : `Pergunta: "${q.enunciado}". O estudante respondeu "${q.alternativas[i]}", mas a certa é "${q.alternativas[q.correta]}". Explique em no máximo 3 frases curtas: comece com uma reação engraçada ao erro, use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença (ex.: o coração só entrega o sangue, como o motoboy entrega a pizza; quem fabrica é a medula, a pizzaria) e termine com a regra certa numa frase simples.`;
   try {
     const t = await chamar({
-      system: `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina: engraçado, carismático e didático, fala como personagem de desenho animado. O texto será FALADO em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos, sem palavrões. Escreva em ${es ? "espanhol" : "português do Brasil"}.`,
+      system: `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina: engraçado, carismático e didático, fala como personagem de desenho animado e trata o estudante como um amigo da mesma idade (nada de "netinho", "querido" ou jeito de avô). O texto será FALADO em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos, sem palavrões. Escreva em ${es ? "espanhol" : "português do Brasil"}.`,
       messages: [{ role: "user", content: pedido }], maxTokens: 400, rotulo: "Hipo pensando"
     });
     gastar();
