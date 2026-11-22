@@ -22,6 +22,12 @@ casos = [
     ("tipo inválido", "DENY", {"auth": None, "path": P + "/feedback/d", "method": "create", "resource": {"data": fb(tipo="spam")}}),
     ("campo extra", "DENY", {"auth": None, "path": P + "/feedback/e", "method": "create", "resource": {"data": fb(x=1)}}),
     ("aluno não lê feedbacks", "DENY", {"auth": auth, "path": P + "/feedback/a", "method": "get"}),
+    ("cria duelo próprio", "ALLOW", {"auth": auth, "path": P + "/duelos/d1", "method": "create", "resource": {"data": {"criador": "u1", "criadorNome": "Aluno", "titulo": "cap 25", "idioma": "es", "questoes": [{"enunciado": "x"}], "criado": 1, "resultados": {}}}}),
+    ("cria duelo em nome de outro", "DENY", {"auth": auth, "path": P + "/duelos/d2", "method": "create", "resource": {"data": {"criador": "u9", "criadorNome": "X", "titulo": "t", "idioma": "es", "questoes": [], "criado": 1, "resultados": {}}}}),
+    ("grava o próprio ranking", "ALLOW", {"auth": auth, "path": P + "/ranking/2026-S47/pessoas/u1", "method": "create", "resource": {"data": {"nome": "Aluno A.", "av": None, "turma": "FISIO1-C", "xp": 120, "atualizado": 1}}}),
+    ("grava ranking de outro", "DENY", {"auth": auth, "path": P + "/ranking/2026-S47/pessoas/u2", "method": "create", "resource": {"data": {"nome": "X", "av": None, "turma": "", "xp": 99999, "atualizado": 1}}}),
+    ("XP absurdo no ranking", "DENY", {"auth": auth, "path": P + "/ranking/2026-S47/pessoas/u1", "method": "create", "resource": {"data": {"nome": "A", "av": None, "turma": "", "xp": 999999, "atualizado": 1}}}),
+    ("sem login não vê ranking", "DENY", {"path": P + "/ranking/2026-S47/pessoas/u1", "method": "get"}),
 ]
 # na API de teste, os dados novos (request.resource) vão dentro de "request"
 suite = {"testCases": [{"expectation": e, "request": {k: v for k, v in r.items() if v is not None}} for _, e, r in casos]}

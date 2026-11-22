@@ -54,6 +54,32 @@ service cloud.firestore {
       allow read, delete: if admin();
       allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lido']);
     }
+    // ⚔️ duelos: quem cria é o dono; qualquer pessoa logada lê pelo link e grava SÓ o próprio resultado, uma vez
+    match /duelos/{id} {
+      allow create: if logado() && request.resource.data.criador == request.auth.uid
+        && request.resource.data.keys().hasOnly(['criador', 'criadorNome', 'titulo', 'idioma', 'questoes', 'criado', 'resultados'])
+        && request.resource.data.questoes is list && request.resource.data.questoes.size() <= 15
+        && request.resource.data.resultados is map && request.resource.data.resultados.size() == 0
+        && request.resource.data.titulo is string && request.resource.data.titulo.size() <= 80;
+      allow get: if logado();
+      allow update: if logado()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resultados'])
+        && request.resource.data.resultados.diff(resource.data.resultados).affectedKeys().hasOnly([request.auth.uid])
+        && !(request.auth.uid in resource.data.resultados)
+        && request.resource.data.resultados[request.auth.uid].keys().hasOnly(['nome', 'acertos', 'total', 'tempo', 'data', 'av'])
+        && request.resource.data.resultados[request.auth.uid].acertos is int
+        && request.resource.data.resultados[request.auth.uid].acertos <= request.resource.data.questoes.size();
+      allow delete: if logado() && resource.data.criador == request.auth.uid;
+    }
+    // 🏆 ranking da semana: cada pessoa grava só a própria linha; quem está logado vê o ranking
+    match /ranking/{semana}/pessoas/{uid} {
+      allow create, update: if logado() && request.auth.uid == uid && semana.size() <= 10
+        && request.resource.data.keys().hasOnly(['nome', 'av', 'turma', 'xp', 'atualizado'])
+        && request.resource.data.xp is int && request.resource.data.xp >= 0 && request.resource.data.xp <= 200000
+        && request.resource.data.turma is string && request.resource.data.turma.size() <= 24
+        && request.resource.data.nome is string && request.resource.data.nome.size() <= 40;
+      allow read: if logado();
+    }
     // chave Pix, WhatsApp, preço e limites do plano grátis: todos leem, só o administrador muda
     match /config/{doc} {
       allow read: if true;

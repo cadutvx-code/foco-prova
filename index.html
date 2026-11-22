@@ -104,6 +104,13 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head h2{margin:0 6px 0 0;font-size:21px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
+.duelo-btn{border-color:rgba(255,183,77,.6)!important;color:#ffb74d!important;font-weight:800}
+.duelo-placar{display:flex;flex-direction:column;gap:8px;max-width:420px;margin:0 auto;width:100%}
+.duelo-linha,.rank-linha{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;margin-top:6px;background:var(--panel)}
+.duelo-linha.eu,.rank-linha.eu{border-color:var(--accent);background:rgba(91,141,255,.12)}
+.duelo-linha .med,.rank-linha .med{width:28px;text-align:center;font-weight:900}
+.rank-card{background:linear-gradient(120deg,rgba(255,193,7,.10),transparent)}
+.rank-turma{color:var(--accent)}
 .mapa-card{overflow:hidden}
 .mapa-cerebro{width:100%;max-width:560px;display:block;margin:8px auto 4px}
 .mapa-cerebro .neuronio:hover circle{stroke-width:3.5}
@@ -580,7 +587,7 @@ function toast(msg, err = false) {
 function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
 const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
 const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
-const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia"]);
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana"]);
 const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
 function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
@@ -1555,6 +1562,7 @@ function xpTotal() {
 let xpTimer = null;
 function ganharXP(qtd) {
   qtd = Math.round(qtd); if (!(qtd > 0)) return;
+  xpSemana(qtd);
   const antes = nivelDoXp(xpTotal()).nivel, xp = xpTotal() + qtd;
   lsSet("fp-xp", xp);
   const depois = nivelDoXp(xp).nivel;
@@ -1647,7 +1655,7 @@ function render() {
   $("#iaChip span").textContent = nomeIA();
   $("#seqChip").textContent = `🔥 ${diasSeguidos()}`;
   desenharConta();
-  $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : S.player?.tipo === "revdia" ? playerRevisaoDia() : viewHome();
+  $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : S.player?.tipo === "revdia" ? playerRevisaoDia() : S.player?.tipo === "duelo" ? playerDuelo() : viewHome();
 
 }
 
@@ -1684,7 +1692,7 @@ function viewHome() {
     </div>`;
   };
   const avisoEndereco = (location.hostname.endsWith("github.io") || location.hostname.startsWith("focoprova")) ? `<div class="aviso-nuvem">🐴 O Foco Prova agora se chama <b>Hipocampo Study</b> e mudou de endereço: <a href="https://hipocampo.web.app" style="color:var(--accent);font-weight:800">hipocampo.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
-  return `${avisoEndereco}${cartaoPlano()}${cartaoHipo()}${cartaoRevisaoDia()}${cartaoMeta()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  return `${avisoEndereco}${cartaoPlano()}${cartaoHipo()}${cartaoRevisaoDia()}${cartaoMeta()}${cartaoRanking()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
@@ -1743,7 +1751,7 @@ function viewCaderno(c, emEstudo) {
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
-    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button>${barraNivel(c)}
+    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button><button class="btn small duelo-btn" data-act="duelo" title="Desafie um amigo com 10 perguntas deste caderno" ${S.criandoDuelo ? "disabled" : ""}>${S.criandoDuelo ? `<span class="spin"></span> Criando…` : "⚔️ Duelo"}</button>${barraNivel(c)}
       <label class="inline" title="Idioma das perguntas, respostas e explicações">🌐 <select id="idiomaCaderno" style="width:auto;padding:6px 10px;border-radius:999px">
         <option value="pt" ${idiomaCaderno(c) === "pt" ? "selected" : ""}>Português</option><option value="es" ${idiomaCaderno(c) === "es" ? "selected" : ""}>Español</option></select></label></div>
     ${cartaoPanico(c)}${corpo}`;
@@ -3150,6 +3158,8 @@ async function iniciarNuvem() {
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
       await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
+      { let pd = ""; try { pd = sessionStorage.getItem("fp-duelo-pendente") || ""; } catch {}
+        if (pd) { if (u) { try { sessionStorage.removeItem("fp-duelo-pendente"); } catch {} abrirDuelo(pd); } else abrirDuelo(pd); } }
       if (u) await sincronizarTudo();
     });
     window.addEventListener("focus", () => { if (NUVEM.user && Date.now() - NUVEM.ultimaBaixa > 60000) sincronizarTudo(); });
@@ -4132,6 +4142,14 @@ document.addEventListener("click", async e => {
     case "admRecusar": admRecusar(id); break;
     case "feedback": abrirFeedback(); break;
     case "panico": abrirPanico(); break;
+    case "duelo": criarDuelo(); break;
+    case "dueloAlt": dueloResponder(+id); break;
+    case "dueloProx": dueloProx(); break;
+    case "dueloCompartilhar": compartilharDuelo(S.player.d); break;
+    case "dueloAtualizar": abrirDuelo(S.player.d.id); break;
+    case "dueloAbrir": $("#dlgPerfil").close(); abrirDuelo(id); break;
+    case "rankAbrir": abrirRanking(); break;
+    case "rankSalvarTurma": salvarTurma(); break;
     case "gerarPanico": gerarPanico(); break;
     case "panFeito": { const b = c?.panico?.blocos[+id]; if (b) { b.feito = !b.feito; await salvar(c); render(); if (b.feito && c.panico.blocos.every(x => x.feito)) hipoFala("Plano completo! Agora é descansar e arrasar na prova. 🍀", "festa", 6000); } break; }
     case "panIr": panIr(+id); break;
@@ -4305,6 +4323,11 @@ document.addEventListener("keydown", e => {
     }
     return;
   }
+  if (S.player?.tipo === "duelo" && !S.player.fim) {
+    if (/^[1-4]$/.test(e.key) && S.player.escolha === null) { e.preventDefault(); dueloResponder(+e.key - 1); }
+    else if (e.key === "Enter" && S.player.escolha !== null) { e.preventDefault(); dueloProx(); }
+    return;
+  }
   if (S.player?.tipo === "revdia") {
     if (e.code === "Space") { e.preventDefault(); if (!S.player.virado && S.player.fila.length) { S.player.virado = true; render(); } }
     else if (S.player.virado && ["1", "2", "3"].includes(e.key)) revAvaliar(+e.key - 1);
@@ -4318,7 +4341,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1838";
+const VERSAO_APP = "2026-11-22-1841";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4963,11 +4986,19 @@ const UI_ES = {
   "Marcar como feito": "Marcar como hecho", "boa prova! 🍀": "¡buen examen! 🍀", "Plano pronto! Um bloco de cada vez, que dá tempo. 💪": "¡Plan listo! Un bloque a la vez, que da tiempo. 💪", "Plano completo! Agora é descansar e arrasar na prova. 🍀": "¡Plan completo! Ahora descansa y arrasa en el examen. 🍀",
   "Resumo em áudio": "Resumen en audio", "Um resumo de ~5 minutos lido pela voz do professor. Para ouvir no ônibus, na academia ou antes de dormir.": "Un resumen de ~5 minutos leído por la voz del profesor. Para escuchar en el colectivo, en el gimnasio o antes de dormir.",
   "▶ Ouvir": "▶ Escuchar", "↻ Novo": "↻ Nuevo", "✨ Criar e ouvir": "✨ Crear y escuchar", "Escrevendo o roteiro…": "Escribiendo el guion…", "⏸ Pausar": "⏸ Pausar", "▶ Continuar": "▶ Continuar", "preparando a voz…": "preparando la voz…", "Fazer outro resumo": "Hacer otro resumen",
-  "Resumo ouvido! Agora fixa com umas perguntas no Estudo inteligente. 🧠": "¡Resumen escuchado! Ahora fíjalo con unas preguntas en el Estudio inteligente. 🧠"
+  "Resumo ouvido! Agora fixa com umas perguntas no Estudo inteligente. 🧠": "¡Resumen escuchado! Ahora fíjalo con unas preguntas en el Estudio inteligente. 🧠",
+  "⚔️ Duelo": "⚔️ Duelo", "Criando…": "Creando…", "Desafie um amigo com 10 perguntas deste caderno": "Desafía a un amigo con 10 preguntas de este cuaderno", "Entre com o Google para desafiar um amigo.": "Entra con Google para desafiar a un amigo.",
+  "Preparando 10 perguntas para o duelo… ⚔️": "Preparando 10 preguntas para el duelo… ⚔️", "⚔️ Você foi desafiado!": "⚔️ ¡Te desafiaron!", "Entre com o Google para aceitar o duelo e responder às 10 perguntas.": "Entra con Google para aceptar el duelo y responder las 10 preguntas.",
+  "Esse duelo não existe mais.": "Ese duelo ya no existe.", "← Sair": "← Salir", "Agora é a vez do seu amigo!": "¡Ahora le toca a tu amigo!", "Você está ganhando! 🏆": "¡Vas ganando! 🏆", "Quase lá! Pede revanche 😤": "¡Casi! Pide la revancha 😤",
+  "📲 Desafiar mais gente": "📲 Desafiar a más gente", "🔄 Atualizar placar": "🔄 Actualizar marcador", "Próxima →": "Siguiente →", "Ver resultado 🏁": "Ver resultado 🏁",
+  "⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link pro seu amigo.": "⚔️ ¡Duelo creado! Responde tú primero; al final aparece el botón para mandarle el link a tu amigo.",
+  "🏆 Ranking da semana": "🏆 Ranking de la semana", "Ver tudo": "Ver todo", "👥 Entrar numa turma": "👥 Unirme a un curso", "Ninguém da sua turma pontuou ainda nesta semana. Seja o primeiro!": "Nadie de tu curso sumó puntos esta semana. ¡Sé el primero!",
+  "Responda perguntas para entrar no ranking. Coloque o código da sua turma para competir com os colegas.": "Responde preguntas para entrar al ranking. Pon el código de tu curso para competir con tus compañeros.",
+  "Código da sua turma (combine com os colegas, ex.: FISIO1-C)": "Código de tu curso (combínalo con tus compañeros, ej.: FISIO1-C)", "Salvar": "Guardar", "Ninguém pontuou ainda nesta semana.": "Nadie sumó puntos esta semana.", "⚔️ Meus duelos": "⚔️ Mis duelos", "Turma removida.": "Curso quitado."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -5350,6 +5381,140 @@ function pausarAudioResumo() {
 }
 function pararAudioResumo() { S.audioRes = null; S.falaId++; pararAudio(); render(); }
 
+
+/* ================= ⚔️ Duelo com amigo (link pelo WhatsApp) ================= */
+const linkDuelo = id => `${location.origin}${location.pathname}?duelo=${id}`;
+const meusDuelos = () => lsGet("fp-duelos", []) || [];
+function lembrarDuelo(id, titulo) { lsSet("fp-duelos", [{ id, titulo, data: Date.now() }, ...meusDuelos().filter(x => x.id !== id)].slice(0, 20)); }
+const avatarDoPerfil = () => PERFIL.tipo === "avatar" ? { tipo: "avatar", av: PERFIL.av } : PERFIL.tipo === "emoji" ? { tipo: "emoji", emoji: PERFIL.emoji, cor: PERFIL.cor } : null;
+const nomeCurto = n => { const p = String(n || "Alguém").trim().split(/\s+/); return (p[0] + (p[1] ? " " + p[1][0] + "." : "")).slice(0, 24); };
+async function criarDuelo() {
+  const c = atual(); if (!c) return;
+  if (!NUVEM.user) return toast("Entre com o Google para desafiar um amigo.", true);
+  if (!ativos(c).length) return toast("Adicione materiais primeiro.", true);
+  if (!podeUsar()) return; gastar();
+  S.criandoDuelo = true; render(); hipoFala("Preparando 10 perguntas para o duelo… ⚔️", "feliz");
+  try {
+    const r = await emLotes(10, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha para um DUELO entre estudantes: diretas, de dificuldade média, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras).${REGRAS_PERGUNTA}${estiloProfTxt(c)}${ev}`, SCH.quiz, ""));
+    r.questoes.forEach(normalizarMultipla);
+    const questoes = r.questoes.slice(0, 10).map(q => ({ enunciado: q.enunciado, alternativas: q.alternativas, correta: q.correta, explicacao: String(q.explicacao || "").slice(0, 600) }));
+    if (questoes.length < 5) throw new Error("a IA devolveu poucas perguntas");
+    const F = NUVEM.F, ref = await F.addDoc(F.collection(NUVEM.db, "duelos"), { criador: NUVEM.user.uid, criadorNome: nomeCurto(nomeUser()), titulo: (c.nome || "Duelo").slice(0, 80), idioma: idiomaCaderno(c), questoes, criado: Date.now(), resultados: {} });
+    lembrarDuelo(ref.id, c.nome);
+    S.criandoDuelo = false;
+    await abrirDuelo(ref.id, true);
+  } catch (e) { S.criandoDuelo = false; render(); toast("Não consegui criar o duelo: " + erroMsg(e), true); }
+}
+async function abrirDuelo(id, recemCriado = false) {
+  if (!NUVEM.user) {
+    S.dueloPendente = id;
+    $("#perfilCorpo").innerHTML = `<div style="text-align:center">${hipoSVG("festa", 90)}</div><h2 style="margin:0;text-align:center">⚔️ Você foi desafiado!</h2>
+      <p class="muted" style="text-align:center;margin:0">Entre com o Google para aceitar o duelo e responder às 10 perguntas.</p>
+      <div style="text-align:center"><button class="btn-google" data-act="entrar">${G_ICON}<span>Entrar com Google</span></button></div>`;
+    const d = $("#dlgPerfil"); if (!d.open) d.showModal(); return;
+  }
+  try {
+    const snap = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, "duelos/" + id));
+    if (!snap.exists()) return toast("Esse duelo não existe mais.", true);
+    const d = { id, ...snap.data() }; lembrarDuelo(id, d.titulo);
+    $("#dlgPerfil").open && $("#dlgPerfil").close();
+    S.atual = null;
+    if (d.resultados?.[NUVEM.user.uid]) { S.player = { tipo: "duelo", d, fim: true }; render(); window.scrollTo(0, 0); return; }
+    S.player = { tipo: "duelo", d, i: 0, escolha: null, acertos: 0, inicio: Date.now(), recemCriado }; render(); window.scrollTo(0, 0);
+  } catch (e) { toast("Não consegui abrir o duelo: " + erroMsg(e), true); }
+}
+function compartilharDuelo(d) {
+  const link = linkDuelo(d.id), es = d.idioma === "es";
+  const msg = es ? `⚔️ Te desafío en Hipocampo Study: 10 preguntas de "${d.titulo}". ¿Me ganas? ${link}` : `⚔️ Te desafio no Hipocampo Study: 10 perguntas de "${d.titulo}". Duvido você me ganhar! ${link}`;
+  if (navigator.share) navigator.share({ title: "Duelo · Hipocampo Study", text: msg }).catch(() => {});
+  else window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank", "noopener");
+}
+function playerDuelo() {
+  const p = S.player, d = p.d, q = d.questoes[p.i];
+  const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← Sair</button><b>⚔️ ${esc(d.titulo)}</b><span class="muted">${p.fim ? "" : `${p.i + 1}/${d.questoes.length}`}</span></div>`;
+  if (p.fim) {
+    const res = Object.entries(d.resultados || {}).map(([uid, r]) => ({ uid, ...r })).sort((a, b) => (b.acertos - a.acertos) || (a.tempo - b.tempo));
+    const eu = NUVEM.user?.uid, pos = res.findIndex(r => r.uid === eu);
+    const medalha = i => ["🥇", "🥈", "🥉"][i] || `${i + 1}º`;
+    return topo + `<div class="card stack" style="text-align:center">${hipoSVG(pos === 0 ? "festa" : "feliz", 96)}
+      <h2 style="margin:0">${res.length < 2 ? "Agora é a vez do seu amigo!" : pos === 0 ? "Você está ganhando! 🏆" : "Quase lá! Pede revanche 😤"}</h2>
+      <div class="duelo-placar">${res.map((r, i) => `<div class="duelo-linha ${r.uid === eu ? "eu" : ""}"><span class="med">${medalha(i)}</span><span class="avatar" style="width:34px;height:34px;cursor:default;flex:none">${r.av ? avatarHTML(34, r.av) : `<span style="font-size:15px">${esc((r.nome || "?")[0])}</span>`}</span><b style="flex:1;text-align:left">${esc(r.nome || "Alguém")}</b><span><b>${r.acertos}</b>/${r.total}</span><small class="muted">${Math.round((r.tempo || 0) / 1000)}s</small></div>`).join("")}</div>
+      <div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap"><button class="pill" data-act="dueloCompartilhar">📲 Desafiar mais gente</button><button class="btn" data-act="dueloAtualizar">🔄 Atualizar placar</button><button class="btn" data-act="sair">Voltar</button></div></div>`;
+  }
+  const respondida = p.escolha !== null;
+  return topo + `<div class="prog" style="margin-bottom:16px"><div style="width:${p.i / d.questoes.length * 100}%"></div></div>
+    ${p.i === 0 && !respondida && p.recemCriado ? `<div class="aviso-nuvem" style="margin-bottom:12px">⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link pro seu amigo.</div>` : ""}
+    <div class="card" style="padding:22px"><div class="q-text md">${md(q.enunciado)}</div>
+    <div class="${q.alternativas.some(a => String(a).length > 90) ? "alts-list" : "alts-grid"}">${q.alternativas.map((a, i) => `<button class="alt ${respondida ? (i === q.correta ? "right" : i === p.escolha ? "wrong" : "") : ""}" data-act="dueloAlt" data-id="${i}" ${respondida ? "disabled" : ""}><span class="num">${i + 1}</span><span>${esc(a)}</span></button>`).join("")}</div>
+    ${respondida && q.explicacao ? `<div class="expl md">${md(q.explicacao)}</div>` : ""}</div>
+    ${respondida ? `<div class="study-foot"><span class="l"></span><button class="pill" data-act="dueloProx">${p.i + 1 < d.questoes.length ? "Próxima →" : "Ver resultado 🏁"}</button><span class="r"></span></div>` : ""}`;
+}
+async function dueloResponder(i) {
+  const p = S.player; if (p.escolha !== null) return;
+  p.escolha = i; if (i === p.d.questoes[p.i].correta) { p.acertos++; ganharXP(3); } contarResposta(); render();
+}
+async function dueloProx() {
+  const p = S.player;
+  if (p.i + 1 < p.d.questoes.length) { p.i++; p.escolha = null; render(); window.scrollTo(0, 0); return; }
+  const r = { nome: nomeCurto(nomeUser()), acertos: p.acertos, total: p.d.questoes.length, tempo: Date.now() - p.inicio, data: Date.now(), av: avatarDoPerfil() };
+  try { await NUVEM.F.updateDoc(NUVEM.F.doc(NUVEM.db, "duelos/" + p.d.id), { ["resultados." + NUVEM.user.uid]: r }); } catch (e) { console.warn("duelo", e); }
+  p.d.resultados = { ...(p.d.resultados || {}), [NUVEM.user.uid]: r }; p.fim = true; render(); window.scrollTo(0, 0);
+  if (p.recemCriado) setTimeout(() => compartilharDuelo(p.d), 600);
+}
+
+/* ================= 🏆 Ranking da semana (por turma) ================= */
+function semanaAtual(d = new Date()) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())), dia = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - dia); const ano = t.getUTCFullYear(), sem = Math.ceil(((t - Date.UTC(ano, 0, 1)) / DIA + 1) / 7);
+  return `${ano}-S${String(sem).padStart(2, "0")}`;
+}
+const turmaUser = () => String(PERFIL.turma || "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
+// soma o XP desta semana e manda para o ranking (agrupado, para não gravar a cada resposta)
+function xpSemana(qtd) {
+  const s = semanaAtual(), x = lsGet("fp-xp-semana", {}); const v = { semana: s, xp: (x.semana === s ? x.xp || 0 : 0) + qtd }; lsSet("fp-xp-semana", v);
+  if (!NUVEM.user) return;
+  clearTimeout(S.rankT); S.rankT = setTimeout(enviarRanking, 4000);
+}
+async function enviarRanking() {
+  if (!NUVEM.user) return; const v = lsGet("fp-xp-semana", {}); if (v.semana !== semanaAtual()) return;
+  try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `ranking/${v.semana}/pessoas/${NUVEM.user.uid}`), { nome: nomeCurto(nomeUser()), av: avatarDoPerfil(), turma: turmaUser(), xp: Math.round(v.xp), atualizado: Date.now() }); } catch (e) { console.warn("ranking", e); }
+}
+async function carregarRanking() {
+  if (!NUVEM.user || !NUVEM.F) return null;
+  const F = NUVEM.F, col = F.collection(NUVEM.db, `ranking/${semanaAtual()}/pessoas`), t = turmaUser();
+  try {
+    const docs = (await F.getDocs(t ? F.query(col, F.where("turma", "==", t)) : F.query(col, F.orderBy("xp", "desc"), F.limit(30)))).docs.map(d => ({ uid: d.id, ...d.data() }));
+    S.ranking = { turma: t, lista: docs.sort((a, b) => b.xp - a.xp).slice(0, 50), quando: Date.now() };
+  } catch (e) { console.warn("ranking", e); S.ranking = { turma: t, lista: [], erro: true, quando: Date.now() }; }
+  return S.ranking;
+}
+function cartaoRanking() {
+  if (!NUVEM.user) return "";
+  const r = S.ranking; if (!r || Date.now() - r.quando > 120000) { if (!S.carregandoRank) { S.carregandoRank = true; carregarRanking().finally(() => { S.carregandoRank = false; if (!atual() && !S.player) render(); }); } }
+  const eu = NUVEM.user.uid, lista = r?.lista || [], pos = lista.findIndex(x => x.uid === eu);
+  const top = lista.slice(0, 3), medalha = ["🥇", "🥈", "🥉"];
+  const linha = (x, i) => `<div class="rank-linha ${x.uid === eu ? "eu" : ""}"><span class="med">${medalha[i] || `${i + 1}º`}</span><span class="avatar" style="width:30px;height:30px;cursor:default;flex:none">${x.av ? avatarHTML(30, x.av) : `<span style="font-size:13px">${esc((x.nome || "?")[0])}</span>`}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.nome || "Alguém")}</span><b>${x.xp} XP</b></div>`;
+  return `<div class="card rank-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">🏆 Ranking da semana ${r?.turma ? `· <span class="rank-turma">${esc(r.turma)}</span>` : ""}</h3><button class="btn small ghost" data-act="rankAbrir">Ver tudo</button></div>
+    ${!r ? `<p class="muted" style="margin:6px 0 0"><span class="spin"></span> Carregando…</p>` : lista.length ? `<div style="margin-top:8px">${top.map(linha).join("")}${pos > 2 ? `<div class="muted" style="text-align:center;font-size:12px">⋯</div>${linha(lista[pos], pos)}` : ""}</div>`
+      : `<p class="muted" style="margin:6px 0 0;font-size:13.5px">${r.turma ? "Ninguém da sua turma pontuou ainda nesta semana. Seja o primeiro!" : "Responda perguntas para entrar no ranking. Coloque o código da sua turma para competir com os colegas."}</p>`}
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">${r?.turma ? "" : `<button class="btn small" data-act="rankAbrir">👥 Entrar numa turma</button>`}${meusDuelos().length ? `<button class="btn small ghost" data-act="rankAbrir">⚔️ Meus duelos (${meusDuelos().length})</button>` : ""}</div></div>`;
+}
+async function abrirRanking() {
+  const r = await carregarRanking() || { lista: [] }, eu = NUVEM.user?.uid;
+  $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🏆 Ranking da semana</h2><button class="icon-btn" data-act="perfilCancelar" title="Fechar">✕</button></div>
+    <label>Código da sua turma (combine com os colegas, ex.: FISIO1-C)<div class="row" style="flex-wrap:nowrap;gap:6px"><input type="text" id="rankTurma" maxlength="20" value="${esc(turmaUser())}" placeholder="FISIO1-C" style="text-transform:uppercase"><button class="btn small primary" data-act="rankSalvarTurma">Salvar</button></div></label>
+    <div class="muted" style="font-size:12.5px">O ranking zera toda segunda-feira. Cada pergunta respondida soma XP${r.turma ? "" : "; sem turma, você vê o ranking geral"}.</div>
+    <div>${r.lista.length ? r.lista.map((x, i) => `<div class="rank-linha ${x.uid === eu ? "eu" : ""}"><span class="med">${["🥇", "🥈", "🥉"][i] || `${i + 1}º`}</span><span class="avatar" style="width:30px;height:30px;cursor:default;flex:none">${x.av ? avatarHTML(30, x.av) : `<span style="font-size:13px">${esc((x.nome || "?")[0])}</span>`}</span><span style="flex:1">${esc(x.nome || "Alguém")}</span><b>${x.xp} XP</b></div>`).join("") : `<p class="muted">Ninguém pontuou ainda nesta semana.</p>`}</div>
+    ${meusDuelos().length ? `<h3 style="margin:8px 0 0">⚔️ Meus duelos</h3>${meusDuelos().map(x => `<button class="mrow" data-act="dueloAbrir" data-id="${esc(x.id)}" style="width:100%;text-align:left;cursor:pointer"><span style="flex:1">${esc(x.titulo || "Duelo")}</span><small class="muted">${fmtData(x.data)}</small></button>`).join("")}` : ""}`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+async function salvarTurma() {
+  const t = String($("#rankTurma").value || "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
+  PERFIL = { ...PERFIL, turma: t }; lsSet("fp-perfil", { uid: NUVEM.user?.uid, ...PERFIL });
+  try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/conta/perfil`), PERFIL, { merge: true }); } catch {}
+  await enviarRanking(); S.ranking = null; toast(t ? `👥 Turma ${t} salva!` : "Turma removida."); abrirRanking();
+}
+
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
 aplicarTema();
@@ -5359,6 +5524,7 @@ render();
 // primeira visita: escolher o idioma de estudo (site + perguntas)
 if (!lsGet("fp-idioma-escolhido", false)) setTimeout(() => { const d = $("#dlgIdioma"); if (d && !d.open) d.showModal(); }, 400);
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
+{ const pd = new URLSearchParams(location.search).get("duelo"); if (pd) { try { sessionStorage.setItem("fp-duelo-pendente", pd); } catch {} history.replaceState(null, "", location.pathname); } }
 iniciarNuvem();
 // Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)
 navigator.serviceWorker?.getRegistrations?.().then(regs => {
