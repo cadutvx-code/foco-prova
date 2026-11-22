@@ -4226,8 +4226,8 @@ document.addEventListener("click", async e => {
     case "guia": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); iniciarTour(atual() ? "caderno" : "casa"); break;
     case "guiaPular": fecharGuia(); break;
     case "tourComecar": iniciarTour("casa"); break;
-    case "tourProx": if (S.tour) { if (S.tour.i < S.tour.passos.length - 1) { S.tour.i++; mostrarPassoTour(); } else fimTour(); } break;
-    case "tourVoltar": if (S.tour && S.tour.i) { S.tour.i--; mostrarPassoTour(); } break;
+    case "tourProx": if (S.tour && Date.now() - (S.tour.ult || 0) > 350) { S.tour.ult = Date.now(); if (S.tour.i < S.tour.passos.length - 1) { S.tour.i++; mostrarPassoTour(); } else fimTour(); } break;
+    case "tourVoltar": if (S.tour && S.tour.i && Date.now() - (S.tour.ult || 0) > 350) { S.tour.ult = Date.now(); S.tour.i--; mostrarPassoTour(); } break;
     case "tourPular": fimTour(true); break;
     case "mmEstilo": S.mmEstilo = id; S.mmDesc = $("#mmDesc")?.value ?? S.mmDesc; render(); break;
     case "mmIdeia": { const t = $("#mmDesc"); if (t) { t.value = id; S.mmDesc = id; } break; }
@@ -4438,7 +4438,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1907";
+const VERSAO_APP = "2026-11-22-1911";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5826,7 +5826,8 @@ function fecharGuia() { lsSet("fp-guia-visto", true); $("#dlgGuia").open && $("#
 function iniciarTour(tipo) {
   fecharGuia(); lsSet("fp-tour-ok", true);
   if (tipo === "casa" && (atual() || S.player)) { S.atual = null; S.player = null; render(); }
-  const passos = TOUR_PASSOS[tipo]().filter(p => !p.sel || document.querySelector(p.sel));
+  // só os passos cujo botão está VISÍVEL agora (assim a contagem "1 de N" fica certa e nada é pulado no meio)
+  const passos = TOUR_PASSOS[tipo]().filter(p => !p.sel || [...document.querySelectorAll(p.sel)].some(visivel));
   if (!passos.length) return;
   S.tour = { tipo, passos, i: 0 }; mostrarPassoTour();
 }
@@ -5834,7 +5835,8 @@ function visivel(el) { const r = el.getBoundingClientRect(); return r.width > 0 
 function mostrarPassoTour() {
   const t = S.tour; if (!t) return;
   const p = t.passos[t.i], alvo = p.sel ? [...document.querySelectorAll(p.sel)].find(visivel) : null;
-  if (p.sel && !alvo) { if (t.i < t.passos.length - 1) { t.i++; return mostrarPassoTour(); } return fimTour(); }
+  // o botão sumiu depois que o tour começou: tira o passo da lista (sem pular o seguinte)
+  if (p.sel && !alvo) { t.passos.splice(t.i, 1); if (!t.passos.length) return fimTour(); if (t.i >= t.passos.length) t.i = t.passos.length - 1; return mostrarPassoTour(); }
   let el = $("#tour"); if (!el) el = document.body.appendChild(Object.assign(document.createElement("div"), { id: "tour" }));
   const ultimo = t.i === t.passos.length - 1;
   el.innerHTML = `<div class="tour-buraco ${alvo ? "" : "sem"}"></div><div class="tour-balao">
