@@ -553,6 +553,8 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .mini{border:none;background:none;cursor:pointer;width:30px;height:30px;border-radius:8px;color:var(--muted);font-size:15px}
 .mini:hover{background:var(--panel);color:var(--text)}
 .mdet{max-width:640px;margin:-2px 0 4px}
+.dica-ios{display:none;max-width:640px;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:8px}
+.ios .dica-ios{display:block}
 .dropzone-hint{max-width:640px;border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
 .dropzone-hint:hover,.arrastando .dropzone-hint{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .icons-pick{display:flex;flex-wrap:wrap;gap:6px}
@@ -605,7 +607,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
     <label>Nome<input type="text" id="novoNome" placeholder="ex.: Fisiologia 2 – Prova final" maxlength="80"></label>
     <label>Matéria <span style="font-weight:500">(deixe em branco para a IA identificar sozinha)</span><input type="text" id="novoMateria" list="listaMaterias" placeholder="ex.: Nutrição Clínica" maxlength="60"></label>
     <div><div class="muted" style="font-size:13px;font-weight:600;margin-bottom:6px">Ícone</div><div class="icons-pick" id="novoIcones"></div></div>
-    <div class="dropzone-hint" id="novoDrop" data-act="novoArquivos">📎 Adicionar arquivos agora (opcional) — clique ou arraste aqui</div>
+    <div class="dropzone-hint" id="novoDrop" data-act="novoArquivos">📎 Adicionar arquivos agora (opcional) — clique ou arraste aqui</div><div class="dica-ios">No iPhone: toque em <b>Escolher Arquivo</b> para ver o app Arquivos, ou em <b>Fototeca</b> / <b>Tirar Foto</b>. PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em <b>Salvar em Arquivos</b>.</div>
     <div class="nfiles" id="novoLista"></div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn" data-act="fecharNovo">Cancelar</button>
@@ -1287,8 +1289,30 @@ async function extrairDOCX(file) {
   if (!f) throw new Error("DOCX inválido");
   return { tipo: "docx", texto: xmlTexto(await f.async("string"), "w:p", "w:t") };
 }
+// foto do iPhone (HEIC) ou outro formato de imagem → JPEG
+async function fotoParaJPEG(file) {
+  let img;
+  try { img = await createImageBitmap(file); }
+  catch {
+    img = await new Promise((ok, erro) => { const u = URL.createObjectURL(file), i = new Image(); i.onload = () => ok(i); i.onerror = () => erro(new Error("não consegui abrir essa foto. No iPhone: Ajustes → Câmera → Formatos → Mais Compatível")); i.src = u; });
+  }
+  const w = img.width, h = img.height, k = Math.min(1, 2400 / Math.max(w, h));
+  const cv = Object.assign(document.createElement("canvas"), { width: Math.round(w * k), height: Math.round(h * k) });
+  cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+  const blob = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.88));
+  if (!blob) throw new Error("não consegui converter essa foto");
+  return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+}
 async function extrair(file) {
-  const ext = file.name.split(".").pop().toLowerCase();
+  let ext = file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "";
+  const tipo = (file.type || "").toLowerCase();
+  if (!["pdf", "pptx", "docx", "txt", "md", "csv", "png", "jpg", "jpeg", "webp", "heic", "heif", "ppt", "doc"].includes(ext))
+    ext = tipo === "application/pdf" ? "pdf" : tipo.includes("presentationml") ? "pptx" : tipo.includes("wordprocessingml") ? "docx" : tipo.startsWith("text/") ? "txt" : tipo.startsWith("image/") ? (tipo.includes("hei") ? "heic" : "img") : ext;
+  if (ext === "heic" || ext === "heif" || (ext === "img" && !/image\/(png|jpe?g|webp)/.test(tipo))) {
+    const jpg = await fotoParaJPEG(file);
+    return { tipo: "imagem", texto: "", poucoTexto: true, arquivo: jpg, mime: "image/jpeg" };
+  }
+  if (ext === "img") return { tipo: "imagem", texto: "", poucoTexto: true, arquivo: file, mime: tipo };
   if (ext === "pdf") return extrairPDF(file);
   if (ext === "pptx") return extrairPPTX(file);
   if (ext === "docx") return extrairDOCX(file);
@@ -1991,7 +2015,7 @@ function viewMateriais(c) {
           ${S.verMat === m.id && m.texto ? `<div class="mdet"><pre class="prev">${esc(m.texto.slice(0, 20000))}${m.texto.length > 20000 ? "\n…" : ""}</pre></div>` : ""}`;
       }).join("")}
     </div>
-    <div class="dropzone-hint" id="drop" data-act="escolher">📎 Arraste PDFs, slides (.pptx), Word, textos ou fotos para cá</div>
+    <div class="dropzone-hint" id="drop" data-act="escolher">📎 Arraste PDFs, slides (.pptx), Word, textos ou fotos para cá</div><div class="dica-ios">No iPhone: toque em <b>Escolher Arquivo</b> para ver o app Arquivos, ou em <b>Fototeca</b> / <b>Tirar Foto</b>. PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em <b>Salvar em Arquivos</b>.</div>
     ${n && tokens > 700000 ? `<div class="muted" style="font-size:12px"><b style="color:var(--bad)">Material muito grande: desative alguns arquivos para a IA ler melhor.</b></div>` : ""}
   </div>`;
 }
@@ -4600,7 +4624,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2027";
+const VERSAO_APP = "2026-11-22-2029";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4624,6 +4648,8 @@ $("#perfilFoto").addEventListener("change", async e => {
 });
 $("#txtValor").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("[data-act=txtOk]").click(); } });
 $("#novoNome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); criarCaderno(); } });
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+if (IOS) { document.documentElement.classList.add("ios"); ["#arquivo", "#novoArquivo", "#provaAntigaIn"].forEach(q => $(q)?.removeAttribute("accept")); }
 $("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });
 $("#backupIn").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -5298,7 +5324,9 @@ const UI_ES = {
   "Perguntas de múltipla escolha sem filtro, com voz: o Hipo te zoa quando você erra": "Preguntas de opción múltiple sin filtro, con voz: Hipo se burla de ti cuando fallas", "Novo": "Nuevo",
   "Idioma da voz": "Idioma de la voz", "Voz": "Voz", "Responda que eu comento…": "Responde y yo comento…", "Próxima pergunta →": "Siguiente pregunta →",
   "Ajustes do Hipo": "Ajustes de Hipo",
-  "Faz medicina no exterior? Isso vai te ajudar.": "¿Estudias medicina en el exterior? Esto te va a ayudar.", "Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.": "Material listo de la facultad y práctica del Ateneo oral de Fisiología, con clases en español.", "Sim, mostrar": "Sí, mostrar"
+  "Faz medicina no exterior? Isso vai te ajudar.": "¿Estudias medicina en el exterior? Esto te va a ayudar.", "Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.": "Material listo de la facultad y práctica del Ateneo oral de Fisiología, con clases en español.", "Sim, mostrar": "Sí, mostrar",
+  "No iPhone: toque em": "En el iPhone: toca", "Escolher Arquivo": "Elegir archivo", "para ver o app Arquivos, ou em": "para ver la app Archivos, o", "Fototeca": "Fototeca", "Tirar Foto": "Hacer foto",
+  ". PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em": ". Los PDFs de WhatsApp o del correo hay que guardarlos antes: abre el archivo, toca Compartir y", "Salvar em Arquivos": "Guardar en Archivos"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
