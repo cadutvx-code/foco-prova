@@ -1630,7 +1630,7 @@ function viewHome() {
     </ol>
     <p class="muted" style="font-size:13px;margin-bottom:0">IA em uso: <b>${esc(nomeIA())}</b> — troque em Ajustes.</p></div>`}
   <div class="rodape-contato"><span class="muted" style="font-size:13px">Dúvidas, sugestões ou problemas? Fale com a gente:</span>
-    <a class="ig-link" href="https://www.instagram.com/hipocampostudy/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>@hipocampostudy</a></div>`;
+    <a class="ig-link" href="https://www.instagram.com/hipocampostudy?utm_source=ig_web_button_share_sheet&avpt=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>@hipocampostudy</a></div>`;
 }
 
 // A IA lê o começo do material e diz a matéria (reaproveita as que você já tem)
@@ -3022,7 +3022,7 @@ function desenharConta() {
       ${ACESSO.admin ? `<button class="cm-item" data-act="admin">${icm("escudo")}Painel do administrador${ped ? `<span class="badge">${ped}</span>` : ""}</button><button class="cm-item" data-act="publico">${icm("grafico")}Público</button>` : ""}
       ${!ACESSO.admin && (!pro || (ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS)) ? `<button class="cm-item" data-act="pagar">${icm("coroa")}${pro ? "Renovar o Pro" : "Quero o Pro"}</button>` : ""}
       <button class="cm-item" data-act="syncAgora">${icm("sync")}Sincronizar agora</button>
-      <a class="cm-item" href="https://www.instagram.com/hipocampostudy/" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Contato (Instagram)</a>
+      <a class="cm-item" href="https://www.instagram.com/hipocampostudy?utm_source=ig_web_button_share_sheet&avpt=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Contato (Instagram)</a>
       <button class="cm-item" data-act="sairConta">Sair</button></div>` : ""}`;
 }
 // Conquistas (calculadas a partir do que a pessoa já fez)
@@ -3112,7 +3112,18 @@ function conferirValidade() {
     desenharConta(); toast("⏰ Seu Pro venceu. Renove para continuar com acesso completo.", true);
   }
 }
-const uso = () => ({ n: 0, ateneos: 0, ...lsGet("fp-uso", {}) });
+const JANELA_GRATIS = 5 * 3600000; // o limite grátis volta 5 horas depois do 1º uso da janela
+function uso() {
+  const u = { n: 0, ateneos: 0, ini: 0, ...lsGet("fp-uso", {}) };
+  if (!u.ini || Date.now() - u.ini >= JANELA_GRATIS) { u.n = 0; u.ateneos = 0; u.ini = 0; } // janela acabou: zera interações e Ateneos
+  return u;
+}
+// quanto falta para o limite voltar, em texto ("3 h 12 min")
+function tempoParaVoltar() {
+  const u = uso(); if (!u.ini) return "";
+  const ms = Math.max(60000, u.ini + JANELA_GRATIS - Date.now()), h = Math.floor(ms / 3600000), m = Math.ceil((ms % 3600000) / 60000);
+  return h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
+}
 
 /* ---------- Avatares desenhados (estilo plano: bichinho sobre círculo colorido com sombra longa) ----------
    "nivel" = nível de XP que libera o avatar (1 = livre desde o começo) */
@@ -3320,8 +3331,10 @@ async function verificarAcesso() {
   // o contador do plano grátis acompanha a conta (vale o maior entre o aparelho e a nuvem)
   try {
     const ref = F.doc(db, `${caminhoUser()}/conta/uso`), d = await F.getDoc(ref), nv = d.exists() ? d.data() : {}, lo = uso();
-    const m = { n: Math.max(lo.n, nv.n || 0), ateneos: Math.max(lo.ateneos, nv.ateneos || 0) };
-    lsSet("fp-uso", m); if (m.n !== nv.n || m.ateneos !== nv.ateneos) F.setDoc(ref, m).catch(() => {});
+    const iniN = nv.ini && Date.now() - nv.ini < JANELA_GRATIS ? nv.ini : 0, nN = iniN ? (nv.n || 0) : 0, aN = iniN ? (nv.ateneos || 0) : 0;
+    const ini = Math.max(lo.ini || 0, iniN), mesma = (lo.ini || 0) === iniN, daqui = ini === lo.ini;
+    const m = { ini, n: mesma ? Math.max(lo.n, nN) : daqui ? lo.n : nN, ateneos: mesma ? Math.max(lo.ateneos, aN) : daqui ? lo.ateneos : aN };
+    lsSet("fp-uso", m); if (m.n !== nv.n || m.ini !== nv.ini || m.ateneos !== nv.ateneos) F.setDoc(ref, m).catch(() => {});
   } catch {}
   desenharConta(); render();
 }
@@ -3336,6 +3349,7 @@ function podeUsar(tipo = "ia") {
 function gastar(tipo = "ia", qtd = 1) {
   if (ACESSO.liberado) return;
   const u = uso(); if (tipo === "ateneo") u.ateneos += qtd; else u.n += qtd;
+  if (!u.ini) u.ini = Date.now();
   lsSet("fp-uso", u);
   if (NUVEM.user) NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/conta/uso`), u).catch(() => {});
   const chip = $("#planoChip"); if (chip) chip.outerHTML = cartaoPlano();
@@ -3348,6 +3362,7 @@ function cartaoPlano() {
     if (n > AVISO_DIAS) return "";
     return `<div class="aviso-nuvem" id="planoChip" style="border-color:#f5a623;background:rgba(245,166,35,.12)">⏳ <b>Seu Pro acaba ${n <= 0 ? "hoje" : n === 1 ? "amanhã" : `em ${n} dias`}</b> (${dataCurta(ACESSO.expira)}). <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Renovar por mais 30 dias (R$ ${reais(p.preco)})</a></div>`;
   }
+  return ""; // plano grátis: sem contador na tela; o aviso aparece só quando bater o limite
   const venceu = ACESSO.vencido && ACESSO.expira ? `⏰ <b>Seu Pro venceu em ${dataCurta(ACESSO.expira)}.</b> ` : "";
   return `<div class="aviso-nuvem" id="planoChip">${venceu}🎁 Plano grátis: <b>${Math.min(u.n, p.limite)}/${p.limite}</b> interações com a IA${ATENEO_ATIVO ? ` · <b>${Math.min(u.ateneos, p.ateneos)}/${p.ateneos}</b> Ateneos` : ""} · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">👑 ${venceu ? "Renovar" : "Quero"} o Pro (R$ ${reais(p.preco)}/mês)</a></div>`;
 }
@@ -3520,7 +3535,7 @@ async function desenharQRPix(codigo) {
 }
 function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
-  const acabou = tipo === "ateneo" ? `Você já fez os <b>${p.ateneos} Ateneos grátis</b>.` : tipo ? `Você usou as <b>${p.limite} interações grátis</b> com a IA.` : "";
+  const acabou = tipo ? `<div style="padding:14px 16px;border-radius:14px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.45);line-height:1.5">⏳ <b>${tipo === "ateneo" ? `Você já fez os ${p.ateneos} Ateneos grátis.` : "Você atingiu o limite de uso grátis."}</b><br>Ele volta em <b>${tempoParaVoltar() || "algumas horas"}</b>. Enquanto isso, você pode continuar sem limite com o Pro:</div>` : "";
   const renovar = ACESSO.liberado || ACESSO.vencido;
   const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Hipocampo Study 👑 (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
   const num = String(p.whats || "").replace(/\D/g, "");
@@ -3532,7 +3547,7 @@ function abrirPagamento(tipo) {
     ? `<p class="aviso-nuvem" style="margin:0">👑 Você está no Pro até <b>${dataCurta(ACESSO.expira)}</b> (${diasRestam(ACESSO.expira) === 1 ? "falta 1 dia" : `faltam ${diasRestam(ACESSO.expira)} dias`}). Renovando agora, os 30 dias novos são somados ao que ainda falta.</p>`
     : ACESSO.vencido && ACESSO.expira ? `<p class="aviso-nuvem" style="margin:0">⏰ Seu Pro venceu em <b>${dataCurta(ACESSO.expira)}</b>. Renove para voltar a ter acesso completo.</p>` : "";
   $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Hipocampo Study Pro</h2>
-    ${acabou ? `<p style="margin:0">${acabou}</p>` : ""}${estado}
+    ${acabou}${estado}
     <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${reais(p.preco)} por mês servem só para ajudar a manter o site e a IA funcionando para todo mundo. <b>Sem fidelidade:</b> cada pagamento vale 30 dias e você renova só se quiser. Avisamos ${AVISO_DIAS} dias antes de acabar.</div>
     <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${reais(p.preco)}/mês</b>: perguntas${ATENEO_ATIVO ? ", Ateneos" : ""}, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
     ${ACESSO.pedido ? `<p class="aviso-nuvem" style="margin:0">📨 <b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado. Toque em "Verificar" para conferir.</p>` : ""}
@@ -3604,8 +3619,8 @@ async function abrirAdmin() {
       <label>WhatsApp para o comprovante (com DDD e país)<input type="tel" id="admWhats" value="${esc(p.whats || "")}" placeholder="+55 11 91234-5678"></label>
       <div class="row">
         <label style="flex:1">Preço por mês (R$)<input type="number" id="admPreco" min="1" step="0.01" value="${p.preco}"></label>
-        <label style="flex:1">Interações grátis<input type="number" id="admLimite" min="0" value="${p.limite}"></label>
-        <label style="flex:1;${ATENEO_ATIVO ? "" : "display:none"}">Ateneos grátis<input type="number" id="admAteneos" min="0" value="${p.ateneos}"></label>
+        <label style="flex:1">Interações grátis (a cada 5 h)<input type="number" id="admLimite" min="0" value="${p.limite}"></label>
+        <label style="flex:1;${ATENEO_ATIVO ? "" : "display:none"}">Ateneos grátis (a cada 5 h)<input type="number" id="admAteneos" min="0" value="${p.ateneos}"></label>
       </div>
       <div><button class="pill" data-act="admSalvarPag">💾 Salvar</button></div>
     </div>
@@ -4160,7 +4175,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2333";
+const VERSAO_APP = "2026-11-21-2336";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4777,11 +4792,13 @@ const UI_ES = {
   "o professor está escrevendo a explicação…": "el profesor está escribiendo la explicación…",
   "múltipla escolha (5 alternativas)": "opción múltiple (5 alternativas)",
   "🔒 Suba de nível estudando para liberar mais avatares.": "🔒 Sube de nivel estudiando para liberar más avatares.",
-  "Adicionar material": "Agregar material", "Dúvidas, sugestões ou problemas? Fale com a gente:": "¿Dudas, sugerencias o problemas? Habla con nosotros:", "Contato (Instagram)": "Contacto (Instagram)"
+  "Adicionar material": "Agregar material", "Dúvidas, sugestões ou problemas? Fale com a gente:": "¿Dudas, sugerencias o problemas? Habla con nosotros:", "Contato (Instagram)": "Contacto (Instagram)",
+  "Você atingiu o limite de uso grátis.": "Llegaste al límite de uso gratis.", "Ele volta em": "Vuelve en", ". Enquanto isso, você pode continuar sem limite com o Pro:": ". Mientras tanto, puedes seguir sin límite con el Pro:", "algumas horas": "algunas horas", "Interações grátis (a cada 5 h)": "Interacciones gratis (cada 5 h)",
+  "Ateneos grátis (a cada 5 h)": "Ateneos gratis (cada 5 h)"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
