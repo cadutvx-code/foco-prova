@@ -104,6 +104,33 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head h2{margin:0 6px 0 0;font-size:21px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
+.trad-bolha{animation:hipoIn .18s ease-out}
+.trad-btn{width:auto;display:block;margin:0 auto;border:none;border-radius:999px;padding:9px 16px;background:var(--accent);color:#fff;font:inherit;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.trad-card{position:relative;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:12px 30px 12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14.5px;line-height:1.45}
+.trad-par{font-size:16px}
+.trad-exp{margin-top:6px;color:var(--muted);font-size:13.5px}
+.trad-pe{margin-top:8px;font-size:12px;color:var(--muted)}
+.trad-pe a{color:var(--accent);font-weight:800}
+.trad-x{position:absolute;top:6px;right:6px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px}
+.glo-lista{display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow:auto}
+.glo-item{display:flex;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:12px}
+.revdia{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 18px;border-radius:18px;margin-bottom:16px;background:linear-gradient(120deg,rgba(91,141,255,.18),rgba(139,92,246,.16));border:1px solid rgba(91,141,255,.35)}
+.revdia.ok{background:var(--panel);border-color:var(--line)}
+.revdia-ic{font-size:30px}
+.revdia-txt{flex:1;min-width:180px;display:flex;flex-direction:column}
+.revdia-txt b{font-size:17px}
+.revdia-txt small{color:var(--muted);font-size:13px}
+.hipo-card{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:6px 4px}
+.hipo-card .hipo-svg{flex:none;animation:hipoBoia 3.2s ease-in-out infinite}
+.hipo-card b{font-size:18px}
+.hipo-txt{position:relative;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:9px 13px;font-size:14px;line-height:1.45;max-width:560px}
+#hipoBalao{position:fixed;left:16px;bottom:22px;z-index:65;display:flex;align-items:flex-end;gap:6px;opacity:0;transform:translateY(20px) scale(.9);pointer-events:none;transition:.28s cubic-bezier(.2,1.4,.4,1);max-width:min(360px,calc(100vw - 32px));cursor:pointer}
+#hipoBalao.on{opacity:1;transform:none;pointer-events:auto}
+#hipoBalao .hipo-svg{flex:none;animation:hipoBoia 2.4s ease-in-out infinite}
+.hipo-fala{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:10px 14px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.22);margin-bottom:28px}
+@media (max-width:760px){#hipoBalao{bottom:calc(92px + env(safe-area-inset-bottom))}}
+@keyframes hipoBoia{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
+@keyframes hipoIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .fb-chip{color:var(--text);font-weight:700}
 .fb-tipos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .fb-tipos button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border-radius:14px;border:2px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer;font:inherit;font-size:22px}
@@ -528,7 +555,7 @@ function toast(msg, err = false) {
 function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
 const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
 const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
-const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados"]);
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia"]);
 const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
 function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
@@ -1506,7 +1533,7 @@ function ganharXP(qtd) {
   const antes = nivelDoXp(xpTotal()).nivel, xp = xpTotal() + qtd;
   lsSet("fp-xp", xp);
   const depois = nivelDoXp(xp).nivel;
-  if (depois > antes) setTimeout(() => toast(`🎉 Subiu para o nível ${depois}!`), 400);
+  if (depois > antes) setTimeout(() => hipoFala(`🎉 Subiu para o nível ${depois}! Seu hipocampo agradece.`, "festa", 6000), 400);
   desenharConta();
   clearTimeout(xpTimer);
   xpTimer = setTimeout(() => { if (NUVEM.user) NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `users/${NUVEM.user.uid}/conta/nivel`), { xp: xpTotal(), atualizado: Date.now() }).catch(() => {}); }, 3000);
@@ -1537,7 +1564,7 @@ function contarResposta(qtd = 1) {
   for (const k of Object.keys(q.dias)) if (k < hojeStr(limite)) delete q.dias[k];
   lsSet("fp-sequencia", q);
   if (antes < q.meta && antes + qtd >= q.meta) ganharXP(XP_REGRAS.meta);
-  if (antes < q.meta && antes + qtd >= q.meta) toast(`🎉 Meta do dia batida: ${q.meta} perguntas! Sequência: ${diasSeguidos()} dia(s) 🔥`);
+  if (antes < q.meta && antes + qtd >= q.meta) hipoFala(`🎉 Meta do dia batida: ${q.meta} perguntas! Sequência: ${diasSeguidos()} dia(s) 🔥`, "festa", 6000);
   const chip = $("#seqChip"); if (chip) chip.textContent = `🔥 ${diasSeguidos()}`;
 }
 function cartaoMeta() {
@@ -1595,7 +1622,7 @@ function render() {
   $("#iaChip span").textContent = nomeIA();
   $("#seqChip").textContent = `🔥 ${diasSeguidos()}`;
   desenharConta();
-  $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : viewHome();
+  $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : S.player?.tipo === "revdia" ? playerRevisaoDia() : viewHome();
 
 }
 
@@ -1632,7 +1659,7 @@ function viewHome() {
     </div>`;
   };
   const avisoEndereco = (location.hostname.endsWith("github.io") || location.hostname.startsWith("focoprova")) ? `<div class="aviso-nuvem">🐴 O Foco Prova agora se chama <b>Hipocampo Study</b> e mudou de endereço: <a href="https://hipocampo.web.app" style="color:var(--accent);font-weight:800">hipocampo.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
-  return `${avisoEndereco}${cartaoPlano()}${cartaoMeta()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  return `${avisoEndereco}${cartaoPlano()}${cartaoHipo()}${cartaoRevisaoDia()}${cartaoMeta()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
@@ -2307,6 +2334,7 @@ async function smartResponder(c, acertou) {
   else d.score = d.score * 0.65;
   ganharXP(acertou ? XP_REGRAS.acerto : XP_REGRAS.erro);
   p.sessao.total++; I.respondidas++; contarResposta();
+  if (acertou && [3, 5, 10, 20].includes(p.sessao.combo + 1)) hipoFala(({ 3: "3 seguidas! Tá voando! 🚀", 5: "5 em sequência! 🔥 Seu cérebro tá on.", 10: "10 seguidas?! Você tá imparável! 🏆", 20: "20 seguidas. Lenda. 👑" })[p.sessao.combo + 1], "festa");
   if (acertou) { p.sessao.acertos++; p.sessao.combo++; I.acertos++; const ganho = 5 * it.dificuldade + Math.min(p.sessao.combo, 5) * 2; p.sessao.xp += ganho; I.xp += ganho; }
   else {
     p.sessao.combo = 0; p.sessao.erros++;
@@ -3040,6 +3068,7 @@ function desenharConta() {
       <button class="cm-item" data-act="temaChave"><span class="cm-chave ${temaEscuro() ? "on" : ""}"></span>Modo escuro</button>
       <button class="cm-item" data-act="idiomaMenu">${icm("idioma")}Mudar idioma</button>
       ${S.idiomaMenu ? `<div class="cm-idiomas"><button data-act="idiomaUi" data-id="pt" class="${lsGet("fp-ui", "pt") === "pt" ? "on" : ""}">Português</button><button data-act="idiomaUi" data-id="es" class="${lsGet("fp-ui", "pt") === "es" ? "on" : ""}">Español</button></div>` : ""}
+      <button class="cm-item" data-act="glossario"><span style="width:20px;text-align:center">🔤</span>Meu glossário</button>
       <button class="cm-item" data-act="notificacoes">${icm("sino")}Notificações${avisos.length ? `<span class="badge">${avisos.length}</span>` : ""}</button>
       ${ACESSO.admin ? `<button class="cm-item" data-act="admin">${icm("escudo")}Painel do administrador${ped ? `<span class="badge">${ped}</span>` : ""}</button><button class="cm-item" data-act="publico">${icm("grafico")}Público</button>` : ""}
       ${!ACESSO.admin && (!pro || (ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS)) ? `<button class="cm-item" data-act="pagar">${icm("coroa")}${pro ? "Renovar o Pro" : "Quero o Pro"}</button>` : ""}
@@ -3584,7 +3613,7 @@ async function desenharQRPix(codigo) {
 }
 function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
-  const acabou = tipo ? `<div style="padding:14px 16px;border-radius:14px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.45);line-height:1.5">⏳ <b>${tipo === "ateneo" ? `Você já fez os ${p.ateneos} Ateneos grátis.` : "Você atingiu o limite de uso grátis."}</b><br>Ele volta em <b>${tempoParaVoltar() || "algumas horas"}</b>. Enquanto isso, você pode continuar sem limite com o Pro:</div>` : "";
+  const acabou = tipo ? `<div style="padding:14px 16px;border-radius:14px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.45);line-height:1.5;display:flex;gap:12px;align-items:center">${hipoSVG("dormindo", 64)}<div>⏳ <b>${tipo === "ateneo" ? `Você já fez os ${p.ateneos} Ateneos grátis.` : "Você atingiu o limite de uso grátis."}</b><br>Ele volta em <b>${tempoParaVoltar() || "algumas horas"}</b>. Enquanto isso, você pode continuar sem limite com o Pro:</div></div>` : "";
   const renovar = ACESSO.liberado || ACESSO.vencido;
   const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Hipocampo Study 👑 (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
   const num = String(p.whats || "").replace(/\D/g, "");
@@ -4020,7 +4049,9 @@ function aplicarTema() {
 }
 
 /* ================= eventos ================= */
+document.addEventListener("pointerdown", e => { if (e.target.closest?.("#tradBolha")) e.preventDefault(); }, true);
 document.addEventListener("click", async e => {
+  if ($("#tradBolha") && !e.target.closest("#tradBolha")) fecharBolha();
   if (NUVEM.menu && !e.target.closest(".conta-menu") && !e.target.closest('[data-act="menuConta"]')) { NUVEM.menu = false; desenharConta(); }
   const el = e.target.closest("[data-act]"); if (!el || el.disabled) return;
   if (S.menuKit && !e.target.closest(".kit-menu") && el.dataset.act !== "menuKit") { S.menuKit = null; if (el.dataset.act === "abrir") { render(); return; } }
@@ -4073,6 +4104,14 @@ document.addEventListener("click", async e => {
     case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
     case "feedback": abrirFeedback(); break;
+    case "traduzir": traduzirSelecao(); break;
+    case "fecharTrad": fecharBolha(); getSelection()?.removeAllRanges(); break;
+    case "glossario": e.preventDefault(); NUVEM.menu = false; desenharConta(); abrirGlossario(); break;
+    case "gloApagar": { const g = glossario(); delete g[id]; salvarGlossario(g); abrirGlossario(); break; }
+    case "revDia": iniciarRevisaoDia(); break;
+    case "revAvaliar": revAvaliar(+id); break;
+    case "lembrete": abrirLembrete(); break;
+    case "baixarLembrete": baixarLembrete(); break;
     case "fecharFeedback": $("#dlgFeedback").close(); break;
     case "fbTipo": S.fbTipo = id; document.querySelectorAll(".fb-tipos button").forEach(b => b.classList.toggle("on", b.dataset.id === id)); break;
     case "enviarFeedback": enviarFeedback(); break;
@@ -4229,6 +4268,11 @@ document.addEventListener("keydown", e => {
     }
     return;
   }
+  if (S.player?.tipo === "revdia") {
+    if (e.code === "Space") { e.preventDefault(); if (!S.player.virado && S.player.fila.length) { S.player.virado = true; render(); } }
+    else if (S.player.virado && ["1", "2", "3"].includes(e.key)) revAvaliar(+e.key - 1);
+    return;
+  }
   if (S.player?.tipo === "flash") {
     if (e.code === "Space") { e.preventDefault(); if (!S.player.virado && S.player.fila.length) { S.player.virado = true; render(); } }
     else if (S.player.virado && ["1", "2", "3"].includes(e.key)) avaliar(+e.key - 1);
@@ -4237,7 +4281,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2350";
+const VERSAO_APP = "2026-11-22-1834";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4861,11 +4905,21 @@ const UI_ES = {
   "Problema": "Problema", "Ideia": "Idea", "Outro": "Otro", "Escreva aqui… (ex.: o que aconteceu, em qual tela, o que você esperava)": "Escribe aquí… (ej.: qué pasó, en qué pantalla, qué esperabas)",
   "Seu e-mail ou WhatsApp (opcional, para a gente responder)": "Tu correo o WhatsApp (opcional, para que te respondamos)", "📨 Enviar": "📨 Enviar", "Escreva sua mensagem primeiro.": "Escribe tu mensaje primero.",
   "💬 Obrigado! Seu feedback foi enviado.": "💬 ¡Gracias! Tu feedback fue enviado.", "Sem conexão com o servidor agora. Tente de novo em instantes.": "Sin conexión con el servidor ahora. Intenta de nuevo en unos instantes.",
-  "Enviar um problema, ideia ou sugestão": "Enviar un problema, idea o sugerencia"
+  "Enviar um problema, ideia ou sugestão": "Enviar un problema, idea o sugerencia",
+  "Meu glossário": "Mi glosario", "🔤 Meu glossário": "🔤 Mi glosario", "Nenhuma palavra ainda. Experimente selecionar um termo em espanhol numa pergunta!": "Ninguna palabra todavía. ¡Prueba seleccionar un término en una pregunta!",
+  "Traduzindo…": "Traduciendo…", "Não consegui traduzir agora. Tente de novo.": "No pude traducir ahora. Intenta de nuevo.", "⭐ Salvo no seu glossário ·": "⭐ Guardado en tu glosario ·",
+  "Revisão do dia": "Repaso del día", "🔁 Revisão do dia": "🔁 Repaso del día", "▶ Começar": "▶ Empezar", "📅 Lembrete": "📅 Recordatorio", "Feita! Volte amanhã para a próxima.": "¡Hecho! Vuelve mañana para el próximo.",
+  "Tudo em dia. Erros e palavras do glossário aparecem aqui na hora certa de revisar.": "Todo al día. Errores y palabras del glosario aparecen aquí en el momento justo de repasar.",
+  "Revisão do dia concluída!": "¡Repaso del día terminado!", "Voltar ao início": "Volver al inicio", "toque ou aperte espaço para ver a resposta": "toca o presiona espacio para ver la respuesta",
+  "Glossário": "Glosario", "📅 Lembrete diário": "📅 Recordatorio diario", "Horário": "Horario", "📅 Adicionar ao calendário": "📅 Agregar al calendario",
+  "Escolha o horário. Vamos criar um evento que se repete todo dia no calendário do seu celular, com aviso, chamando para a sua Revisão do dia.": "Elige el horario. Vamos a crear un evento que se repite todos los días en el calendario de tu celular, con aviso, para tu Repaso del día.",
+  "📅 Abra o arquivo baixado para adicionar o lembrete ao calendário.": "📅 Abre el archivo descargado para agregar el recordatorio al calendario.", "Nada para revisar agora. ✅": "Nada para repasar ahora. ✅",
+  "Criar um lembrete diário no calendário do celular": "Crear un recordatorio diario en el calendario del celular", "Tirar do glossário": "Quitar del glosario",
+  "3 seguidas! Tá voando! 🚀": "¡3 seguidas! ¡Vas volando! 🚀", "5 em sequência! 🔥 Seu cérebro tá on.": "¡5 seguidas! 🔥 Tu cerebro está on.", "10 seguidas?! Você tá imparável! 🏆": "¿¡10 seguidas!? ¡Eres imparable! 🏆", "20 seguidas. Lenda. 👑": "20 seguidas. Leyenda. 👑"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -4897,6 +4951,206 @@ if (lsGet("fp-ui", "pt") === "es") {
   document.documentElement.lang = "es";
   new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) traduzirNo(n); }).observe(document.body, { childList: true, subtree: true });
   traduzirNo(document.body);
+}
+
+
+/* ================= 🔤 Tradutor PT↔ES na hora + glossário pessoal ================= */
+// Selecionou uma palavra (toque longo no celular, clique duplo no PC) num texto de estudo → aparece "🔤 Traduzir"
+const AREA_TRAD = ".q-text,.expl,.flash,.msg,.md,.oral-q,.papel,.papel-sorteado,.alts-list,.alts-grid";
+const normTermo = t => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").trim();
+const glossario = () => lsGet("fp-glossario", {}) || {};
+function salvarGlossario(g) { lsSet("fp-glossario", g); }
+document.addEventListener("selectionchange", () => { clearTimeout(S.selT); S.selT = setTimeout(bolhaTraduzir, 380); });
+function fecharBolha() { $("#tradBolha")?.remove(); S.tradSel = null; }
+function posicionarBolha(el, r) {
+  const larg = Math.min(300, innerWidth - 16), x = Math.max(8, Math.min(innerWidth - larg - 8, r.left + r.width / 2 - larg / 2));
+  const embaixo = r.top < 150;
+  el.style.cssText = `position:fixed;z-index:70;left:${x}px;width:${larg}px;${embaixo ? `top:${r.bottom + 10}px` : `bottom:${innerHeight - r.top + 10}px`}`;
+}
+function bolhaTraduzir() {
+  const sel = getSelection(), t = String(sel || "").replace(/\s+/g, " ").trim();
+  const b = $("#tradBolha");
+  if (b?.dataset.fixo === "1") return;
+  if (!t || t.length > 50 || t.split(" ").length > 5 || !sel.rangeCount || !/[A-Za-zÀ-ú]{2}/.test(t)) { b?.remove(); return; }
+  const no = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+  if (!no?.closest?.(AREA_TRAD) || no.closest("textarea,input,dialog#dlgIdioma")) { b?.remove(); return; }
+  const r = sel.getRangeAt(0).getBoundingClientRect(); if (!r.width && !r.height) return;
+  const frase = (no.closest("p,li,.q-text,.msg,.flash,div")?.innerText || "").replace(/\s+/g, " ").slice(0, 300);
+  const el = b || document.body.appendChild(Object.assign(document.createElement("div"), { id: "tradBolha" }));
+  el.className = "trad-bolha"; el.dataset.fixo = "";
+  el.innerHTML = `<button class="trad-btn" data-act="traduzir">🔤 Traduzir “${esc(t.slice(0, 28))}”</button>`;
+  posicionarBolha(el, r); S.tradSel = { termo: t, frase, r };
+}
+async function traduzirSelecao() {
+  const s = S.tradSel, el = $("#tradBolha"); if (!s || !el) return;
+  el.dataset.fixo = "1";
+  const k = normTermo(s.termo), g = glossario();
+  const mostrar = x => {
+    el.innerHTML = `<div class="trad-card"><button class="trad-x" data-act="fecharTrad" title="Fechar">✕</button>
+      <div class="trad-par"><b>${esc(x.termo)}</b> <span class="muted">${x.idioma === "es" ? "🇵🇾" : "🇧🇷"}</span> → <b style="color:var(--accent)">${esc(x.traducao)}</b> <span class="muted">${x.idioma === "es" ? "🇧🇷" : "🇵🇾"}</span></div>
+      ${x.explicacao ? `<div class="trad-exp">${esc(x.explicacao)}</div>` : ""}
+      <div class="trad-pe">⭐ Salvo no seu glossário · <a href="#" data-act="glossario">ver glossário (${Object.keys(glossario()).length})</a></div></div>`;
+    posicionarBolha(el, s.r);
+  };
+  if (g[k]) return mostrar(g[k]);
+  el.innerHTML = `<div class="trad-card"><span class="spin"></span> Traduzindo…</div>`;
+  try {
+    const r = await chamar({
+      system: "Você é um dicionário médico bilíngue português (Brasil) ↔ espanhol para estudantes de medicina. Responda curto e certo.",
+      messages: [{ role: "user", content: `Termo: "${s.termo}"\nFrase onde aparece: "${s.frase}"\n\nSe o termo estiver em espanhol, traduza para português do Brasil; se estiver em português, traduza para espanhol. Use o sentido médico/fisiológico da frase.\n- "traducao": a tradução curta (1 a 4 palavras).\n- "explicacao": em PORTUGUÊS, 1 frase simples (até 20 palavras) dizendo o que é, no contexto de medicina.\n- "idioma": "es" ou "pt" (o idioma do termo original).` }],
+      schema: obj({ traducao: str, explicacao: str, idioma: str }), maxTokens: 300, fundo: true, urgente: true
+    });
+    const x = { termo: s.termo, traducao: String(r.traducao || "").trim(), explicacao: String(r.explicacao || "").trim(), idioma: r.idioma === "pt" ? "pt" : "es", data: Date.now(), caixa: 0, proxima: Date.now() + DIA };
+    if (!x.traducao) throw new Error("sem tradução");
+    const g2 = glossario(); g2[k] = x; salvarGlossario(g2);
+    if ($("#tradBolha") === el) mostrar(x);
+  } catch (e) { if ($("#tradBolha") === el) el.innerHTML = `<div class="trad-card">Não consegui traduzir agora. Tente de novo. <button class="trad-x" data-act="fecharTrad">✕</button></div>`; }
+}
+function abrirGlossario() {
+  fecharBolha();
+  const g = glossario(), itens = Object.entries(g).sort((a, b) => (b[1].data || 0) - (a[1].data || 0));
+  $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🔤 Meu glossário</h2><button class="icon-btn" data-act="perfilCancelar" title="Fechar">✕</button></div>
+    <div class="muted" style="font-size:13px">Selecione qualquer palavra numa pergunta, explicação ou flashcard e toque em <b>🔤 Traduzir</b>. Ela vem parar aqui e entra na sua <b>Revisão do dia</b>.</div>
+    ${itens.length ? `<div class="glo-lista">${itens.map(([k, x]) => `<div class="glo-item"><div style="flex:1;min-width:0"><b>${esc(x.termo)}</b> → <span style="color:var(--accent);font-weight:800">${esc(x.traducao)}</span>${x.explicacao ? `<div class="muted" style="font-size:12.5px">${esc(x.explicacao)}</div>` : ""}</div><button class="mini" data-act="gloApagar" data-id="${esc(k)}" title="Tirar do glossário">🗑</button></div>`).join("")}</div>`
+      : `<div class="empty" style="padding:22px">Nenhuma palavra ainda. Experimente selecionar um termo em espanhol numa pergunta!</div>`}
+    <div class="row" style="justify-content:flex-end"><button class="pill" data-act="perfilCancelar">Fechar</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+
+/* ================= 🔁 Revisão do dia (5 minutos) ================= */
+// Junta o que precisa revisar hoje: flashcards de "Revisão de erros", cards já estudados que venceram e palavras do glossário
+function itensRevisaoDia() {
+  const agora = Date.now(), out = [];
+  for (const c of S.cadernos) for (const d of c.decks || []) d.cards.forEach((k, i) => {
+    if ((k.proxima || 0) > agora) return;
+    if (d.erros || (k.caixa || 0) > 0 || k.visto) out.push({ tipo: "card", cid: c.id, did: d.id, i, prio: d.erros ? 0 : 1 });
+  });
+  for (const [k, x] of Object.entries(glossario())) if ((x.proxima || 0) <= agora) out.push({ tipo: "glo", k, prio: 2 });
+  return out;
+}
+function cartaoRevisaoDia() {
+  const n = itensRevisaoDia().length, feitaHoje = lsGet("fp-revdia", "") === hojeStr();
+  const qtd = Math.min(n, 15), min = Math.max(2, Math.round(qtd * 0.35));
+  return `<div class="revdia ${qtd ? "" : "ok"}"><span class="revdia-ic">${qtd ? "🔁" : "✅"}</span>
+    <div class="revdia-txt"><b>Revisão do dia</b><small>${qtd ? `${qtd} ${qtd === 1 ? "item" : "itens"} para não esquecer · ~${min} min` : feitaHoje ? "Feita! Volte amanhã para a próxima." : "Tudo em dia. Erros e palavras do glossário aparecem aqui na hora certa de revisar."}</small></div>
+    ${qtd ? `<button class="pill" data-act="revDia">▶ Começar</button>` : ""}<button class="btn small ghost" data-act="lembrete" title="Criar um lembrete diário no calendário do celular">📅 Lembrete</button></div>`;
+}
+function iniciarRevisaoDia() {
+  const todos = itensRevisaoDia(); if (!todos.length) return toast("Nada para revisar agora. ✅");
+  const fila = [...embaralhar(todos.filter(x => x.prio === 0)), ...embaralhar(todos.filter(x => x.prio === 1)), ...embaralhar(todos.filter(x => x.prio === 2))].slice(0, 15);
+  S.atual = null; S.player = { tipo: "revdia", fila: embaralhar(fila), virado: false, feitos: 0, total: fila.length, acertos: 0, errados: new Set() };
+  render(); window.scrollTo(0, 0);
+}
+function itemRevisao(x) {
+  if (x.tipo === "glo") { const g = glossario()[x.k]; return g && { frente: `🔤 ${g.termo}`, verso: `**${g.traducao}**${g.explicacao ? `\n\n${g.explicacao}` : ""}`, rotulo: "Glossário", dado: g }; }
+  const c = S.cadernos.find(y => y.id === x.cid), d = c?.decks.find(y => y.id === x.did), k = d?.cards[x.i];
+  return k && { frente: k.frente, verso: k.verso, rotulo: `${c.nome} · ${d.titulo}`, dado: k, c };
+}
+function playerRevisaoDia() {
+  const p = S.player; let it = null;
+  while (p.fila.length && !(it = itemRevisao(p.fila[0]))) p.fila.shift();
+  const pct = p.total ? p.feitos / p.total * 100 : 100;
+  const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← Voltar</button><b>🔁 Revisão do dia</b><span class="muted">${p.feitos}/${p.total}</span></div><div class="prog" style="margin-bottom:18px"><div style="width:${pct}%"></div></div>`;
+  if (!it) return topo + `<div class="card empty">${hipoSVG("feliz", 110)}<h2 style="margin-top:8px">Revisão do dia concluída!</h2><p>Acertos de primeira: <b>${p.acertos}</b> de ${p.total}. Amanhã tem mais. 🔥</p><button class="btn primary" data-act="sair">Voltar ao início</button></div>`;
+  return topo + `<div class="card flash" data-act="virar">
+      <div class="muted" style="font-size:12px;margin-bottom:10px">${esc(it.rotulo)}</div>
+      <div class="md">${md(it.frente)}</div>
+      ${p.virado ? `<div class="back md">${md(it.verso)}</div>` : `<div class="muted" style="font-size:13px;margin-top:22px">toque ou aperte espaço para ver a resposta</div>`}
+    </div>
+    ${p.virado ? `<div class="rate">
+      <button class="btn" style="border-color:var(--bad);color:var(--bad)" data-act="revAvaliar" data-id="0">1 · Errei</button>
+      <button class="btn" style="border-color:var(--warn);color:var(--warn)" data-act="revAvaliar" data-id="1">2 · Difícil</button>
+      <button class="btn" style="border-color:var(--ok);color:var(--ok)" data-act="revAvaliar" data-id="2">3 · Acertei</button>
+    </div>` : ""}`;
+}
+async function revAvaliar(nivel) {
+  const p = S.player, x = p.fila[0], it = x && itemRevisao(x); if (!it) return;
+  const k = it.dado, chave = JSON.stringify(x);
+  if (nivel === 0) { k.caixa = 0; k.proxima = Date.now() + DIA; p.errados.add(chave); p.fila.push(p.fila.shift()); }
+  else {
+    if (nivel === 1) k.proxima = Date.now() + DIA;
+    else { k.caixa = Math.min((k.caixa || 0) + 1, INTERVALOS.length - 1); k.proxima = Date.now() + INTERVALOS[k.caixa] * DIA; if (!p.errados.has(chave)) p.acertos++; }
+    p.fila.shift(); p.feitos++;
+    contarResposta(); ganharXP(nivel === 2 ? 4 : 2);
+  }
+  if (x.tipo === "glo") { const g = glossario(); if (g[x.k]) { g[x.k] = k; salvarGlossario(g); } } else if (it.c) await salvar(it.c);
+  p.virado = false;
+  if (!p.fila.length) { lsSet("fp-revdia", hojeStr()); hipoFala(`Revisão do dia feita! ${p.acertos}/${p.total} de primeira. 🧠`, "feliz"); }
+  render();
+}
+// 📅 Lembrete diário: cria um evento repetido no calendário do celular (funciona no iPhone, Android e Google Agenda)
+function abrirLembrete() {
+  $("#perfilCorpo").innerHTML = `<h2 style="margin:0">📅 Lembrete diário</h2>
+    <div class="muted" style="font-size:13.5px">Escolha o horário. Vamos criar um evento que se repete todo dia no calendário do seu celular, com aviso, chamando para a sua Revisão do dia.</div>
+    <label>Horário<input type="time" id="lembHora" value="${esc(lsGet("fp-lembrete", "20:00"))}"></label>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="perfilCancelar">Cancelar</button><button class="pill" data-act="baixarLembrete">📅 Adicionar ao calendário</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+function baixarLembrete() {
+  const h = ($("#lembHora").value || "20:00").split(":"), d = new Date(); d.setHours(+h[0], +h[1], 0, 0); if (d < new Date()) d.setDate(d.getDate() + 1);
+  const p = n => String(n).padStart(2, "0"), dt = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}00`;
+  const es = lsGet("fp-ui", "pt") === "es";
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Hipocampo Study//PT", "BEGIN:VEVENT", `UID:revdia-${Date.now()}@hipocampo.web.app`, `DTSTAMP:${dt}`, `DTSTART:${dt}`, "DURATION:PT10M", "RRULE:FREQ=DAILY",
+    `SUMMARY:${es ? "🧠 Repaso del día – Hipocampo Study" : "🧠 Revisão do dia – Hipocampo Study"}`, `DESCRIPTION:${es ? "5 minutos para no olvidar" : "5 minutos para não esquecer"}: https://hipocampo.web.app`, "URL:https://hipocampo.web.app",
+    "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:Hipocampo Study", "END:VALARM", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  lsSet("fp-lembrete", $("#lembHora").value || "20:00");
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([ics], { type: "text/calendar" })), download: "lembrete-hipocampo.ics" });
+  document.body.appendChild(a); a.click(); a.remove();
+  $("#dlgPerfil").close(); toast("📅 Abra o arquivo baixado para adicionar o lembrete ao calendário.");
+}
+
+/* ================= 🐴 Hipo, o mascote (cavalo-marinho com personalidade) ================= */
+// humor: normal | feliz | festa | dormindo | saudade
+function hipoSVG(humor = "normal", tam = 72) {
+  const olho = {
+    normal: `<circle cx="58" cy="25" r="3.6" fill="#2d2a3e"/><circle cx="59.3" cy="23.7" r="1.3" fill="#fff"/>`,
+    feliz: `<path d="M54.5 26 Q58 21.5 61.5 26" stroke="#2d2a3e" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
+    festa: `<path d="M54.5 26 Q58 21.5 61.5 26" stroke="#2d2a3e" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
+    dormindo: `<path d="M54.5 25 Q58 28 61.5 25" stroke="#2d2a3e" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    saudade: `<circle cx="58" cy="25.5" r="3.6" fill="#2d2a3e"/><circle cx="59.3" cy="24.2" r="1.3" fill="#fff"/><path d="M60 30 q1.6 3 0 4.6 q-1.6 -1.6 0 -4.6Z" fill="#6cc4ff"/>`
+  }[humor] || "";
+  const extra = {
+    festa: `<path d="M76 10 l3 6 l6 1 l-4.6 4 l1.2 6 l-5.6 -3 l-5.6 3 l1.2 -6 l-4.6 -4 l6 -1Z" fill="#ffd76a"/><circle cx="20" cy="18" r="2.4" fill="#ff6fa0"/><circle cx="84" cy="44" r="2" fill="#6cc4ff"/><rect x="14" y="40" width="4" height="4" rx="1" fill="#7cdb8a" transform="rotate(20 16 42)"/>`,
+    dormindo: `<text x="70" y="18" font-size="11" font-weight="900" fill="#9aa5ff" font-family="sans-serif">z</text><text x="78" y="9" font-size="8" font-weight="900" fill="#9aa5ff" font-family="sans-serif">z</text>`,
+    feliz: `<path d="M18 14 l1.4 3.6 3.6 1.4 -3.6 1.4 -1.4 3.6 -1.4 -3.6 -3.6 -1.4 3.6 -1.4Z" fill="#ffd76a"/>`
+  }[humor] || "";
+  const boca = humor === "saudade" ? `<path d="M41 33 q3 -2 6 0" stroke="#b9741c" stroke-width="2" fill="none" stroke-linecap="round"/>` : `<path d="M40 31 q4 4 8 1" stroke="#b9741c" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+  return `<svg class="hipo-svg" viewBox="0 0 100 100" width="${tam}" height="${tam}" aria-hidden="true">
+    <path d="M60 64 C 60 76 50 80 52 88 C 54 95 64 95 66 89 C 67 84 62 82 59 85" fill="none" stroke="#ffc94a" stroke-width="7" stroke-linecap="round"/>
+    <path d="M60 34 C 72 34 76 46 70 56 C 66 64 60 68 54 68 C 44 68 40 58 44 48 C 46 42 50 36 60 34 Z" fill="#ffd76a"/>
+    <path d="M70 42 C 78 42 80 50 75 55 C 73 51 71 49 68 49 Z" fill="#f5b83a"/>
+    <path d="M48 50 C 52 52 58 52 62 50 M47 57 C 51 59 57 59 61 57" stroke="#f5b83a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M47 27 L 33 31" stroke="#ffd76a" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="56" cy="27" r="11.5" fill="#ffd76a"/>
+    <path d="M51 17 L53 9 L57 15 L61 10 L62 18 Z" fill="#f5b83a"/>
+    <ellipse cx="52" cy="31" rx="3" ry="1.8" fill="#ff9fb2" opacity=".7"/>
+    ${olho}${boca}${extra}</svg>`;
+}
+// Balão de fala do Hipo (canto de baixo); some sozinho
+function hipoFala(msg, humor = "feliz", ms = 4800) {
+  let el = $("#hipoBalao");
+  if (!el) { el = document.body.appendChild(Object.assign(document.createElement("div"), { id: "hipoBalao" })); el.onclick = () => el.classList.remove("on"); }
+  el.innerHTML = `${hipoSVG(humor, 58)}<div class="hipo-fala">${esc(lsGet("fp-ui", "pt") === "es" ? (traduzirTexto(msg) || msg) : msg)}</div>`;
+  el.classList.remove("on"); void el.offsetWidth; el.classList.add("on");
+  clearTimeout(S.hipoT); S.hipoT = setTimeout(() => el.classList.remove("on"), ms);
+}
+// Saudação na tela inicial, conforme a hora, a sequência e a revisão do dia
+function cartaoHipo() {
+  const h = new Date().getHours(), es = lsGet("fp-ui", "pt") === "es";
+  const nome = NUVEM.user ? nomeUser().split(" ")[0] : "";
+  const oi = es ? (h < 12 ? "¡Buen día" : h < 19 ? "¡Buenas tardes" : "¡Buenas noches") : (h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite");
+  const seq = diasSeguidos(), q = sequencia(), feitasHoje = q.dias[hojeStr()] || 0, rev = Math.min(15, itensRevisaoDia().length);
+  const dias = Object.keys(q.dias).filter(d => q.dias[d] > 0).sort(), ultimo = dias[dias.length - 1];
+  const sumido = ultimo ? Math.floor((Date.now() - new Date(ultimo + "T12:00").getTime()) / DIA) : 0;
+  let humor = "feliz", fala;
+  if (!S.cadernos.some(c => !c.oficial) && !dias.length) { humor = "festa"; fala = es ? "Soy Hipo, tu compañero de estudio. ¡Crea tu primer cuaderno y te hago las preguntas!" : "Eu sou o Hipo, seu parceiro de estudo. Crie seu primeiro caderno que eu faço as perguntas!"; }
+  else if (sumido >= 2) { humor = "saudade"; fala = es ? `Hace ${sumido} días que no apareces… ¡tu hipocampo te extraña! 🥺` : `Faz ${sumido} dias que você não aparece… seu hipocampo tá com saudade! 🥺`; }
+  else if (feitasHoje >= q.meta) { humor = "festa"; fala = es ? `¡Meta de hoy cumplida! 🔥 ${seq} día(s) seguidos. Eres imparable.` : `Meta de hoje batida! 🔥 ${seq} dia(s) seguidos. Você tá imparável.`; }
+  else if (rev) { fala = es ? `Tienes ${rev} cosas para repasar hoy. ¡5 minutos y no se te olvidan!` : `Você tem ${rev} coisas para revisar hoje. 5 minutinhos e elas não fogem da cabeça!`; }
+  else if (seq) { fala = es ? `🔥 ${seq} día(s) seguidos. ¡No dejes que se apague hoy!` : `🔥 ${seq} dia(s) seguidos. Não deixa apagar hoje!`; }
+  else if (h >= 23 || h < 5) { humor = "dormindo"; fala = es ? "¿Estudiando a esta hora? Dormir también fija la memoria, ¿eh? 😴" : "Estudando a essa hora? Dormir também fixa a memória, viu? 😴"; }
+  else fala = es ? "¿Vamos a empezar la racha de hoy? Una pregunta ya cuenta." : "Bora começar a sequência de hoje? Uma pergunta já conta.";
+  return `<div class="hipo-card">${hipoSVG(humor, 70)}<div><b>${oi}${nome ? `, ${esc(nome)}` : ""}!</b><div class="hipo-txt">${esc(fala)}</div></div></div>`;
 }
 
 /* ================= início ================= */
