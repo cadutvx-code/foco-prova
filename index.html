@@ -106,6 +106,12 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
 .provas-card{border-color:rgba(91,141,255,.45)}
+.tipos-qtd{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.tipo-qtd{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer}
+.tipo-qtd span{flex:1;font-weight:700;font-size:14px}
+.tipo-qtd input[type=number]{width:64px;padding:6px 8px;text-align:center}
+.tipo-qtd input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.tipo-qtd.off{opacity:.55}
 .tempo-ops{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .tempo-ops button{padding:10px 6px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-weight:800;cursor:pointer}
 .tempo-ops button.on{border-color:var(--accent);background:rgba(91,141,255,.15)}
@@ -1371,7 +1377,11 @@ function lerForm() {
   if ($("#g-dif")) S.form.dif = $("#g-dif").value;
   if ($("#g-foco")) S.form.foco = $("#g-foco").value.trim();
   if ($("#g-tempo")) S.form.tempo = Math.max(0, +$("#g-tempo").value || 0);
-  if ($("#g-tipos")) S.form.tipos = [...document.querySelectorAll("#g-tipos input:checked")].map(i => i.value);
+  if ($("#g-tipos")) {
+    const cont = {}; let sobra = 60;
+    for (const t of ["multipla", "vf", "dissertativa"]) { const on = document.querySelector(`#g-tipos input[data-tipo="${t}"]`)?.checked; const n = on ? Math.max(0, Math.min(sobra, parseInt($("#g-n-" + t)?.value, 10) || 0)) : 0; cont[t] = n; sobra -= n; }
+    S.form.contagem = cont; S.form.tipos = Object.keys(cont).filter(t => cont[t] > 0);
+  }
 }
 const REGRAS_PERGUNTA = `
 ESTILO DAS PERGUNTAS (diretas e fáceis de memorizar):
@@ -1541,16 +1551,23 @@ async function gerar(tipo, modoProva = false) {
       r.questoes.forEach(normalizarMultipla);
       c.quizzes.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, questoes: r.questoes, tentativas: [] });
     } else if (tipo === "prova") {
-      const tipos = S.form.tipos?.length ? S.form.tipos : ["multipla", "vf", "dissertativa"];
-      const nomes = { multipla: "múltipla escolha (5 alternativas)", vf: "verdadeiro ou falso", dissertativa: "dissertativa (resposta escrita)" };
-      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie uma prova simulada realista com exatamente ${n} questões, como um professor faria, misturando os tipos: ${tipos.map(t => nomes[t]).join(", ")}.
-- multipla: "alternativas" com 5 opções e "correta" = índice da certa.
-- vf: "alternativas" = ["Verdadeiro","Falso"] e "correta" = 0 ou 1.
-- dissertativa: "alternativas" = [] e "correta" = -1; em "resposta_esperada" escreva a resposta modelo com os pontos que precisam aparecer.
-Em "resposta_esperada" das objetivas, repita a alternativa certa. "pontos" = peso da questão (dissertativas valem mais). ${d}${f}${ev}`, SCH.prova, foco));
+      const cont = S.form.contagem || { multipla: qtd, vf: 0, dissertativa: 0 };
+      if (!Object.values(cont).some(n => n > 0)) throw new Error("Escolha pelo menos 1 questão de algum tipo.");
+      const regras = {
+        multipla: `múltipla escolha: "tipo" = "multipla", "alternativas" com 5 opções e "correta" = índice da certa; em "resposta_esperada" repita a alternativa certa.`,
+        vf: `verdadeiro ou falso: "tipo" = "vf", o enunciado é UMA afirmação, "alternativas" = ["Verdadeiro","Falso"] e "correta" = 0 ou 1; faça afirmações falsas também, trocando um detalhe importante.`,
+        dissertativa: `dissertativa: "tipo" = "dissertativa", "alternativas" = [] e "correta" = -1; em "resposta_esperada" escreva a resposta modelo com os pontos que precisam aparecer.`
+      };
+      const r = { titulo: "", questoes: [] };
+      for (const t of ["multipla", "vf", "dissertativa"]) {
+        if (!(cont[t] > 0)) continue;
+        const parte = await emLotes(cont[t], "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie questões para uma prova simulada realista, como um professor faria: exatamente ${n} questões, TODAS do tipo ${regras[t]}\n"pontos" = peso da questão (dissertativas valem mais). ${d}${f}${ev}${r.questoes.length ? `\nNão repita estas questões já feitas:\n${r.questoes.map(q => "- " + String(q.enunciado).slice(0, 90)).join("\n")}` : ""}`, SCH.prova, foco));
+        r.titulo ||= parte.titulo;
+        r.questoes.push(...parte.questoes.map(q => ({ ...q, tipo: t })));
+      }
       r.questoes = r.questoes.filter(q => q.tipo === "dissertativa" || q.alternativas?.length >= 2);
-      r.questoes.forEach(q => { if (q.tipo === "multipla") normalizarMultipla(q); if (q.tipo === "vf") { q.alternativas = ["Verdadeiro", "Falso"]; q.correta = q.correta === 1 ? 1 : 0; } if (!(q.pontos > 0)) q.pontos = 1; });
-      c.provas.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, tempo: S.form.tempo ?? 0, questoes: r.questoes, tentativas: [] });
+      r.questoes.forEach(q => { if (q.tipo === "multipla") normalizarMultipla(q); if (q.tipo === "vf") { q.alternativas = ["Verdadeiro", "Falso"]; q.correta = q.correta === 1 ? 1 : 0; } if (!(q.pontos > 0)) q.pontos = q.tipo === "dissertativa" ? 2 : 1; });
+      c.provas.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo || "Prova simulada", tempo: 0, questoes: r.questoes, tentativas: [] });
     }
     await salvar(c);
     toast("Pronto! ✨");
@@ -1852,12 +1869,12 @@ function semMateriais(c) {
   return ativos(c).length ? "" : `<div class="card empty">Este caderno ainda não tem materiais.<br><br><button class="btn primary" data-act="aba" data-id="materiais">📁 Adicionar materiais</button></div>`;
 }
 
-function formGerar(tipo, label, { qtd = true, extra = "" } = {}) {
+function formGerar(tipo, label, { qtd = true, extra = "", dif = qtd } = {}) {
   const busy = S.ocupado === tipo;
   return `<div class="card stack">
     <div class="row">
       ${qtd ? `<label style="width:120px">Quantidade<input type="number" id="g-qtd" min="1" max="60" value="${S.form.qtd}"></label>` : ""}
-      ${qtd ? `<label style="width:150px">Dificuldade<select id="g-dif">${["mista", "fácil", "média", "difícil"].map(d => `<option value="${d}" ${S.form.dif === d ? "selected" : ""}>${d}</option>`).join("")}</select></label>` : ""}
+      ${dif ? `<label style="width:150px">Dificuldade<select id="g-dif">${["mista", "fácil", "média", "difícil"].map(d => `<option value="${d}" ${S.form.dif === d ? "selected" : ""}>${d}</option>`).join("")}</select></label>` : ""}
       <label class="grow">Foco (opcional)<input type="text" id="g-foco" value="${esc(S.form.foco)}" placeholder="ex.: capítulo 3, ciclo de Krebs, só as fórmulas"></label>
     </div>
     ${extra}
@@ -2033,14 +2050,11 @@ function iniciarQuiz(id, ordem) {
 function viewProva(c) {
   if (S.player?.tipo === "prova") return playerProva(c);
   const sem = semMateriais(c); if (sem) return sem;
-  const tipos = S.form.tipos || ["multipla", "vf", "dissertativa"];
-  const extra = `<div class="row">
-    <div id="g-tipos" class="row" style="gap:16px">
-      ${[["multipla", "Múltipla escolha"], ["vf", "Verdadeiro/Falso"], ["dissertativa", "Dissertativas"]].map(([v, n]) => `<label class="inline"><input type="checkbox" value="${v}" ${tipos.includes(v) ? "checked" : ""}> ${n}</label>`).join("")}
-    </div>
-    <label style="width:170px">Tempo (min, 0 = livre)<input type="number" id="g-tempo" min="0" value="${S.form.tempo ?? 0}"></label>
-  </div>`;
-  return `<div class="stack">${formGerar("prova", "prova", { extra })}
+  const cont = { multipla: 6, vf: 2, dissertativa: 2, ...(S.form.contagem || {}) }, tot = Object.values(cont).reduce((x, y) => x + y, 0);
+  const extra = `<div class="stack" style="gap:8px"><div class="muted" style="font-size:13px;font-weight:700">Quantas questões de cada tipo</div>
+    <div id="g-tipos" class="tipos-qtd">${[["multipla", "Múltipla escolha"], ["vf", "Verdadeiro ou falso"], ["dissertativa", "Dissertativas"]].map(([v, n]) => `<label class="tipo-qtd ${cont[v] ? "" : "off"}"><input type="checkbox" value="${v}" data-tipo="${v}" ${cont[v] ? "checked" : ""}><span>${n}</span><input type="number" id="g-n-${v}" min="0" max="60" value="${cont[v]}" ${cont[v] ? "" : "disabled"}></label>`).join("")}</div>
+    <div class="muted" style="font-size:12.5px" id="g-total">Total: <b>${tot}</b> de 60 questões no máximo</div></div>`;
+  return `<div class="stack">${formGerar("prova", "prova", { extra, qtd: false, dif: true })}
   ${c.provas.length ? "" : `<div class="empty">Nenhuma prova ainda.</div>`}
   <div class="grid">${c.provas.map(pv => {
     const best = pv.tentativas.length ? Math.max(...pv.tentativas.map(t => t.nota)) : null;
@@ -2077,6 +2091,11 @@ function playerProva(c) {
   }).join("")}</div>
   ${r ? "" : `<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-act="entregar" ${p.corrigindo ? "disabled" : ""}>Entregar prova</button></div>`}`;
 }
+function atualizarTotalProva() {
+  const tot = ["multipla", "vf", "dissertativa"].reduce((x, t) => x + (document.querySelector(`#g-tipos input[data-tipo="${t}"]`)?.checked ? (parseInt($("#g-n-" + t)?.value, 10) || 0) : 0), 0);
+  const el = $("#g-total"); if (el) el.innerHTML = tot > 60 ? `<b style="color:var(--bad)">Total: ${tot}. O máximo é 60 questões; o que passar será cortado.</b>` : `Total: <b>${tot}</b> de 60 questões no máximo`;
+}
+document.addEventListener("input", e => { if (e.target.id?.startsWith("g-n-")) atualizarTotalProva(); });
 // Antes de começar: escolher o tempo limite (o cronômetro conta a partir do início da prova)
 function escolherTempoProva(id) {
   const pv = atual()?.provas.find(x => x.id === id); if (!pv) return;
@@ -4439,6 +4458,7 @@ document.addEventListener("change", e => {
     toast(c.idioma === "es" ? "Las preguntas ahora serán en español." : "As perguntas agora serão em português.");
     return;
   }
+  if (e.target.matches?.('#g-tipos input[type="checkbox"]')) { const n = $("#g-n-" + e.target.dataset.tipo); n.disabled = !e.target.checked; if (e.target.checked && !(+n.value > 0)) n.value = 2; e.target.closest(".tipo-qtd").classList.toggle("off", !e.target.checked); atualizarTotalProva(); return; }
   if (e.target.id === "smartEstilo") { const c = atual(); c.estiloProf = e.target.value.trim().slice(0, 4000); salvar(c); toast(c.estiloProf ? "Perguntas da professora salvas." : "Perguntas da professora removidas."); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); return; }
   if (e.target.id === "smartPrefs") { const c = atual(); garantirSmart(c); c.inteligente.prefs = e.target.value.trim(); salvar(c); toast("Preferências salvas."); return; }
   const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
@@ -4479,7 +4499,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1936";
+const VERSAO_APP = "2026-11-22-1939";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5153,11 +5173,12 @@ const UI_ES = {
   "Quiz rápido": "Quiz rápido", "10 questões de múltipla escolha no estilo da prova.": "10 preguntas de opción múltiple con el estilo del examen.", "Envie uma prova ou cole perguntas para liberar esses modos.": "Sube un examen o pega preguntas para habilitar estos modos.",
   "Estilo da prova": "Estilo del examen", "Perguntas da professora salvas.": "Preguntas de la profesora guardadas.", "Perguntas da professora removidas.": "Preguntas de la profesora quitadas.",
   "Material muito grande: desative alguns arquivos para a IA ler melhor.": "Material muy grande: desactiva algunos archivos para que la IA lea mejor.",
-  "Tempo da prova": "Tiempo del examen", "Sem limite": "Sin límite", "Ou digite outro tempo (minutos)": "O escribe otro tiempo (minutos)", "Começar a prova": "Empezar el examen"
+  "Tempo da prova": "Tiempo del examen", "Sem limite": "Sin límite", "Ou digite outro tempo (minutos)": "O escribe otro tiempo (minutos)", "Começar a prova": "Empezar el examen",
+  "Quantas questões de cada tipo": "Cuántas preguntas de cada tipo", "Verdadeiro ou falso": "Verdadero o falso", "Escolha pelo menos 1 questão de algum tipo.": "Elige al menos 1 pregunta de algún tipo."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
