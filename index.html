@@ -4438,7 +4438,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1904";
+const VERSAO_APP = "2026-11-22-1906";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5104,7 +5104,8 @@ const UI_ES = {
   "Pular tour": "Omitir", "Próximo": "Siguiente", "Terminar": "Terminar",
   "Provas antigas": "Exámenes anteriores", "Envie provas anteriores da sua professora (PDF, Word ou foto). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.": "Sube exámenes anteriores de tu profesora (PDF, Word o foto). La IA pregunta con el mismo estilo y se enfoca en los temas que más entran.",
   "Enviar prova": "Subir examen", "Lendo…": "Leyendo…", "Tirar": "Quitar", "Tirar esta prova antiga?": "¿Quitar este examen anterior?", "Lendo a prova": "Leyendo el examen",
-  "Ou cole perguntas da sua professora (opcional)": "O pega preguntas de tu profesora (opcional)"
+  "Ou cole perguntas da sua professora (opcional)": "O pega preguntas de tu profesora (opcional)",
+  "toque num tópico para ver os detalhes · arraste para girar": "toca un tema para ver los detalles · arrastra para girar"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
@@ -5959,7 +5960,7 @@ function desenharTelaMapa() {
   const estilos = ESTILOS_MAPA.filter(([k]) => k !== "ia" || m.estiloIA);
   el.innerHTML = `<div class="mm-topo"><b>${esc(m.titulo)}</b><div class="mm-chips">${estilos.map(([k, n]) => `<button class="${st.estilo === k ? "on" : ""}" data-act="mmTrocar" data-id="${k}">${n}</button>`).join("")}</div>
     <div class="mm-btns"><button class="btn small" data-act="mmBaixar">${iconeSVG("baixar")} Baixar imagem</button><button class="icon-btn" data-act="mmFechar" title="Fechar">${iconeSVG("x")}</button></div></div>
-    <div class="mm-palco" id="mmPalco"><canvas id="mmCanvas"></canvas><svg id="mmSvg" style="display:none"></svg><div class="mm-dica">${["classico", "arvore"].includes(st.estilo) || (st.estilo === "ia" && ["radial", "arvore"].includes(m.estiloIA?.layout)) ? "" : "arraste para girar · role ou pinça para aproximar · toque num tópico para destacar"}</div></div>`;
+    <div class="mm-palco" id="mmPalco"><canvas id="mmCanvas"></canvas><svg id="mmSvg" style="display:none"></svg><div class="mm-dica">${["classico", "arvore"].includes(st.estilo) || (st.estilo === "ia" && ["radial", "arvore"].includes(m.estiloIA?.layout)) ? "" : innerWidth < 560 ? "toque num tópico para ver os detalhes · arraste para girar" : "arraste para girar · role ou pinça para aproximar · toque num tópico para destacar"}</div></div>`;
   iniciarRenderMapa(m, st.estilo);
 }
 function fecharMapa() { cancelAnimationFrame(S.mmAnim); S.mmAnim = null; S.mapaAberto = null; $("#mapaTela")?.remove(); }
@@ -6011,8 +6012,8 @@ function mapa3D(cv, dados, o) {
       const g = ctx.createRadialGradient(p.X, p.Y, 0, p.X, p.Y, r * 2.4); g.addColorStop(0, no.cor + "cc"); g.addColorStop(1, no.cor + "00"); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.X, p.Y, r * 2.4, 0, 7); ctx.fill();
       const g2 = ctx.createRadialGradient(p.X - r * .35, p.Y - r * .35, r * .1, p.X, p.Y, r); g2.addColorStop(0, "#fff"); g2.addColorStop(.35, no.cor); g2.addColorStop(1, no.cor); ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(p.X, p.Y, r, 0, 7); ctx.fill();
       if (no.nivel === 0) { const ls = quebra(no.t, 12); ls.forEach((l, k) => rot(l, p.X, p.Y + (k - (ls.length - 1) / 2) * 17, 15 * Math.max(.8, p.f), o.corTexto, 800)); if (no.s) rot(no.s, p.X, p.Y + r + 14, 11.5 * Math.max(.8, p.f), "#ffd76a", 700); }
-      else if (no.nivel === 1) rot(no.t, p.X, p.Y - r - 12, 14 * Math.max(.75, p.f), o.corTexto, 800);
-      else if (!o.neural || p.Z < 60 || sel !== null) quebra(no.t, 22).forEach((l, k) => rot(l, p.X, p.Y + r + 10 + k * 13, 11 * Math.max(.75, p.f), no.cor, 650));
+      else if (no.nivel === 1) quebra(no.t, W < 560 ? 14 : 30).forEach((l, k, ls) => rot(l, p.X, p.Y - r - 12 - (ls.length - 1 - k) * 15, (W < 560 ? 12.5 : 14) * Math.max(.75, p.f), o.corTexto, 800));
+      else if (sel !== null ? (no.pai === sel || i === sel) : (W >= 560 && (!o.neural || p.Z < 60))) quebra(no.t, 22).forEach((l, k) => rot(l, p.X, p.Y + r + 10 + k * 13, 11 * Math.max(.75, p.f), no.cor, 650));
       no.P = p;
     }
     ctx.globalAlpha = 1; S.mmAnim = requestAnimationFrame(frame);
@@ -6027,8 +6028,9 @@ function mapa3D(cv, dados, o) {
   S.mmAnim = requestAnimationFrame(frame);
 }
 function mapa2D(svgEl, dados, o) {
-  const w = svgEl.clientWidth || 900, h = svgEl.clientHeight || 600, n = dados.ramos.length, esc2 = t => esc(t);
-  const fs = w < 600 ? 10.5 : 12.5, raio = o.forma === "retangulo" ? 4 : o.forma === "circulo" ? 20 : 17;
+  // monta num tamanho mínimo e deixa o SVG se ajustar à tela (no celular não amontoa os ramos)
+  const w = Math.max(svgEl.clientWidth || 900, 980), h = Math.max(svgEl.clientHeight || 600, 660), n = dados.ramos.length, esc2 = t => esc(t);
+  const fs = 12.5, raio = o.forma === "retangulo" ? 4 : o.forma === "circulo" ? 20 : 17;
   const traco = o.linha === "tracejada" ? 'stroke-dasharray="6 5"' : "";
   const linha = (x1, y1, x2, y2, cor, lw, curva = o.linha !== "reta", dir = 1) => curva ? `<path d="M${x1} ${y1} C ${x1 + dir * Math.abs(x2 - x1) * .5} ${y1}, ${x2 - dir * Math.abs(x2 - x1) * .5} ${y2}, ${x2} ${y2}" stroke="${cor}" stroke-width="${lw}" fill="none" stroke-linecap="round" ${traco}/>` : `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${cor}" stroke-width="${lw}" stroke-linecap="round" ${traco}/>`;
   const caixa = (x, y, t, cor, larg = 128) => `<g><rect x="${x - larg / 2}" y="${y - 17}" width="${larg}" height="34" rx="${raio}" fill="${cor}"/><text x="${x}" y="${y + 5}" text-anchor="middle" font-size="13.5" font-weight="800" fill="#1b1d3a" font-family='${o.fonte}'>${esc2(t.length > 18 ? t.slice(0, 17) + "…" : t)}</text></g>`;
