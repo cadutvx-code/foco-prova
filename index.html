@@ -2972,13 +2972,13 @@ const ATENEOS = [
 const cadernoAteneo = id => S.cadernos.find(c => c.oficial === id);
 const UI_ESP = () => lsGet("fp-ui", "pt") === "es";
 // O Ateneo só serve para quem faz medicina no exterior: para os outros fica escondido atrás de uma pergunta
-const verAteneos = () => lsGet("fp-exterior", false) || S.cadernos.some(c => c.oficial);
+const verAteneos = () => { const v = lsGet("fp-exterior", null); return v === null ? S.cadernos.some(c => c.oficial) : !!v; };
 function cartaoAteneos() {
   if (!verAteneos()) return `<div class="card exterior-card"><div class="exterior-ic">${iconeSVG("bussola")}</div>
       <div style="flex:1 1 200px;min-width:0"><b>Faz medicina no exterior? Isso vai te ajudar.</b><div class="muted" style="font-size:13px">Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.</div></div>
       <button class="pill" data-act="exteriorSim">Sim, mostrar</button></div>`;
   return `<div class="card" style="margin-bottom:16px"><div class="row" style="align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:30px">🎤</span>
-      <div><h2 style="margin:0">Ateneo oral de Fisiologia</h2><div class="muted" style="font-size:13px">Tire um capítulo, explique e responda às 2 perguntas do professor. A IA corrige e dá a nota.</div></div></div>
+      <div style="flex:1;min-width:0"><h2 style="margin:0">Ateneo oral de Fisiologia</h2><div class="muted" style="font-size:13px">Tire um capítulo, explique e responda às 2 perguntas do professor. A IA corrige e dá a nota.</div></div><button class="btn small ghost" data-act="exteriorNao" title="Esconder o Ateneo da tela inicial">Esconder</button></div>
     <div class="row" style="gap:10px">${ATENEOS.map(a => {
       const c = cadernoAteneo(a.id), ok = c && ativos(c).length;
       return `<button class="papel" data-act="ateneoAbrir" data-id="${a.id}" ${a.pronto ? "" : "disabled"} style="flex:1;min-width:190px;text-align:left;padding:12px 14px;${a.pronto ? "" : "opacity:.55;cursor:not-allowed"}">
@@ -4393,6 +4393,7 @@ document.addEventListener("click", async e => {
     case "provaAntigaApagar": if (confirm("Tirar esta prova antiga?")) { c.provasAntigas = (c.provasAntigas || []).filter(x => x.id !== id); await salvar(c); render(); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); } break;
     case "labCaderno": if (c) iniciarQuizLouco(c); break;
     case "labIdioma": lsSet("fp-lab-idioma", id); if (S.lab) { S.lab.idioma = id; S.lab.pronta = null; labAquecerVoz(); proxLab(); } break;
+    case "exteriorNao": lsSet("fp-exterior", false); render(); toast("Ateneo escondido. Para ver de novo, toque em Sim, mostrar."); break;
     case "exteriorSim": lsSet("fp-exterior", true); render(); setTimeout(() => document.querySelector('[data-act="ateneoAbrir"]')?.scrollIntoView({ block: "center", behavior: "smooth" }), 80); break;
     case "lab": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); abrirLab(); break;
     case "labFechar": fecharLab(); break;
@@ -4624,7 +4625,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2029";
+const VERSAO_APP = "2026-11-22-2030";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5326,7 +5327,8 @@ const UI_ES = {
   "Ajustes do Hipo": "Ajustes de Hipo",
   "Faz medicina no exterior? Isso vai te ajudar.": "¿Estudias medicina en el exterior? Esto te va a ayudar.", "Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.": "Material listo de la facultad y práctica del Ateneo oral de Fisiología, con clases en español.", "Sim, mostrar": "Sí, mostrar",
   "No iPhone: toque em": "En el iPhone: toca", "Escolher Arquivo": "Elegir archivo", "para ver o app Arquivos, ou em": "para ver la app Archivos, o", "Fototeca": "Fototeca", "Tirar Foto": "Hacer foto",
-  ". PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em": ". Los PDFs de WhatsApp o del correo hay que guardarlos antes: abre el archivo, toca Compartir y", "Salvar em Arquivos": "Guardar en Archivos"
+  ". PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em": ". Los PDFs de WhatsApp o del correo hay que guardarlos antes: abre el archivo, toca Compartir y", "Salvar em Arquivos": "Guardar en Archivos",
+  "Esconder": "Ocultar", "Esconder o Ateneo da tela inicial": "Ocultar el Ateneo de la pantalla de inicio", "Ateneo escondido. Para ver de novo, toque em Sim, mostrar.": "Ateneo oculto. Para verlo de nuevo, toca Sí, mostrar."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
