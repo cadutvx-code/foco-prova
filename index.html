@@ -4368,7 +4368,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1856";
+const VERSAO_APP = "2026-11-22-1858";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5636,14 +5636,16 @@ const iconeSVG = (nome, extra = "") => `<svg class="icx" viewBox="0 0 24 24" fil
 const ICONE_DE = e => EMOJI_ICONE[e] || EMOJI_ICONE[e.replace(/️/g, "")];
 const semEmojiTexto = t => String(t).replace(RE_EMOJI, m => MANTER_SIMBOLO.has(m) ? m : (MEDALHA[m] || "")).replace(/\s{2,}/g, " ").trim();
 const PULAR_EMOJI = "script,style,textarea,input,svg,title,code,pre";
+// só conta emoji que precisa trocar (os símbolos mantidos, como ★, não podem disparar de novo, senão a página trava)
+const temEmoji = t => { for (const m of String(t).matchAll(RE_EMOJI)) if (!MANTER_SIMBOLO.has(m[0])) return true; return false; };
 function trocarEmojis(raiz) {
   if (!raiz) return;
   if (raiz.nodeType === 3) raiz = raiz.parentElement; if (!raiz || raiz.closest?.(PULAR_EMOJI)) return;
   const w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT), nos = [];
-  while (w.nextNode()) { const n = w.currentNode; RE_EMOJI.lastIndex = 0; if (RE_EMOJI.test(n.nodeValue)) nos.push(n); }
+  while (w.nextNode()) { const n = w.currentNode; if (temEmoji(n.nodeValue)) nos.push(n); }
   for (const n of nos) {
     const el = n.parentElement; if (!el || el.closest(PULAR_EMOJI)) continue;
-    if (el.tagName === "OPTION" || el.closest("select")) { n.nodeValue = semEmojiTexto(n.nodeValue); continue; }
+    if (el.tagName === "OPTION" || el.closest("select")) { const v = semEmojiTexto(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; continue; }
     const frag = document.createDocumentFragment(); let ult = 0, txt = n.nodeValue; RE_EMOJI.lastIndex = 0;
     for (const m of txt.matchAll(RE_EMOJI)) {
       const e = m[0]; frag.append(txt.slice(ult, m.index)); ult = m.index + e.length;
@@ -5658,7 +5660,7 @@ function trocarEmojis(raiz) {
     n.replaceWith(frag);
   }
   (raiz.querySelectorAll ? [raiz, ...raiz.querySelectorAll("[title],[placeholder],[aria-label]")] : []).forEach(e => {
-    for (const a of ["title", "placeholder", "aria-label"]) { const v = e.getAttribute?.(a); if (v) { RE_EMOJI.lastIndex = 0; if (RE_EMOJI.test(v)) e.setAttribute(a, semEmojiTexto(v)); } }
+    for (const a of ["title", "placeholder", "aria-label"]) { const v = e.getAttribute?.(a); if (v && temEmoji(v)) e.setAttribute(a, semEmojiTexto(v)); }
   });
 }
 document.title = semEmojiTexto(document.title);
