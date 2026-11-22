@@ -116,6 +116,7 @@ h3{font-size:16px;margin:0 0 6px}
 .pro-lista li{display:flex;gap:8px;align-items:center}.pro-lista .icx{width:17px;height:17px;flex:none;color:var(--good,#2ecc71)}
 .pro-acabou{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(91,141,255,.1);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.45}
 .pro-estado{padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);font-size:14px}
+.pro-entrar .btn-google span{display:inline!important}
 .pro-entrar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:14px}
 .pro-bloco{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:14px;border:1px solid var(--line)}
 .pro-tit{font-weight:800;font-size:15px}
@@ -4523,7 +4524,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1947";
+const VERSAO_APP = "2026-11-22-1948";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
