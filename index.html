@@ -104,6 +104,14 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head h2{margin:0 6px 0 0;font-size:21px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
+.fb-chip{color:var(--text);font-weight:700}
+.fb-tipos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.fb-tipos button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border-radius:14px;border:2px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer;font:inherit;font-size:22px}
+.fb-tipos button b{font-size:14px}
+.fb-tipos button.on{border-color:var(--accent);background:rgba(91,141,255,.14)}
+.fb-item{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+.fb-item.novo{border-color:var(--accent);background:rgba(91,141,255,.07)}
+.fb-item p{margin:6px 0 0;white-space:pre-wrap;word-break:break-word}
 .mais-mat{width:30px;height:30px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:21px;font-weight:800;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0 0 2px;box-shadow:0 3px 10px rgba(61,123,245,.35);transition:transform .15s}
 .mais-mat:hover{transform:scale(1.1)}
 .mkit-novo{width:250px;height:156px;border-radius:18px;border:2px dashed var(--line);background:transparent;color:var(--muted);font:inherit;font-weight:800;font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:.15s}
@@ -355,6 +363,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <button class="brand" data-act="inicio"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"><path d="M12 18.6 L 29 14.2"/><path d="M29 14.2 C 30 6.4 38.4 3.6 42.2 8.2 C 45.4 12 44.2 17 41.2 19.6 C 48.6 23.6 50.2 33 45.2 39.6 C 42.2 43.6 38.6 45.2 37 49.2 C 35.2 54 37.8 59.6 43 59.4 C 47.6 59.2 48.6 53.6 45.2 52.2 C 43 51.4 41.2 53.4 42.4 55.2"/><path d="M30.6 19 C 23.4 24.6 23 34.6 29.6 39.6 C 32 41.4 34.6 42.6 37.6 44.6"/><path d="M33.4 5.6 L 35 1.9 L 37.6 5.1"/><path d="M46.8 27.2 C 51.6 26.8 53.6 31.8 50.6 35"/></g><circle cx="35.8" cy="11.2" r="2.3" fill="currentColor"/><path d="M13 4 C 13.8 7.4 14.8 8.4 18.2 9.2 C 14.8 10 13.8 11 13 14.4 C 12.2 11 11.2 10 7.8 9.2 C 11.2 8.4 12.2 7.4 13 4 Z" fill="#3d8bff"/></svg><span class="nome">Hipocampo<b>Study</b></span></button>
   <div class="sp"></div>
   <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
+  <button class="ia-chip fb-chip" data-act="feedback" title="Enviar um problema, ideia ou sugestão">💬 <span>Feedback</span></button>
   <button class="ia-chip" id="seqChip" data-act="metaDia" title="Dias seguidos estudando — clique para mudar a meta diária">🔥 0</button>
   <button class="icon-btn" id="temaTopo" data-act="tema" title="Tema claro/escuro">🌓</button>
   <div class="conta" id="conta"></div>
@@ -403,13 +412,21 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <div class="idioma-opcoes"><button data-act="escolherIdioma" data-id="pt"><span class="bandeira"><svg viewBox="0 0 60 42" width="54" height="38" aria-hidden="true"><rect width="60" height="42" rx="5" fill="#009b3a"/><path d="M30 5 L55 21 L30 37 L5 21 Z" fill="#fedf00"/><circle cx="30" cy="21" r="9.5" fill="#002776"/><path d="M21 19.5 C 27 17.5 33 18.5 39 22.5" stroke="#fff" stroke-width="2" fill="none"/></svg></span><b>Português</b><small>Perguntas e site em português</small></button><button data-act="escolherIdioma" data-id="es"><span class="bandeira"><svg viewBox="0 0 60 42" width="54" height="38" aria-hidden="true"><rect width="60" height="42" rx="5" fill="#fff"/><path d="M0 5 a5 5 0 0 1 5 -5 h50 a5 5 0 0 1 5 5 v9 h-60 Z" fill="#d52b1e"/><path d="M0 28 h60 v9 a5 5 0 0 1 -5 5 h-50 a5 5 0 0 1 -5 -5 Z" fill="#0038a8"/><circle cx="30" cy="21" r="4.6" fill="none" stroke="#2f7d32" stroke-width="1.4"/><circle cx="30" cy="21" r="1.6" fill="#f5c400"/><rect width="60" height="42" rx="5" fill="none" stroke="rgba(0,0,0,.12)"/></svg></span><b>Español</b><small>Preguntas y sitio en español</small></button></div>
   <small class="muted">Dá para trocar depois em Ajustes · Podés cambiarlo después en Ajustes</small>
 </div></dialog>
+<dialog id="dlgFeedback" style="width:min(480px,calc(100vw - 24px))"><div class="stack" style="gap:14px">
+  <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">💬 Enviar feedback</h2><button class="icon-btn" data-act="fecharFeedback" title="Fechar">✕</button></div>
+  <div class="muted" style="font-size:13.5px;margin-top:-6px">Achou um problema ou teve uma ideia? Conta pra gente: cada mensagem é lida.</div>
+  <div class="fb-tipos"><button data-act="fbTipo" data-id="problema" class="on">🐞<b>Problema</b></button><button data-act="fbTipo" data-id="ideia">💡<b>Ideia</b></button><button data-act="fbTipo" data-id="outro">✉️<b>Outro</b></button></div>
+  <textarea id="fbTexto" rows="5" maxlength="3000" placeholder="Escreva aqui… (ex.: o que aconteceu, em qual tela, o que você esperava)"></textarea>
+  <label id="fbContatoWrap">Seu e-mail ou WhatsApp (opcional, para a gente responder)<input type="text" id="fbContato" maxlength="100"></label>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharFeedback">Cancelar</button><button class="pill" data-act="enviarFeedback">📨 Enviar</button></div>
+</div></dialog>
 <dialog id="dlgComecar" style="width:min(620px,calc(100vw - 24px))"><div id="comecarCorpo"></div></dialog>
 <dialog id="dlgPublico" style="width:min(760px,calc(100vw - 24px))"><div id="publicoCorpo" class="stack"></div></dialog>
 <dialog id="dlgAdmin"style="width:min(560px,calc(100vw - 24px))"><div id="adminCorpo" class="stack"></div></dialog>
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
-    <div class="muted" style="font-size:14px">🤖 IA usada: <b>Gemini</b> (Google) — grátis e rápida.</div>
+    <div class="muted" style="font-size:14px">🤖 IA usada: <b>Gemini</b> (Google) — rápida e eficiente.</div>
     <select id="cfgProvider" hidden><option value="gemini">Gemini</option></select>
     <div id="cfgWeb" class="stack" style="display:none">
       <label>Tamanho da IA<select id="cfgWModel"></select></label>
@@ -1630,6 +1647,7 @@ function viewHome() {
     </ol>
     <p class="muted" style="font-size:13px;margin-bottom:0">IA em uso: <b>${esc(nomeIA())}</b> — troque em Ajustes.</p></div>`}
   <div class="rodape-contato"><span class="muted" style="font-size:13px">Dúvidas, sugestões ou problemas? Fale com a gente:</span>
+    <button class="btn small" data-act="feedback">💬 Enviar feedback</button>
     <a class="ig-link" href="https://www.instagram.com/hipocampostudy?utm_source=ig_web_button_share_sheet&avpt=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>@hipocampostudy</a></div>`;
 }
 
@@ -3303,6 +3321,33 @@ async function pedirPro() {
 }
 async function contarPedidos() {
   try { ACESSO.pedidos = (await NUVEM.F.getDocs(NUVEM.F.collection(NUVEM.db, "solicitacoes"))).size; } catch { ACESSO.pedidos = 0; }
+  try { ACESSO.pedidos += (await NUVEM.F.getDocs(NUVEM.F.query(NUVEM.F.collection(NUVEM.db, "feedback"), NUVEM.F.where("lido", "==", false)))).size; } catch {}
+}
+/* ---------- Feedback: problema, ideia ou outro → chega no painel do administrador ---------- */
+function abrirFeedback() {
+  S.fbTipo = "problema";
+  document.querySelectorAll(".fb-tipos button").forEach(b => b.classList.toggle("on", b.dataset.id === "problema"));
+  $("#fbTexto").value = ""; $("#fbContato").value = "";
+  $("#fbContatoWrap").style.display = NUVEM.user ? "none" : "";
+  const d = $("#dlgFeedback"); if (!d.open) d.showModal();
+  setTimeout(() => $("#fbTexto").focus(), 50);
+}
+async function enviarFeedback() {
+  const texto = $("#fbTexto").value.trim();
+  if (texto.length < 3) return toast("Escreva sua mensagem primeiro.", true);
+  if (!NUVEM.F || !NUVEM.db) return toast("Sem conexão com o servidor agora. Tente de novo em instantes.", true);
+  const u = NUVEM.user, F = NUVEM.F;
+  const dados = { tipo: S.fbTipo || "outro", texto: texto.slice(0, 3000), uid: u?.uid || "", email: (u?.email || "").toLowerCase(), nome: u ? nomeUser().slice(0, 80) : "",
+    contato: u ? "" : $("#fbContato").value.trim().slice(0, 100), data: Date.now(), pagina: S.atual ? (S.aba || "caderno") : "inicio", idioma: lsGet("fp-ui", "pt"), lido: false };
+  const bt = document.querySelector('[data-act="enviarFeedback"]'); if (bt) bt.disabled = true;
+  try { await F.addDoc(F.collection(NUVEM.db, "feedback"), dados); $("#dlgFeedback").close(); toast("💬 Obrigado! Seu feedback foi enviado."); }
+  catch (e) { toast("Não consegui enviar agora: " + (e?.message || e), true); }
+  finally { if (bt) bt.disabled = false; }
+}
+async function admFeedback(id, acao) {
+  const F = NUVEM.F, ref = F.doc(NUVEM.db, "feedback/" + id);
+  try { if (acao === "apagar") { if (!confirm("Apagar este feedback?")) return; await F.deleteDoc(ref); } else await F.updateDoc(ref, { lido: true }); abrirAdmin(); }
+  catch (e) { toast("Não consegui atualizar: " + e.message, true); }
 }
 async function carregarPagamento() {
   try { const d = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, "config/pagamento")); if (d.exists()) { const antes = JSON.stringify(ACESSO.pag); Object.assign(ACESSO.pag, d.data()); lsSet("fp-pag", ACESSO.pag); if (JSON.stringify(ACESSO.pag) !== antes) render(); } } catch {}
@@ -3583,16 +3628,23 @@ async function abrirAdmin() {
   const F = NUVEM.F, db = NUVEM.db, p = ACESSO.pag;
   $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2><p class="muted"><span class="spin"></span> Carregando…</p>`;
   const d = $("#dlgAdmin"); if (!d.open) d.showModal();
-  let lista = [], pedidos = [];
+  let lista = [], pedidos = [], feedbacks = [];
+  try { feedbacks = (await F.getDocs(F.collection(db, "feedback"))).docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.lido - b.lido) || (b.data || 0) - (a.data || 0)).slice(0, 60); } catch (e) { console.warn("feedback", e); }
   try {
     lista = (await F.getDocs(F.collection(db, "liberados"))).docs.map(x => ({ email: x.id, ...x.data() }))
       .map(x => ({ ...x, semPrazo: x.nota === "administrador", exp: expiraDe(x) })).sort((a, b) => (b.semPrazo - a.semPrazo) || (a.exp - b.exp));
     pedidos = (await F.getDocs(F.collection(db, "solicitacoes"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (a.data || 0) - (b.data || 0));
-    ACESSO.pedidos = pedidos.length; desenharConta();
+    ACESSO.pedidos = pedidos.length + feedbacks.filter(x => !x.lido).length; desenharConta();
   }
   catch (e) { $("#adminCorpo").innerHTML = `<h2>🛡️ Painel do administrador</h2><p>Sem permissão: ${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`; return; }
   const avPed = x => (x.avatar?.emoji || x.avatar?.av) ? `<span class="avatar" style="width:34px;height:34px;cursor:default;flex:none">${avatarHTML(34, x.avatar)}</span>` : `<span class="fi">👤</span>`;
   $("#adminCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🛡️ Painel do administrador</h2><div class="row" style="gap:6px"><button class="pill" data-act="publico" style="padding:6px 14px">📊 Público</button><button class="btn small ghost" data-act="admin">🔄 Atualizar</button></div></div>
+    ${(() => { const novos = feedbacks.filter(x => !x.lido).length, rot = { problema: "🐞 Problema", ideia: "💡 Ideia", outro: "✉️ Outro" };
+      return `<div class="card" style="margin:0;${novos ? "border-color:var(--accent)" : ""}"><h3 style="margin:0 0 4px">💬 Feedbacks${novos ? ` (${novos} novo${novos > 1 ? "s" : ""})` : ""}</h3>
+      ${feedbacks.length ? feedbacks.map(x => `<div class="fb-item ${x.lido ? "" : "novo"}"><div class="row" style="justify-content:space-between;align-items:center;gap:6px"><b>${rot[x.tipo] || "✉️ Outro"}</b><small class="muted">${fmtData(x.data)}</small></div>
+        <small class="muted">${esc(x.nome || "")}${x.email ? ` · ${esc(x.email)}` : ""}${x.contato ? ` · contato: ${esc(x.contato)}` : ""}${!x.email && !x.contato ? "sem login" : ""}${x.idioma === "es" ? " · 🇵🇾 es" : ""}</small>
+        <p>${esc(x.texto)}</p>
+        <div class="row" style="justify-content:flex-end;gap:6px;margin-top:6px">${x.lido ? "" : `<button class="btn small" data-act="admFbLido" data-id="${esc(x.id)}">✔ Marcar como lido</button>`}<button class="btn small ghost" data-act="admFbApagar" data-id="${esc(x.id)}" style="color:var(--bad)">🗑</button></div></div>`).join("") : `<p class="muted" style="margin:0">Nenhum feedback ainda.</p>`}</div>`; })()}
     <div class="card" style="margin:0;${pedidos.length ? "border-color:#f5a623" : ""}"><h3 style="margin:0 0 4px">👑 Pedidos de Pro (${pedidos.length})</h3>
       <div class="muted" style="font-size:13px;margin-bottom:6px">Pessoas que tocaram em "Já paguei". Confira o Pix e o comprovante no WhatsApp antes de autorizar.</div>
       ${pedidos.length ? pedidos.map(x => `<div class="mrow" style="margin-top:6px;align-items:center;flex-wrap:wrap">${avPed(x)}<span class="nm">${esc(x.email)}<small>${esc(x.nome || "")}${x.data ? " · pediu " + fmtData(x.data) : ""}</small></span>
@@ -4016,6 +4068,12 @@ document.addEventListener("click", async e => {
     case "publico": abrirPublico(); break;
     case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
+    case "feedback": abrirFeedback(); break;
+    case "fecharFeedback": $("#dlgFeedback").close(); break;
+    case "fbTipo": S.fbTipo = id; document.querySelectorAll(".fb-tipos button").forEach(b => b.classList.toggle("on", b.dataset.id === id)); break;
+    case "enviarFeedback": enviarFeedback(); break;
+    case "admFbLido": admFeedback(id, "lido"); break;
+    case "admFbApagar": admFeedback(id, "apagar"); break;
     case "pedirPro": pedirPro(); break;
     case "testarMic": testarMic(); break;
     case "temaChave": { lsSet("fp-tema", temaEscuro() ? "light" : "dark"); aplicarTema(); desenharConta(); break; }
@@ -4175,7 +4233,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2341";
+const VERSAO_APP = "2026-11-21-2344";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4416,7 +4474,7 @@ const UI_ES = {
   "Identificando os capítulos": "Identificando los capítulos",
   "O professor está avaliando": "El profesor está evaluando",
   "e o sorteio só tira esses.": "y el sorteo solo saca esos.",
-  "(Google) — grátis e rápida.": "(Google) — gratis y rápida.",
+  "(Google) — grátis e rápida.": "(Google) — gratis y rápida.", "(Google) — rápida e eficiente.": "(Google) — rápida y eficiente.",
   "O professor está corrigindo": "El profesor está corrigiendo",
   "Tempo esgotado! Entregando…": "¡Se acabó el tiempo! Entregando…",
   "Entre com o Google primeiro.": "Entra con Google primero.",
@@ -4794,7 +4852,12 @@ const UI_ES = {
   "🔒 Suba de nível estudando para liberar mais avatares.": "🔒 Sube de nivel estudiando para liberar más avatares.",
   "Adicionar material": "Agregar material", "Dúvidas, sugestões ou problemas? Fale com a gente:": "¿Dudas, sugerencias o problemas? Habla con nosotros:", "Contato (Instagram)": "Contacto (Instagram)",
   "Você atingiu o limite de uso grátis.": "Llegaste al límite de uso gratis.", "Ele volta em": "Vuelve en", ". Enquanto isso, você pode continuar sem limite com o Pro:": ". Mientras tanto, puedes seguir sin límite con el Pro:", "algumas horas": "algunas horas", "Interações grátis (a cada 5 h)": "Interacciones gratis (cada 5 h)",
-  "Ateneos grátis (a cada 5 h)": "Ateneos gratis (cada 5 h)"
+  "Ateneos grátis (a cada 5 h)": "Ateneos gratis (cada 5 h)",
+  "Feedback": "Feedback", "💬 Enviar feedback": "💬 Enviar feedback", "Achou um problema ou teve uma ideia? Conta pra gente: cada mensagem é lida.": "¿Encontraste un problema o tienes una idea? Cuéntanos: leemos cada mensaje.",
+  "Problema": "Problema", "Ideia": "Idea", "Outro": "Otro", "Escreva aqui… (ex.: o que aconteceu, em qual tela, o que você esperava)": "Escribe aquí… (ej.: qué pasó, en qué pantalla, qué esperabas)",
+  "Seu e-mail ou WhatsApp (opcional, para a gente responder)": "Tu correo o WhatsApp (opcional, para que te respondamos)", "📨 Enviar": "📨 Enviar", "Escreva sua mensagem primeiro.": "Escribe tu mensaje primero.",
+  "💬 Obrigado! Seu feedback foi enviado.": "💬 ¡Gracias! Tu feedback fue enviado.", "Sem conexão com o servidor agora. Tente de novo em instantes.": "Sin conexión con el servidor ahora. Intenta de nuevo en unos instantes.",
+  "Enviar um problema, ideia ou sugestão": "Enviar un problema, idea o sugerencia"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],

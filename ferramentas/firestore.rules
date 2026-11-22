@@ -41,6 +41,19 @@ service cloud.firestore {
       allow get: if admin() || (logado() && request.auth.uid == uid);
       allow list: if admin();
     }
+    // 💬 feedback: qualquer pessoa envia (logada só com o próprio e-mail/uid); só o administrador lê, marca como lido e apaga
+    match /feedback/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['tipo', 'texto', 'uid', 'email', 'nome', 'contato', 'data', 'pagina', 'idioma', 'lido'])
+        && request.resource.data.tipo in ['problema', 'ideia', 'outro']
+        && request.resource.data.texto is string && request.resource.data.texto.size() >= 3 && request.resource.data.texto.size() <= 3000
+        && request.resource.data.contato is string && request.resource.data.contato.size() <= 100
+        && request.resource.data.nome is string && request.resource.data.nome.size() <= 80
+        && request.resource.data.data is int && request.resource.data.lido == false
+        && (request.resource.data.uid == '' || (logado() && request.resource.data.uid == request.auth.uid))
+        && (request.resource.data.email == '' || (logado() && request.resource.data.email == request.auth.token.email.lower()));
+      allow read, delete: if admin();
+      allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lido']);
+    }
     // chave Pix, WhatsApp, preço e limites do plano grátis: todos leem, só o administrador muda
     match /config/{doc} {
       allow read: if true;
