@@ -2655,7 +2655,7 @@ const nomeCap = k => `${k.numero ? (idiomaCaderno(atual()) === "es" ? "Capítulo
 const ATENEO_ATIVO = true; // reativado com a voz Piper (grátis e sem limite)
 if (!ATENEO_ATIVO) { const b = document.getElementById("cfgVozBloco"); if (b) b.style.display = "none"; } // só esconde: o resto dos Ajustes continua lendo esses campos
 const ATENEOS = [
-  { id: "fisio1", nome: "Ateneo 1", sub: "Fisiologia 1 · 3º semestre", pronto: false },
+  { id: "fisio1", nome: "Ateneo 1", sub: "Fisiologia 1 · 3º semestre", pronto: true, arquivo: "ateneos/fisio1.json", tam: "0,7 MB" },
   { id: "fisio2", nome: "Ateneo 2", sub: "Fisiologia 2 · 4º semestre", pronto: true, arquivo: "ateneos/fisio2.json", tam: "0,5 MB" }
 ];
 const cadernoAteneo = id => S.cadernos.find(c => c.oficial === id);
@@ -4175,7 +4175,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2336";
+const VERSAO_APP = "2026-11-21-2341";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
