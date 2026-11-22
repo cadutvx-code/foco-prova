@@ -104,6 +104,31 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head h2{margin:0 6px 0 0;font-size:21px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
+.mapa-card{overflow:hidden}
+.mapa-cerebro{width:100%;max-width:560px;display:block;margin:8px auto 4px}
+.mapa-cerebro .neuronio:hover circle{stroke-width:3.5}
+.mapa-cerebro .brilho{animation:pulsar 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.mapa-cerebro .sinapse{stroke-dasharray:4 4;animation:sinapse 1.6s linear infinite}
+.mapa-leg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;font-size:12px;color:var(--muted);margin:4px 0}
+.mapa-leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.mapa-ok{text-align:center;font-weight:800;color:#3fcf86;margin-top:4px}
+@keyframes pulsar{0%,100%{transform:scale(.8);opacity:.2}50%{transform:scale(1.25);opacity:.45}}
+@keyframes sinapse{to{stroke-dashoffset:-16}}
+.panico-btn{border-color:rgba(255,99,99,.55)!important;color:#ff7b7b!important;font-weight:800}
+.panico-card{border-color:rgba(255,99,99,.55);background:linear-gradient(120deg,rgba(255,99,99,.10),transparent)}
+.pan-lista{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto;padding:4px}
+.pan-blocos{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.pan-bloco{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.pan-bloco.feito{opacity:.55}
+.pan-bloco.feito b{text-decoration:line-through}
+.pan-check{width:26px;height:26px;border-radius:8px;border:2px solid var(--accent);background:none;color:var(--accent);font-weight:900;cursor:pointer;flex:none}
+.audio-card{background:linear-gradient(120deg,rgba(139,92,246,.16),rgba(91,141,255,.10))}
+.audio-ctrl{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.onda{display:inline-flex;gap:3px;align-items:flex-end;height:18px}
+.onda i{width:4px;height:6px;border-radius:2px;background:var(--accent)}
+.onda.on i{animation:onda 0.9s ease-in-out infinite}
+.onda.on i:nth-child(2){animation-delay:.15s}.onda.on i:nth-child(3){animation-delay:.3s}.onda.on i:nth-child(4){animation-delay:.45s}
+@keyframes onda{0%,100%{height:5px}50%{height:18px}}
 .trad-bolha{animation:hipoIn .18s ease-out}
 .trad-btn{width:auto;display:block;margin:0 auto;border:none;border-radius:999px;padding:9px 16px;background:var(--accent);color:#fff;font:inherit;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .trad-card{position:relative;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:12px 30px 12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14.5px;line-height:1.45}
@@ -1405,7 +1430,7 @@ async function gerar(tipo) {
   if (!podeUsar()) return; gastar();
   lerForm();
   const { qtd, dif, foco } = S.form;
-  const f = foco ? `\nConcentre-se especificamente em: ${foco}.` : "";
+  const f = (foco ? `\nConcentre-se especificamente em: ${foco}.` : "") + (["quiz", "prova", "flash"].includes(tipo) ? estiloProfTxt(c) : "");
   const d = dif === "mista" ? "Misture níveis de dificuldade (fácil, médio e difícil)." : `Nível de dificuldade: ${dif}.`;
   S.ocupado = tipo; render();
   try {
@@ -1718,10 +1743,10 @@ function viewCaderno(c, emEstudo) {
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
-    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button>${barraNivel(c)}
+    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button>${barraNivel(c)}
       <label class="inline" title="Idioma das perguntas, respostas e explicações">🌐 <select id="idiomaCaderno" style="width:auto;padding:6px 10px;border-radius:999px">
         <option value="pt" ${idiomaCaderno(c) === "pt" ? "selected" : ""}>Português</option><option value="es" ${idiomaCaderno(c) === "es" ? "selected" : ""}>Español</option></select></label></div>
-    ${corpo}`;
+    ${cartaoPanico(c)}${corpo}`;
 }
 
 function semMateriais(c) {
@@ -1785,7 +1810,7 @@ function viewMateriais(c) {
 /* ---------- Resumo ---------- */
 function viewResumo(c) {
   const sem = semMateriais(c); if (sem) return sem;
-  return `<div class="stack">${formGerar("resumo", "resumo", { qtd: false })}
+  return `<div class="stack">${cartaoAudioResumo(c)}${formGerar("resumo", "resumo", { qtd: false })}
   ${c.resumos.length ? "" : `<div class="empty">Nenhum resumo gerado ainda.</div>`}
   ${c.resumos.map(r => `<article class="card">${r.gerando ? `<div class="badge warn" style="display:inline-flex;gap:6px;align-items:center;margin-bottom:10px;text-transform:none;letter-spacing:0"><span class="spin"></span>${esc(r.status || "Gerando…")}</div>` : ""}
     <div class="head" style="margin-bottom:8px"><div><h2 style="margin:0">${esc(r.titulo)}</h2><div class="muted" style="font-size:12px">${fmtData(r.criado)}${r.foco ? " · foco: " + esc(r.foco) : ""}</div></div>
@@ -2115,7 +2140,7 @@ Regras de adaptação:
 - As informações acima sobre o estudante (domínio, preferências, histórico) são SÓ para você escolher os temas e a dificuldade: nunca as escreva nas perguntas.${REGRAS_PERGUNTA}
 - NÃO REPITA nenhum destes fatos já perguntados (nem com outras palavras, nem invertendo a pergunta). Pergunte sobre OUTROS pontos do conteúdo:
 ${hist}
-${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
+${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : ""}${estiloProfTxt(c)}${I.ruins?.length ? `\nO estudante marcou estas questões como ruins; não gere nada parecido:\n${I.ruins.map(r => "- " + r).join("\n")}` : ""}`;
   const foco = focoTopico || I.topicos.filter(t => (c.dominio[t]?.score || 0) < .5).join(" ");
   // No processador cada palavra lida custa tempo: instrução curta e direta
   const instrFinal = !cpu ? (leve ? instr.replace(/^- "explicacoes".*$/m, "- As alternativas são só o texto da opção, sem rótulos como \"Correta\" ou \"Errada\".") : instr) : `Crie ${n} perguntas de múltipla escolha sobre o material, em ${idiomaCaderno(c) === "es" ? "espanhol" : "português"}. Cada uma com 4 alternativas e só uma correta ("correta" = índice 0 a 3). "explicacao": por que a correta está certa (1 frase). "topico": assunto curto (ex.: "Edema").${focoTopico ? ` Só sobre: ${focoTopico}.` : foco ? ` Priorize: ${foco.slice(0, 120)}.` : ""}${I.historico.length ? ` Não repita: ${I.historico.slice(-5).map(h => h.slice(0, 50)).join("; ")}.` : ""}${I.prefs ? ` Preferência: ${I.prefs.slice(0, 150)}.` : ""}`;
@@ -2184,9 +2209,11 @@ function viewSmart(c) {
         <div><b style="font-size:22px">${I.xp}</b><div class="muted" style="font-size:13px">XP</div></div>
       </div>
       <label>⚙️ Preferências (direcionam a IA) <textarea id="smartPrefs" rows="2" placeholder="ex.: questões no estilo da minha professora, mais cálculos, foco no capítulo 4, questões mais difíceis…">${esc(I.prefs)}</textarea></label>
+      <label style="margin-top:10px">👩‍🏫 Perguntas da sua professora (opcional) <textarea id="smartEstilo" rows="2" placeholder="Cole 2 ou 3 perguntas de provas antigas ou da aula: a IA passa a perguntar no mesmo estilo (Quiz e Teste também).">${esc(c.estiloProf || "")}</textarea></label>
       <div class="row" style="margin-top:12px"><button class="btn primary" data-act="smartIniciar">▶ ${I.respondidas ? "Continuar estudando" : "Começar estudo inteligente"}</button>
       ${I.topicos.length ? `<button class="btn small ghost" data-act="zerarSmart">Zerar progresso</button>` : ""}</div>
     </div>
+    ${mapaCerebro(c)}
     ${I.topicos.length ? `<div class="card"><h3>Domínio por tópico</h3><p class="muted" style="font-size:13px;margin-top:0">Clique em um tópico para estudar só ele.</p>
       ${I.topicos.map(t => { const d = c.dominio[t], [st, cor] = statusTopico(d), pct = Math.round((d?.score || 0) * 100);
         return `<button class="alt" data-act="smartTopico" data-id="${esc(t)}" style="display:flex;gap:12px;align-items:center">
@@ -4104,6 +4131,15 @@ document.addEventListener("click", async e => {
     case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
     case "feedback": abrirFeedback(); break;
+    case "panico": abrirPanico(); break;
+    case "gerarPanico": gerarPanico(); break;
+    case "panFeito": { const b = c?.panico?.blocos[+id]; if (b) { b.feito = !b.feito; await salvar(c); render(); if (b.feito && c.panico.blocos.every(x => x.feito)) hipoFala("Plano completo! Agora é descansar e arrasar na prova. 🍀", "festa", 6000); } break; }
+    case "panIr": panIr(+id); break;
+    case "panApagar": if (confirm("Apagar o plano de prova?")) { delete c.panico; await salvar(c); render(); } break;
+    case "audioNovo": gerarAudioResumo(); break;
+    case "audioOuvir": tocarAudioResumo(); break;
+    case "audioPausar": pausarAudioResumo(); break;
+    case "audioParar": pararAudioResumo(); break;
     case "traduzir": traduzirSelecao(); break;
     case "fecharTrad": fecharBolha(); getSelection()?.removeAllRanges(); break;
     case "glossario": e.preventDefault(); NUVEM.menu = false; desenharConta(); abrirGlossario(); break;
@@ -4249,6 +4285,7 @@ document.addEventListener("change", e => {
     toast(c.idioma === "es" ? "Las preguntas ahora serán en español." : "As perguntas agora serão em português.");
     return;
   }
+  if (e.target.id === "smartEstilo") { const c = atual(); c.estiloProf = e.target.value.trim().slice(0, 4000); salvar(c); toast(c.estiloProf ? "👩‍🏫 Estilo da professora salvo." : "Estilo da professora removido."); return; }
   if (e.target.id === "smartPrefs") { const c = atual(); garantirSmart(c); c.inteligente.prefs = e.target.value.trim(); salvar(c); toast("Preferências salvas."); return; }
   const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
   if (e.target.type === "radio") S.player.resp[q] = +e.target.value;
@@ -4281,7 +4318,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1834";
+const VERSAO_APP = "2026-11-22-1838";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4915,11 +4952,22 @@ const UI_ES = {
   "Escolha o horário. Vamos criar um evento que se repete todo dia no calendário do seu celular, com aviso, chamando para a sua Revisão do dia.": "Elige el horario. Vamos a crear un evento que se repite todos los días en el calendario de tu celular, con aviso, para tu Repaso del día.",
   "📅 Abra o arquivo baixado para adicionar o lembrete ao calendário.": "📅 Abre el archivo descargado para agregar el recordatorio al calendario.", "Nada para revisar agora. ✅": "Nada para repasar ahora. ✅",
   "Criar um lembrete diário no calendário do celular": "Crear un recordatorio diario en el calendario del celular", "Tirar do glossário": "Quitar del glosario",
-  "3 seguidas! Tá voando! 🚀": "¡3 seguidas! ¡Vas volando! 🚀", "5 em sequência! 🔥 Seu cérebro tá on.": "¡5 seguidas! 🔥 Tu cerebro está on.", "10 seguidas?! Você tá imparável! 🏆": "¿¡10 seguidas!? ¡Eres imparable! 🏆", "20 seguidas. Lenda. 👑": "20 seguidas. Leyenda. 👑"
+  "3 seguidas! Tá voando! 🚀": "¡3 seguidas! ¡Vas volando! 🚀", "5 em sequência! 🔥 Seu cérebro tá on.": "¡5 seguidas! 🔥 Tu cerebro está on.", "10 seguidas?! Você tá imparável! 🏆": "¿¡10 seguidas!? ¡Eres imparable! 🏆", "20 seguidas. Lenda. 👑": "20 seguidas. Leyenda. 👑",
+  "🧠 Seu cérebro neste caderno": "🧠 Tu cerebro en este cuaderno", "não praticado": "no practicado", "fraco": "débil", "aprendendo": "aprendiendo", "dominado": "dominado",
+  "✨ Hipocampo aceso! Você domina este caderno.": "✨ ¡Hipocampo encendido! Dominas este cuaderno.", "Toque num neurônio para estudar só aquele tópico.": "Toca una neurona para estudiar solo ese tema.",
+  "👩‍🏫 Perguntas da sua professora (opcional)": "👩‍🏫 Preguntas de tu profesora (opcional)", "Cole 2 ou 3 perguntas de provas antigas ou da aula: a IA passa a perguntar no mesmo estilo (Quiz e Teste também).": "Pega 2 o 3 preguntas de exámenes anteriores o de clase: la IA pregunta con el mismo estilo (Quiz y Examen también).",
+  "👩‍🏫 Estilo da professora salvo.": "👩‍🏫 Estilo de la profesora guardado.", "Estilo da professora removido.": "Estilo de la profesora quitado.",
+  "🚨 Prova chegando": "🚨 Examen cerca", "Monte um plano de estudo para a prova": "Arma un plan de estudio para el examen", "Quanto tempo falta?": "¿Cuánto tiempo falta?", "3 horas": "3 horas", "6 horas": "6 horas", "12 horas": "12 horas", "1 dia": "1 día", "2 dias": "2 días", "3 dias": "3 días", "1 semana": "1 semana",
+  "Diga quanto tempo falta e o que cai. A IA monta um plano de estudo hora a hora, começando pelo que você menos domina.": "Di cuánto tiempo falta y qué entra. La IA arma un plan de estudio hora por hora, empezando por lo que menos dominas.",
+  "O que cai? (deixe tudo marcado se não souber)": "¿Qué entra? (deja todo marcado si no sabes)", "O que cai na prova?": "¿Qué entra en el examen?", "🧠 Montar meu plano": "🧠 Armar mi plan", "Apagar plano": "Borrar plan", "Apagar o plano de prova?": "¿Borrar el plan de examen?",
+  "Marcar como feito": "Marcar como hecho", "boa prova! 🍀": "¡buen examen! 🍀", "Plano pronto! Um bloco de cada vez, que dá tempo. 💪": "¡Plan listo! Un bloque a la vez, que da tiempo. 💪", "Plano completo! Agora é descansar e arrasar na prova. 🍀": "¡Plan completo! Ahora descansa y arrasa en el examen. 🍀",
+  "Resumo em áudio": "Resumen en audio", "Um resumo de ~5 minutos lido pela voz do professor. Para ouvir no ônibus, na academia ou antes de dormir.": "Un resumen de ~5 minutos leído por la voz del profesor. Para escuchar en el colectivo, en el gimnasio o antes de dormir.",
+  "▶ Ouvir": "▶ Escuchar", "↻ Novo": "↻ Nuevo", "✨ Criar e ouvir": "✨ Crear y escuchar", "Escrevendo o roteiro…": "Escribiendo el guion…", "⏸ Pausar": "⏸ Pausar", "▶ Continuar": "▶ Continuar", "preparando a voz…": "preparando la voz…", "Fazer outro resumo": "Hacer otro resumen",
+  "Resumo ouvido! Agora fixa com umas perguntas no Estudo inteligente. 🧠": "¡Resumen escuchado! Ahora fíjalo con unas preguntas en el Estudio inteligente. 🧠"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -4997,7 +5045,7 @@ async function traduzirSelecao() {
   try {
     const r = await chamar({
       system: "Você é um dicionário médico bilíngue português (Brasil) ↔ espanhol para estudantes de medicina. Responda curto e certo.",
-      messages: [{ role: "user", content: `Termo: "${s.termo}"\nFrase onde aparece: "${s.frase}"\n\nSe o termo estiver em espanhol, traduza para português do Brasil; se estiver em português, traduza para espanhol. Use o sentido médico/fisiológico da frase.\n- "traducao": a tradução curta (1 a 4 palavras).\n- "explicacao": em PORTUGUÊS, 1 frase simples (até 20 palavras) dizendo o que é, no contexto de medicina.\n- "idioma": "es" ou "pt" (o idioma do termo original).` }],
+      messages: [{ role: "user", content: `Termo: "${s.termo}"\nFrase onde aparece: "${s.frase}"\n\nSe o termo estiver em espanhol, traduza para português do Brasil; se estiver em português, traduza para espanhol. Use o sentido médico/fisiológico da frase e o TERMO TÉCNICO que se usa de verdade no Brasil (ou no Paraguai), não a palavra parecida (ex.: "gasto cardíaco" → "débito cardíaco"; "riñón" → "rim"; "hipófisis" → "hipófise").\n- "traducao": a tradução curta (1 a 4 palavras).\n- "explicacao": em PORTUGUÊS, 1 frase simples (até 20 palavras) dizendo o que é, no contexto de medicina.\n- "idioma": "es" ou "pt" (o idioma do termo original).` }],
       schema: obj({ traducao: str, explicacao: str, idioma: str }), maxTokens: 300, fundo: true, urgente: true
     });
     const x = { termo: s.termo, traducao: String(r.traducao || "").trim(), explicacao: String(r.explicacao || "").trim(), idioma: r.idioma === "pt" ? "pt" : "es", data: Date.now(), caixa: 0, proxima: Date.now() + DIA };
@@ -5152,6 +5200,155 @@ function cartaoHipo() {
   else fala = es ? "¿Vamos a empezar la racha de hoy? Una pregunta ya cuenta." : "Bora começar a sequência de hoje? Uma pergunta já conta.";
   return `<div class="hipo-card">${hipoSVG(humor, 70)}<div><b>${oi}${nome ? `, ${esc(nome)}` : ""}!</b><div class="hipo-txt">${esc(fala)}</div></div></div>`;
 }
+
+
+/* ================= 🧠 Mapa do cérebro: cada tópico é um neurônio que acende conforme você domina ================= */
+function mapaCerebro(c) {
+  const I = c.inteligente, tops = (I?.topicos || []).slice(0, 40); if (!tops.length) return "";
+  const n = tops.length, cx = 180, cy = 120;
+  const pts = tops.map((t, i) => { const r = Math.sqrt((i + 0.6) / n), a = i * 2.39996 + 0.6; return { t, x: cx + r * 112 * Math.cos(a), y: cy + r * 74 * Math.sin(a), s: c.dominio?.[t]?.score || 0, prat: !!c.dominio?.[t]?.tentativas }; });
+  const linhas = new Set(), lin = [];
+  pts.forEach((p, i) => pts.map((q, j) => [j, (p.x - q.x) ** 2 + (p.y - q.y) ** 2]).filter(([j]) => j !== i).sort((a, b) => a[1] - b[1]).slice(0, 2).forEach(([j]) => {
+    const k = i < j ? `${i}-${j}` : `${j}-${i}`; if (linhas.has(k)) return; linhas.add(k);
+    const q = pts[j], aceso = Math.min(p.s, q.s);
+    lin.push(`<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}" stroke="${aceso >= .75 ? "#7cf0b0" : aceso >= .4 ? "#ffd76a" : "rgba(160,170,210,.35)"}" stroke-width="${aceso >= .4 ? 2 : 1.2}" ${aceso >= .4 ? `class="sinapse"` : ""}/>`);
+  }));
+  const cor = p => !p.prat ? "#8f97b8" : p.s >= .75 ? "#5ee39a" : p.s >= .4 ? "#ffd166" : "#ff8a7a";
+  const acesos = pts.filter(p => p.s >= .75).length, geral = pts.reduce((a, p) => a + p.s, 0) / n;
+  const nos = pts.map(p => `<g data-act="smartTopico" data-id="${esc(p.t)}" class="neuronio" style="cursor:pointer"><title>${esc(p.t)} · ${p.prat ? Math.round(p.s * 100) + "%" : "não praticado"}</title>
+      ${p.s >= .75 ? `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="${cor(p)}" opacity=".25" class="brilho"/>` : ""}
+      <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(5 + p.s * 4).toFixed(1)}" fill="${p.prat ? cor(p) : "none"}" stroke="${cor(p)}" stroke-width="2"/></g>`).join("");
+  return `<div class="card mapa-card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">🧠 Seu cérebro neste caderno</h3><small class="muted"><b>${acesos}</b> de ${n} neurônios acesos</small></div>
+    <svg class="mapa-cerebro" viewBox="0 0 360 240" role="img" aria-label="Mapa de domínio por tópico">
+      <defs><radialGradient id="gCer" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="${geral >= .8 ? "rgba(124,240,176,.28)" : "rgba(120,110,255,.18)"}"/><stop offset="1" stop-color="rgba(120,110,255,0)"/></radialGradient></defs>
+      <path d="M180 22 C 120 8 56 30 44 82 C 16 98 16 152 46 172 C 58 208 112 228 152 214 C 164 226 196 226 208 214 C 248 228 302 208 314 172 C 344 152 344 98 316 82 C 304 30 240 8 180 22 Z" fill="url(#gCer)" stroke="rgba(150,140,255,.45)" stroke-width="2"/>
+      <path d="M180 28 C 172 80 190 150 180 212" fill="none" stroke="rgba(150,140,255,.3)" stroke-width="1.5" stroke-dasharray="4 5"/>
+      ${lin.join("")}${nos}</svg>
+    <div class="mapa-leg"><span><i style="border:2px solid #8f97b8"></i>não praticado</span><span><i style="background:#ff8a7a"></i>fraco</span><span><i style="background:#ffd166"></i>aprendendo</span><span><i style="background:#5ee39a"></i>dominado</span></div>
+    ${geral >= .8 ? `<div class="mapa-ok">✨ Hipocampo aceso! Você domina este caderno.</div>` : `<div class="muted" style="font-size:12.5px;text-align:center">Toque num neurônio para estudar só aquele tópico.</div>`}</div>`;
+}
+
+/* ================= 👩‍🏫 Estilo da professora ================= */
+const estiloProfTxt = c => c?.estiloProf ? `\n\nESTILO DA PROFESSORA (prioridade): imite o formato, o tamanho, o tipo de cobrança e o nível de detalhe destas perguntas de exemplo da professora do estudante — sem copiá-las nem repetir as mesmas:\n${c.estiloProf.slice(0, 2500)}` : "";
+
+/* ================= 🚨 Modo pânico: prova chegando → plano de estudo por horas ================= */
+function abrirPanico() {
+  const c = atual(); if (!c) return; garantirSmart(c);
+  const opcoes = c.capitulos?.length ? c.capitulos.map(k => [`Cap. ${k.numero} – ${k.titulo}`, `Cap. ${k.numero}`]) : c.inteligente.topicos.map(t => [t, t]);
+  $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🚨 Prova chegando</h2><button class="icon-btn" data-act="perfilCancelar" title="Fechar">✕</button></div>
+    <div class="muted" style="font-size:13.5px">Diga quanto tempo falta e o que cai. A IA monta um plano de estudo hora a hora, começando pelo que você menos domina.</div>
+    <label>Quanto tempo falta?<select id="panHoras">${[[3, "3 horas"], [6, "6 horas"], [12, "12 horas"], [24, "1 dia"], [48, "2 dias"], [72, "3 dias"], [168, "1 semana"]].map(([v, t]) => `<option value="${v}" ${v === 24 ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+    ${opcoes.length ? `<div><div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">O que cai? (deixe tudo marcado se não souber)</div><div class="pan-lista">${opcoes.map(([n, v]) => `<label class="inline pan-op"><input type="checkbox" value="${esc(v)}" checked> ${esc(n)}</label>`).join("")}</div></div>`
+      : `<label>O que cai na prova?<textarea id="panLivre" rows="2" placeholder="ex.: capítulos 4 a 8, potencial de ação, músculo liso"></textarea></label>`}
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="perfilCancelar">Cancelar</button><button class="pill" data-act="gerarPanico">🧠 Montar meu plano</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+async function gerarPanico() {
+  const c = atual(); if (!c) return;
+  if (!podeUsar()) return;
+  const horas = +$("#panHoras").value || 24;
+  const marcados = [...document.querySelectorAll(".pan-op input:checked")].map(i => i.value);
+  const livre = $("#panLivre")?.value.trim() || "";
+  const bt = document.querySelector('[data-act="gerarPanico"]'); if (bt) { bt.disabled = true; bt.innerHTML = `<span class="spin"></span> Montando o plano…`; }
+  gastar();
+  const I = c.inteligente, dom = I.topicos.map(t => `- ${t}: ${c.dominio[t]?.tentativas ? Math.round(c.dominio[t].score * 100) + "% de domínio" : "não praticado"}`).join("\n") || "(sem histórico)";
+  const atividades = ["estudo", "flashcards", "guia", "pausa", ...(c.oficial ? ["ateneo"] : [])];
+  try {
+    const r = await chamar({
+      system: SYS_BASE + linhaIdioma(c),
+      messages: [{ role: "user", content: `Monte um plano de estudo de emergência para uma prova que acontece daqui a ${horas} horas.\nO que cai: ${marcados.length ? marcados.join("; ") : livre || "todo o conteúdo do caderno"}.\nDomínio atual do estudante por tópico:\n${dom}\n\nRegras:\n- Priorize o que tem MENOR domínio e o que mais cai em prova; deixe revisão rápida do que já domina no fim.\n- Use blocos de 20 a 60 minutos e inclua pausas curtas. Se faltar mais de 12 h, reserve sono (bloco "pausa" de dormir) e uma revisão final antes da prova.\n- Some no máximo ${Math.min(horas, 12) * 60} minutos de estudo ativo.\n- "atividade" é uma de: ${atividades.join(", ")}. "topico" deve ser EXATAMENTE um dos tópicos/capítulos citados acima quando houver.\n- "objetivo": 1 frase curta e concreta do que fazer no bloco.\n- "dica": 1 frase de estratégia para essa prova.` }],
+      schema: obj({ titulo: str, dica: str, blocos: arr(obj({ titulo: str, minutos: int, atividade: str, topico: str, objetivo: str })) }), maxTokens: 2500, rotulo: "Montando seu plano", urgente: true
+    });
+    c.panico = { criado: Date.now(), horas, titulo: r.titulo || "Plano de prova", dica: r.dica || "", blocos: (r.blocos || []).slice(0, 24).map(b => ({ ...b, minutos: Math.max(5, Math.min(180, +b.minutos || 30)), feito: false })) };
+    await salvar(c); $("#dlgPerfil").close(); render(); window.scrollTo(0, 0);
+    hipoFala("Plano pronto! Um bloco de cada vez, que dá tempo. 💪", "festa");
+  } catch (e) { toast("Não consegui montar o plano agora: " + erroMsg(e), true); if (bt) { bt.disabled = false; bt.textContent = "🧠 Montar meu plano"; } }
+}
+function cartaoPanico(c) {
+  const p = c.panico; if (!p || Date.now() - p.criado > (p.horas + 24) * 3600000) return "";
+  const ic = { estudo: "🧠", flashcards: "🃏", guia: "📖", pausa: "☕", ateneo: "🎤" }, feitos = p.blocos.filter(b => b.feito).length;
+  const fim = p.criado + p.horas * 3600000, falta = Math.max(0, fim - Date.now()), h = Math.floor(falta / 3600000), m = Math.round((falta % 3600000) / 60000);
+  return `<div class="card panico-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">🚨 ${esc(p.titulo)}</h3><small class="muted">${falta ? `prova em ~${h ? h + " h " : ""}${m} min` : "boa prova! 🍀"} · ${feitos}/${p.blocos.length} feitos</small></div>
+    ${p.dica ? `<div class="muted" style="font-size:13.5px;margin:6px 0 4px">💡 ${esc(p.dica)}</div>` : ""}
+    <div class="pan-blocos">${p.blocos.map((b, i) => `<div class="pan-bloco ${b.feito ? "feito" : ""}"><button class="pan-check" data-act="panFeito" data-id="${i}" title="Marcar como feito">${b.feito ? "✔" : ""}</button>
+      <div style="flex:1;min-width:0"><b>${ic[b.atividade] || "📌"} ${esc(b.titulo)}</b> <small class="muted">${b.minutos} min</small><div class="muted" style="font-size:13px">${esc(b.objetivo)}</div></div>
+      ${b.atividade !== "pausa" && !b.feito ? `<button class="btn small" data-act="panIr" data-id="${i}">▶</button>` : ""}</div>`).join("")}</div>
+    <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn small ghost" data-act="panApagar">Apagar plano</button></div></div>`;
+}
+function panIr(i) {
+  const c = atual(), b = c?.panico?.blocos[i]; if (!b) return;
+  if (b.atividade === "flashcards") { S.aba = "flash"; render(); return; }
+  if (b.atividade === "guia") { S.aba = "resumo"; render(); return; }
+  if (b.atividade === "ateneo" && c.oficial) { S.aba = "oral"; render(); return; }
+  garantirSmart(c); S.aba = "smart";
+  const alvo = c.inteligente.topicos.find(t => t === b.topico) || c.inteligente.topicos.find(t => b.topico && (t.toLowerCase().includes(b.topico.toLowerCase()) || b.topico.toLowerCase().includes(t.toLowerCase())));
+  smartIniciar(c, alvo || null);
+}
+
+/* ================= 🎧 Resumo em áudio (≈5 min, voz do professor) ================= */
+function cartaoAudioResumo(c) {
+  const a = c.audioResumo, t = S.audioRes?.cid === c.id ? S.audioRes : null;
+  const ctrl = t ? `<div class="audio-ctrl"><span class="onda ${t.pausado ? "" : "on"}"><i></i><i></i><i></i><i></i></span><small class="muted">${t.carregando ? "preparando a voz…" : `parte ${t.i + 1} de ${t.partes.length}`}</small>
+      <button class="btn small" data-act="audioPausar">${t.pausado ? "▶ Continuar" : "⏸ Pausar"}</button><button class="btn small ghost" data-act="audioParar">⏹</button></div>` : "";
+  return `<div class="card audio-card"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span style="font-size:34px">🎧</span>
+    <div style="flex:1;min-width:200px"><b style="font-size:16px">Resumo em áudio</b><div class="muted" style="font-size:13px">Um resumo de ~5 minutos lido pela voz do professor. Para ouvir no ônibus, na academia ou antes de dormir.</div></div>
+    ${t ? "" : S.gerandoAudio === c.id ? `<button class="btn" disabled><span class="spin"></span> Escrevendo o roteiro…</button>` : a ? `<button class="pill" data-act="audioOuvir">▶ Ouvir</button><button class="btn small ghost" data-act="audioNovo" title="Fazer outro resumo">↻ Novo</button>` : `<button class="pill" data-act="audioNovo">✨ Criar e ouvir</button>`}</div>${ctrl}</div>`;
+}
+async function gerarAudioResumo() {
+  const c = atual(); if (!c || !ativos(c).length) return toast("Adicione materiais primeiro.", true);
+  if (!podeUsar()) return; gastar();
+  S.gerandoAudio = c.id; render();
+  try {
+    const foco = S.form?.foco || "";
+    const txt = await chamar({
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco, 30000) }],
+      messages: [{ role: "user", content: `Escreva o ROTEIRO FALADO de um resumo em áudio de uns 5 minutos (650 a 800 palavras) com os pontos mais importantes destes materiais${foco ? `, com foco em: ${foco}` : ""}, como um professor gravando um podcast para revisão antes da prova.\n- Frases curtas e naturais para ouvir; nada de listas, tópicos, markdown, emojis, tabelas ou fórmulas escritas com símbolos (diga por extenso).\n- Comece direto no assunto; organize do geral para o detalhe; repita os valores e conceitos que mais caem.\n- Termine com 3 frases "para lembrar" bem curtas.` }],
+      maxTokens: 2600, rotulo: "Escrevendo o roteiro", urgente: true
+    });
+    c.audioResumo = { texto: String(txt).replace(/[*#_>`]/g, "").trim(), criado: Date.now(), foco };
+    await salvar(c); S.gerandoAudio = null; tocarAudioResumo();
+  } catch (e) { S.gerandoAudio = null; render(); toast("Não consegui criar o resumo em áudio: " + erroMsg(e), true); }
+}
+function partesFala(texto) {
+  const frases = texto.replace(/\s+/g, " ").match(/[^.!?¡¿]+[.!?]+|[^.!?]+$/g) || [texto], out = [];
+  let atual = "";
+  for (const f of frases) { if ((atual + f).length > 240 && atual) { out.push(atual.trim()); atual = ""; } atual += f + " "; }
+  if (atual.trim()) out.push(atual.trim());
+  return out;
+}
+async function tocarAudioResumo() {
+  const c = atual(); if (!c?.audioResumo) return;
+  fecharVoz(); const id = ++S.falaId, lang = vozIdioma(c);
+  const t = S.audioRes = { cid: c.id, partes: partesFala(c.audioResumo.texto), i: 0, pausado: false, carregando: true, id };
+  render();
+  const vivo = () => S.audioRes === t && S.falaId === id;
+  const piper = usaPiper(lang);
+  for (; t.i < t.partes.length; t.i++) {
+    if (!vivo()) return;
+    const prox = piper ? audioPiper(t.partes[t.i], lang) : null;
+    if (piper && t.i + 1 < t.partes.length) audioPiper(t.partes[t.i + 1], lang).catch(() => {}); // já prepara a próxima
+    try {
+      if (piper) {
+        const url = await prox; if (!vivo()) return;
+        t.carregando = false; render();
+        await new Promise((ok, erro) => { audioAtual = new Audio(url); audioAtual.onended = ok; audioAtual.onerror = erro; t.audio = audioAtual; audioAtual.play().catch(erro); });
+      } else {
+        t.carregando = false; render();
+        await new Promise(ok => { const u = new SpeechSynthesisUtterance(t.partes[t.i]); u.lang = lang; u.onend = ok; u.onerror = ok; speechSynthesis.speak(u); });
+      }
+    } catch (e) { if (!vivo()) return; console.warn("áudio do resumo:", e); }
+    while (vivo() && t.pausado) await new Promise(r => setTimeout(r, 300));
+  }
+  if (vivo()) { S.audioRes = null; render(); hipoFala("Resumo ouvido! Agora fixa com umas perguntas no Estudo inteligente. 🧠", "feliz"); }
+}
+function pausarAudioResumo() {
+  const t = S.audioRes; if (!t) return;
+  t.pausado = !t.pausado;
+  if (t.audio) { if (t.pausado) t.audio.pause(); else t.audio.play().catch(() => {}); }
+  else try { t.pausado ? speechSynthesis.pause() : speechSynthesis.resume(); } catch {}
+  render();
+}
+function pararAudioResumo() { S.audioRes = null; S.falaId++; pararAudio(); render(); }
 
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
