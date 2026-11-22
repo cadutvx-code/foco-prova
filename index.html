@@ -158,6 +158,10 @@ h3{font-size:16px;margin:0 0 6px}
 .lab-vozes{display:flex;gap:6px;flex-wrap:wrap}
 .lab-vozes button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:999px;padding:6px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
 .lab-vozes button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.lab-vozes button.quente.on{background:linear-gradient(90deg,#ff4d6d,#ff8a3d);border-color:transparent}
+.lab-placar{display:flex;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700}
+.lab-placar span{padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line)}
+.lab-placar .ok{color:#2ecc71}.lab-placar .no{color:#ff4d6d}
 .lab-q{padding:14px;border-radius:16px;border:1px solid var(--line);background:var(--panel2);display:flex;flex-direction:column;gap:10px}
 .lab-enun{font-weight:800;font-size:16.5px;line-height:1.4}
 .lab-alts{display:flex;flex-direction:column;gap:8px}
@@ -1130,7 +1134,7 @@ function partesGemini(content) {
     : b.type === "document" ? { inlineData: { mimeType: "application/pdf", data: b.source.data } }
     : { text: "" });
 }
-async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo }) {
+async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo, zoeira }) {
   const { ai, AI } = await motorGemini();
   const sys = textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido que siga exatamente este esquema JSON:\n" + JSON.stringify(schema) : "");
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: partesGemini(m.content) }));
@@ -1143,7 +1147,8 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
     try {
       const modelo = AI.getGenerativeModel(ai, {
         model: nome, systemInstruction: sys,
-        generationConfig: { maxOutputTokens: limite, temperature: schema ? 0.6 : 0.8, ...(schema ? { responseMimeType: "application/json" } : {}) }
+        generationConfig: { maxOutputTokens: limite, temperature: zoeira ? 1 : schema ? 0.6 : 0.8, ...(schema ? { responseMimeType: "application/json" } : {}) },
+        ...(zoeira ? { safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] } : {})
       });
       const r = await prazo(modelo.generateContentStream({ contents }), 30000);
       let texto = "";
@@ -4346,6 +4351,7 @@ document.addEventListener("click", async e => {
     case "labResp": labResponder(+id); break;
     case "labProx": proxLab(); break;
     case "labOuvir": labFalar(); break;
+    case "labJeito": if (id === "semfiltro" && labJeito() !== "semfiltro" && !confirm("Modo Sem filtro: o Hipo fala palavrões e zoa você pesado, de brincadeira. É para maiores de 18. Ativar?")) break; lsSet("fp-lab-jeito", id); desenharLab(); break;
     case "labVoz": lsSet("fp-lab-voz", id); desenharLab(); if (S.lab?.fala) labFalar(); break;
     case "guia": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); iniciarTour(atual() ? "caderno" : "casa"); break;
     case "guiaPular": fecharGuia(); break;
@@ -4565,7 +4571,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2011";
+const VERSAO_APP = "2026-11-22-2012";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5254,11 +5260,15 @@ const UI_ES = {
   "Perguntas de": "Preguntas de", "Exemplos prontos": "Ejemplos listos", "Voz do Hipo": "Voz de Hipo", "Desenho animado": "Dibujo animado", "Esquilo": "Ardilla", "Grandão": "Grandote",
   "Criando a pergunta…": "Creando la pregunta…", "Criando a pergunta": "Creando la pregunta", "Acertou!": "¡Acertaste!", "Não exatamente": "No exactamente",
   "Hipo está pensando…": "Hipo está pensando…", "Hipo está falando…": "Hipo está hablando…", "Ouvir de novo": "Escuchar de nuevo", "Próxima pergunta": "Siguiente pregunta",
-  "Não consegui tocar a voz neste navegador.": "No pude reproducir la voz en este navegador.", "Hipo pensando": "Hipo pensando"
+  "Não consegui tocar a voz neste navegador.": "No pude reproducir la voz en este navegador.", "Hipo pensando": "Hipo pensando",
+  "Jeito do Hipo": "Estilo de Hipo", "Fofo": "Tierno", "Zoeiro": "Burlón", "Sem filtro +18": "Sin filtro +18", "Quiz louco do Hipo": "Quiz loco de Hipo",
+  "Responda. Se errar, o Hipo te zoa e explica falando, com uma comparação absurda para você nunca mais esquecer.": "Responde. Si fallas, Hipo se burla de ti y te lo explica hablando, con una comparación absurda para que nunca lo olvides.",
+  "Modo Sem filtro: o Hipo fala palavrões e zoa você pesado, de brincadeira. É para maiores de 18. Ativar?": "Modo Sin filtro: Hipo dice groserías y se burla de ti fuerte, en broma. Es para mayores de 18. ¿Activar?",
+  "Sequência:": "Racha:", "Recorde:": "Récord:"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -6266,6 +6276,14 @@ const LAB_EXEMPLOS = {
   ]
 };
 const labEs = () => lsGet("fp-ui", "pt") === "es";
+const LAB_JEITOS = [["fofo", "Fofo"], ["zoeiro", "Zoeiro"], ["semfiltro", "Sem filtro +18"]];
+const labJeito = () => lsGet("fp-lab-jeito", "zoeiro");
+const LAB_PERSONA = {
+  fofo: `Seu jeito: FOFO. Engraçado e carinhoso, nunca zoa o estudante.`,
+  zoeiro: `Seu jeito: ZOEIRO. Você zoa o estudante de brincadeira quando ele erra, indignado e exagerado, como um amigo debochado: chama de lesado, cabeça de vento, anta, "tá de brincadeira comigo?". SEM palavrões.`,
+  semfiltro: `Seu jeito: SEM FILTRO (o estudante pediu e é adulto). Você é um professor de stand-up debochado que humilha o estudante DE BRINCADEIRA quando ele erra, para ele nunca mais esquecer: indignação exagerada, palavrões (porra, caralho, merda, puta que pariu, cacete) e xingamentos de zoeira (burro, lesado, jumento, anta, toupeira, cabeça de minhoca). Exemplos de tom: "Porra, sério? Como você não sabe disso, sua lesada?", "Puta que pariu, eu vou chorar".
+LIMITES (obrigatório): nunca ofenda aparência, corpo, peso, raça, cor, gênero, orientação sexual, religião, origem, deficiência ou doença; nunca fale de morte, suicídio, violência ou ameaça; nada sexual. A zoeira é só sobre a resposta errada.`
+};
 const labVoz = () => LAB_VOZES.find(v => v[0] === lsGet("fp-lab-voz", "desenho")) || LAB_VOZES[0];
 function labLang() {
   const c = S.lab?.fonte !== "exemplos" ? S.cadernos.find(x => x.id === S.lab?.fonte) : null;
@@ -6288,6 +6306,12 @@ async function proxLab() {
   }
   const c = S.cadernos.find(x => x.id === L.fonte);
   if (!c) { L.fonte = "exemplos"; return proxLab(); }
+  if (L.pronta?.fonte === L.fonte) {
+    const pr = L.pronta; L.pronta = null; L.q = null; L.gerando = true; desenharLab();
+    const q = await pr.promessa.catch(() => null);
+    if (S.lab !== L) return;
+    if (q) { L.q = q; L.gerando = false; desenharLab(); return; }
+  }
   if (!podeUsar()) return;
   L.q = null; L.gerando = true; desenharLab();
   try {
@@ -6302,12 +6326,14 @@ function desenharLab() {
   const L = S.lab, el = $("#labCorpo"); if (!L || !el) return;
   const q = L.q, resp = L.escolha != null, acertou = resp && L.escolha === q.correta;
   const cads = S.cadernos.filter(c => (c.materiais || []).length || c.oficial);
-  el.innerHTML = `<div class="lab-topo"><div><span class="lab-selo">Teste</span><h2>Hipo explica</h2></div><button class="icon-btn" data-act="labFechar" title="Fechar">${iconeSVG("x")}</button></div>
-    <p class="muted lab-intro">Responda a pergunta. Se errar, o Hipo explica falando, com uma comparação engraçada para você não esquecer mais.</p>
+  el.innerHTML = `<div class="lab-topo"><div><span class="lab-selo">Teste</span><h2>Quiz louco do Hipo</h2></div><button class="icon-btn" data-act="labFechar" title="Fechar">${iconeSVG("x")}</button></div>
+    <p class="muted lab-intro">Responda. Se errar, o Hipo te zoa e explica falando, com uma comparação absurda para você nunca mais esquecer.</p>
     <div class="lab-opcoes">
       <label>Perguntas de<select id="labFonte"><option value="exemplos">Exemplos prontos</option>${cads.map(c => `<option value="${c.id}" ${L.fonte === c.id ? "selected" : ""}>${esc(c.nome || "Caderno")}</option>`).join("")}</select></label>
+      <div><div class="lab-rot">Jeito do Hipo</div><div class="lab-vozes">${LAB_JEITOS.map(v => `<button class="${labJeito() === v[0] ? "on" : ""} ${v[0] === "semfiltro" ? "quente" : ""}" data-act="labJeito" data-id="${v[0]}">${v[1]}</button>`).join("")}</div></div>
       <div><div class="lab-rot">Voz do Hipo</div><div class="lab-vozes">${LAB_VOZES.map(v => `<button class="${labVoz()[0] === v[0] ? "on" : ""}" data-act="labVoz" data-id="${v[0]}">${v[1]}</button>`).join("")}</div></div>
     </div>
+    ${(L.acertos || L.erros) ? `<div class="lab-placar"><span class="ok">${L.acertos || 0} acertos</span><span class="no">${L.erros || 0} erros</span><span>Sequência: <b>${L.seq || 0}</b></span>${L.melhor > 1 ? `<span>Recorde: <b>${L.melhor}</b></span>` : ""}</div>` : ""}
     ${L.gerando || !q ? `<div class="lab-q"><span class="spin"></span> Criando a pergunta…</div>` : `
     <div class="lab-q"><div class="lab-enun">${esc(q.enunciado)}</div>
       <div class="lab-alts">${q.alternativas.map((a, i) => `<button class="lab-alt ${resp ? (i === q.correta ? "certa" : i === L.escolha ? "errada" : "apagada") : ""}" data-act="labResp" data-id="${i}" ${resp ? "disabled" : ""}><b>${"ABCDE"[i]}</b><span>${esc(a)}</span></button>`).join("")}</div>
@@ -6323,17 +6349,20 @@ function desenharLab() {
 async function labResponder(i) {
   const L = S.lab, q = L?.q; if (!q || L.escolha != null) return;
   L.escolha = i; const certo = i === q.correta;
+  if (certo) { L.acertos = (L.acertos || 0) + 1; L.seq = (L.seq || 0) + 1; L.melhor = Math.max(L.melhor || 0, L.seq); } else { L.erros = (L.erros || 0) + 1; L.seq = 0; }
+  if (L.fonte !== "exemplos") labPreparar();
   if (!podeUsar()) { L.fala = ""; desenharLab(); return; }
   L.pensando = true; desenharLab();
   setTimeout(() => $("#labCorpo .lab-hipo")?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
   const es = /^es/.test(labLang());
+  const jeito = labJeito(), zoa = jeito !== "fofo";
   const pedido = certo
-    ? `O estudante ACERTOU a pergunta "${q.enunciado}" (resposta: "${q.alternativas[q.correta]}"). Comemore de um jeito engraçado e diga em 1 frase por que está certo, com uma comparação divertida do dia a dia. No máximo 2 frases curtas.`
-    : `Pergunta: "${q.enunciado}". O estudante respondeu "${q.alternativas[i]}", mas a certa é "${q.alternativas[q.correta]}". Explique em no máximo 3 frases curtas: comece com uma reação engraçada ao erro, use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença (ex.: o coração só entrega o sangue, como o motoboy entrega a pizza; quem fabrica é a medula, a pizzaria) e termine com a regra certa numa frase simples.`;
+    ? `O estudante ACERTOU a pergunta "${q.enunciado}" (resposta: "${q.alternativas[q.correta]}")${L.seq > 2 ? ` e já está com ${L.seq} acertos seguidos` : ""}. ${zoa ? "Comemore surpreso e zoando, como se fosse um milagre ele acertar," : "Comemore de um jeito engraçado"} e diga em 1 frase por que está certo. No máximo 2 frases curtas.`
+    : `Pergunta: "${q.enunciado}". O estudante respondeu "${q.alternativas[i]}", mas a certa é "${q.alternativas[q.correta]}"${L.erros > 1 ? ` (e ele já errou ${L.erros} nesta sessão)` : ""}. Em no máximo 3 frases curtas: ${zoa ? "comece zoando o erro do estudante" : "comece com uma reação engraçada ao erro"}, depois use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença (ex.: o coração só entrega o sangue, como o motoboy entrega a pizza; quem fabrica é a medula, a pizzaria) e termine com a regra certa numa frase simples.`;
   try {
     const t = await chamar({
-      system: `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina: engraçado, carismático e didático, fala como personagem de desenho animado e trata o estudante como um amigo da mesma idade (nada de "netinho", "querido" ou jeito de avô). O texto será FALADO em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos, sem palavrões. Escreva em ${es ? "espanhol" : "português do Brasil"}.`,
-      messages: [{ role: "user", content: pedido }], maxTokens: 400, rotulo: "Hipo pensando"
+      system: `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina, engraçado e didático, que fala como personagem de desenho animado e trata o estudante como um amigo da mesma idade (nada de "netinho", "querido" ou jeito de avô).\n${LAB_PERSONA[jeito]}\nO texto será FALADO em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos. A explicação do conteúdo tem que estar CERTA. Escreva em ${es ? "espanhol (se for zoar com palavrões, use os de espanhol: carajo, mierda, pendejo, boludo etc.)" : "português do Brasil"}.`,
+      messages: [{ role: "user", content: pedido }], maxTokens: 400, rotulo: "Hipo pensando", zoeira: zoa
     });
     gastar();
     if (S.lab !== L || L.q !== q) return;
@@ -6392,7 +6421,20 @@ async function labFalar() {
     } catch { L.erroFala = "Não consegui tocar a voz neste navegador."; fim(); }
   }
 }
-document.addEventListener("change", e => { if (e.target.id === "labFonte" && S.lab) { S.lab.fonte = e.target.value; S.lab.i = -1; proxLab(); } });
+// já cria a próxima pergunta enquanto o Hipo fala
+function labPreparar() {
+  const L = S.lab, c = S.cadernos.find(x => x.id === L?.fonte); if (!c || L.pronta || !podeUsarSilencioso()) return;
+  const fonte = L.fonte;
+  L.pronta = { fonte, promessa: (async () => {
+    const r = await gerarJSON(c, `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas ("correta" = índice da certa), sobre um ponto importante do material.\n${REGRAS_PERGUNTA}\nNão repita estas:\n${[...L.feitas.slice(-15), String(L.q?.enunciado || "").slice(0, 100)].map(x => "- " + x).join("\n")}`, SCH.quiz, "", { rotulo: "Criando a pergunta", fundo: true });
+    const q = r.questoes?.find(x => x.alternativas?.length >= 2 && x.correta >= 0 && x.correta < x.alternativas.length);
+    if (!q) return null;
+    gastar(); L.feitas.push(String(q.enunciado).slice(0, 100)); return q;
+  })() };
+  L.pronta.promessa.catch(() => { if (L.pronta?.fonte === fonte) L.pronta = null; });
+}
+function podeUsarSilencioso() { conferirValidade(); if (ACESSO.liberado) return true; const u = uso(); return u.n < ACESSO.pag.limite; }
+document.addEventListener("change", e => { if (e.target.id === "labFonte" && S.lab) { S.lab.pronta = null; S.lab.fonte = e.target.value; S.lab.i = -1; proxLab(); } });
 
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
