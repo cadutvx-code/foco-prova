@@ -106,6 +106,8 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
 .provas-card{border-color:rgba(91,141,255,.45)}
+.provas-btn{border-color:rgba(91,141,255,.55)!important;color:var(--accent)!important;font-weight:800}
+#dlgPerfil .provas-card{margin:0;border:none;padding:4px 0;background:none}
 .provas-lista{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .prova-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
 .entrada-cta .btn-google span{display:inline!important}
@@ -1830,7 +1832,7 @@ function viewCaderno(c, emEstudo) {
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
-    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button><button class="btn small duelo-btn" data-act="duelo" title="Desafie um amigo com 10 perguntas deste caderno" ${S.criandoDuelo ? "disabled" : ""}>${S.criandoDuelo ? `<span class="spin"></span> Criando…` : "⚔️ Duelo"}</button>${barraNivel(c)}
+    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><button class="btn small provas-btn" data-act="provasAbrir" title="Envie provas anteriores da sua professora">${iconeSVG("arquivo", 'style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}Provas antigas${(c.provasAntigas || []).length ? ` (${c.provasAntigas.length})` : ""}</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button><button class="btn small duelo-btn" data-act="duelo" title="Desafie um amigo com 10 perguntas deste caderno" ${S.criandoDuelo ? "disabled" : ""}>${S.criandoDuelo ? `<span class="spin"></span> Criando…` : "⚔️ Duelo"}</button>${barraNivel(c)}
       <label class="inline" title="Idioma das perguntas, respostas e explicações">🌐 <select id="idiomaCaderno" style="width:auto;padding:6px 10px;border-radius:999px">
         <option value="pt" ${idiomaCaderno(c) === "pt" ? "selected" : ""}>Português</option><option value="es" ${idiomaCaderno(c) === "es" ? "selected" : ""}>Español</option></select></label></div>
     ${cartaoPanico(c)}${corpo}`;
@@ -4225,7 +4227,9 @@ document.addEventListener("click", async e => {
     case "feedback": abrirFeedback(); break;
     case "panico": abrirPanico(); break;
     case "provaAntigaEnviar": $("#provaAntigaIn").click(); break;
-    case "provaAntigaApagar": if (confirm("Tirar esta prova antiga?")) { c.provasAntigas = (c.provasAntigas || []).filter(x => x.id !== id); await salvar(c); render(); } break;
+    case "provasAbrir": abrirProvasAntigas(); break;
+    case "provasFechar": S.dlgProvas = false; $("#dlgPerfil").close(); break;
+    case "provaAntigaApagar": if (confirm("Tirar esta prova antiga?")) { c.provasAntigas = (c.provasAntigas || []).filter(x => x.id !== id); await salvar(c); render(); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); } break;
     case "guia": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); iniciarTour(atual() ? "caderno" : "casa"); break;
     case "guiaPular": fecharGuia(); break;
     case "tourComecar": iniciarTour("casa"); break;
@@ -4441,7 +4445,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1915";
+const VERSAO_APP = "2026-11-22-1918";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5108,11 +5112,12 @@ const UI_ES = {
   "Provas antigas": "Exámenes anteriores", "Envie provas anteriores da sua professora (PDF, Word ou foto). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.": "Sube exámenes anteriores de tu profesora (PDF, Word o foto). La IA pregunta con el mismo estilo y se enfoca en los temas que más entran.",
   "Enviar prova": "Subir examen", "Lendo…": "Leyendo…", "Tirar": "Quitar", "Tirar esta prova antiga?": "¿Quitar este examen anterior?", "Lendo a prova": "Leyendo el examen",
   "Ou cole perguntas da sua professora (opcional)": "O pega preguntas de tu profesora (opcional)",
-  "toque num tópico para ver os detalhes · arraste para girar": "toca un tema para ver los detalles · arrastra para girar"
+  "toque num tópico para ver os detalhes · arraste para girar": "toca un tema para ver los detalles · arrastra para girar",
+  "Envie provas anteriores da sua professora": "Sube exámenes anteriores de tu profesora"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -5389,9 +5394,16 @@ function cartaoProvasAntigas(c) {
     ${lista.length ? `<div class="provas-lista">${lista.map(x => `<div class="prova-item">${iconeSVG("nota", 'style="width:18px;height:18px;flex:none"')}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.nome)}</span><small class="muted">${Math.max(1, Math.round(x.texto.length / 1000))} mil letras</small><button class="mini" data-act="provaAntigaApagar" data-id="${x.id}" title="Tirar">${iconeSVG("lixo", 'style="width:16px;height:16px"')}</button></div>`).join("")}</div>` : ""}
   </div>`;
 }
+function abrirProvasAntigas() {
+  const c = atual(); if (!c) return;
+  S.dlgProvas = true;
+  $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:flex-end;margin-bottom:-8px"><button class="icon-btn" data-act="provasFechar" title="Fechar">${iconeSVG("x")}</button></div>${cartaoProvasAntigas(c)}
+    <div class="muted" style="font-size:12.5px;line-height:1.5">Depois de enviar, as perguntas do <b>Estudo inteligente</b>, <b>Quiz</b>, <b>Teste</b> e <b>Flashcards</b> seguem o estilo da professora, e o plano <b>Prova chegando</b> dá mais tempo aos assuntos que mais caem.</div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
 async function lerProvasAntigas(files) {
   const c = atual(); if (!c || !files.length) return;
-  S.lendoProva = true; render();
+  S.lendoProva = true; render(); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas();
   for (const f of files) {
     try {
       let r = await extrair(f), texto = (r.texto || "").trim();
@@ -5411,6 +5423,7 @@ async function lerProvasAntigas(files) {
     } catch (e) { toast(`${f.name}: ${erroMsg(e)}`, true); }
   }
   S.lendoProva = false; render();
+  if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas();
 }
 
 /* ================= 🚨 Modo pânico: prova chegando → plano de estudo por horas ================= */
@@ -5811,6 +5824,7 @@ const TOUR_PASSOS = {
     { sel: '#rail [data-id="smart"]', t: TT("Estudo inteligente", "Estudio inteligente"), d: TT("O melhor jeito de estudar: perguntas diretas que não se repetem, focadas no que você ainda não domina. O que você erra volta depois, de outro jeito.", "La mejor forma de estudiar: preguntas directas que no se repiten, enfocadas en lo que aún no dominas. Lo que fallas vuelve después, de otra forma.") },
     { sel: '#rail [data-id="mapa"]', t: TT("Mapa mental", "Mapa mental"), d: TT("Transforme o capítulo num mapa em 3D ou 2D. Você escolhe o estilo, ou descreve o seu e a IA monta.", "Convierte el capítulo en un mapa en 3D o 2D. Eliges el estilo, o describes el tuyo y la IA lo arma.") },
     { sel: '#rail [data-id="resumo"]', t: TT("Guia de estudo e áudio", "Guía de estudio y audio"), d: TT("Resumo do material e o Resumo em áudio: um podcast de 5 minutos com a voz do professor.", "Resumen del material y el Resumen en audio: un podcast de 5 minutos con la voz del profesor.") },
+    { sel: '[data-act="provasAbrir"]', t: TT("Provas antigas", "Exámenes anteriores"), d: TT("Envie provas anteriores da sua professora (PDF, Word ou foto). A IA passa a perguntar no mesmo estilo e foca no que mais cai.", "Sube exámenes anteriores de tu profesora (PDF, Word o foto). La IA pregunta con el mismo estilo y se enfoca en lo que más entra.") },
     { sel: '[data-act="panico"]', t: TT("Prova chegando", "Examen cerca"), d: TT("Diga quanto tempo falta e o que cai: a IA monta um plano de estudo em blocos, começando pelo que você menos domina.", "Di cuánto falta y qué entra: la IA arma un plan de estudio por bloques, empezando por lo que menos dominas.") },
     { sel: '[data-act="duelo"]', t: TT("Duelo", "Duelo"), d: TT("Crie 10 perguntas deste caderno e desafie um amigo pelo WhatsApp. Quem acertar mais, ganha.", "Crea 10 preguntas de este cuaderno y desafía a un amigo por WhatsApp. Gana quien acierte más.") },
     { sel: "#idiomaCaderno", t: TT("Idioma das perguntas", "Idioma de las preguntas"), d: TT("Escolha se as perguntas e explicações deste caderno saem em português ou em espanhol.", "Elige si las preguntas y explicaciones de este cuaderno salen en portugués o en español.") },
