@@ -106,6 +106,24 @@ h3{font-size:16px;margin:0 0 6px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
 .provas-card{border-color:rgba(91,141,255,.45)}
+.pro-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.pro-nome{font-weight:800;font-size:15px;color:var(--muted)}
+.pro-preco b{font-size:34px;font-weight:900;letter-spacing:-.5px}.pro-preco span{color:var(--muted);font-weight:700;margin-left:2px}
+.selo-fundador{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;color:#fff;background:linear-gradient(90deg,#f5a623,#ff6b3d);border-radius:999px;padding:6px 12px;white-space:nowrap;box-shadow:0 6px 18px rgba(245,120,35,.35)}
+.pro-fundador{padding:12px 14px;border-radius:14px;background:rgba(245,166,35,.13);border:1.5px solid rgba(245,166,35,.6);font-size:14.5px;line-height:1.5}
+.pro-fundador>b:first-child{color:#e8901a}
+.pro-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px}
+.pro-lista li{display:flex;gap:8px;align-items:center}.pro-lista .icx{width:17px;height:17px;flex:none;color:var(--good,#2ecc71)}
+.pro-acabou{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(91,141,255,.1);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.45}
+.pro-estado{padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);font-size:14px}
+.pro-entrar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:14px}
+.pro-bloco{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:14px;border:1px solid var(--line)}
+.pro-tit{font-weight:800;font-size:15px}
+.pro-pix{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.pro-qr{width:160px;height:160px;background:#fff;border-radius:12px;padding:8px;display:grid;place-items:center;flex:none}
+.pro-ajuda{font-size:13.5px;color:var(--muted)}
+.pro-ajuda summary{cursor:pointer;font-weight:700}
+.pro-ajuda>div{margin-top:8px;line-height:1.5}
 .tipos-qtd{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
 .tipo-qtd{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer}
 .tipo-qtd span{flex:1;font-weight:700;font-size:14px}
@@ -3784,46 +3802,52 @@ async function desenharQRPix(codigo) {
 }
 function abrirPagamento(tipo) {
   const p = ACESSO.pag, email = emailUser();
-  const acabou = tipo ? `<div style="padding:14px 16px;border-radius:14px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.45);line-height:1.5;display:flex;gap:12px;align-items:center">${hipoSVG("dormindo", 64)}<div>⏳ <b>${tipo === "ateneo" ? `Você já fez os ${p.ateneos} Ateneos grátis.` : "Você atingiu o limite de uso grátis."}</b><br>Ele volta em <b>${tempoParaVoltar() || "algumas horas"}</b>. Enquanto isso, você pode continuar sem limite com o Pro:</div></div>` : "";
+  const acabou = tipo ? `<div class="pro-acabou">${hipoSVG("dormindo", 52)}<div><b>${tipo === "ateneo" ? `Você já fez os ${p.ateneos} Ateneos grátis.` : "Você atingiu o limite grátis."}</b><br>Volta em <b>${tempoParaVoltar() || "algumas horas"}</b>, ou continue agora sem limite com o Pro.</div></div>` : "";
   const renovar = ACESSO.liberado || ACESSO.vencido;
-  const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Hipocampo Study 👑 (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
+  const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Hipocampo Study (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
   const num = String(p.whats || "").replace(/\D/g, "");
   if (ACESSO.admin) {
-    $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Você está no Pro!</h2><p class="muted" style="margin:0">Como administrador, seu acesso completo não tem prazo.</p><div class="row" style="justify-content:flex-end"><button class="pill" data-act="fecharPagar">Fechar</button></div>`;
+    $("#pagarCorpo").innerHTML = `<h2 style="margin:0">Você está no Pro!</h2><p class="muted" style="margin:0">Como administrador, seu acesso completo não tem prazo.</p><div class="row" style="justify-content:flex-end"><button class="pill" data-act="fecharPagar">Fechar</button></div>`;
     const d = $("#dlgPagar"); if (!d.open) d.showModal(); return;
   }
   const estado = ACESSO.liberado && ACESSO.expira
-    ? `<p class="aviso-nuvem" style="margin:0">👑 Você está no Pro até <b>${dataCurta(ACESSO.expira)}</b> (${diasRestam(ACESSO.expira) === 1 ? "falta 1 dia" : `faltam ${diasRestam(ACESSO.expira)} dias`}). Renovando agora, os 30 dias novos são somados ao que ainda falta.</p>`
-    : ACESSO.vencido && ACESSO.expira ? `<p class="aviso-nuvem" style="margin:0">⏰ Seu Pro venceu em <b>${dataCurta(ACESSO.expira)}</b>. Renove para voltar a ter acesso completo.</p>` : "";
-  $("#pagarCorpo").innerHTML = `<h2 style="margin:0">👑 Hipocampo Study Pro</h2>
+    ? `<div class="pro-estado">Você está no Pro até <b>${dataCurta(ACESSO.expira)}</b>. Renovando agora, os 30 dias novos se somam.</div>`
+    : ACESSO.vencido && ACESSO.expira ? `<div class="pro-estado">Seu Pro venceu em <b>${dataCurta(ACESSO.expira)}</b>. Renove para voltar ao acesso completo.</div>` : "";
+  const ok = t => `<li>${iconeSVG("check")}<span>${t}</span></li>`;
+  $("#pagarCorpo").innerHTML = `<div class="pro-topo">
+      <div><div class="pro-nome">Hipocampo Study Pro</div><div class="pro-preco"><b>R$ ${reais(p.preco)}</b><span>/mês</span></div></div>
+      <span class="selo-fundador">Preço de fundador</span></div>
     ${acabou}${estado}
-    <div style="margin:0;padding:12px 14px;border-radius:12px;background:rgba(91,141,255,.12);border:1px solid rgba(91,141,255,.35);font-size:14px;line-height:1.5">💙 <b>O valor é totalmente simbólico.</b> Os R$ ${reais(p.preco)} por mês servem só para ajudar a manter o site e a IA funcionando para todo mundo. <b>Sem fidelidade:</b> cada pagamento vale 30 dias e você renova só se quiser. Avisamos ${AVISO_DIAS} dias antes de acabar.</div>
-    <p class="muted" style="margin:0">Acesso <b>completo</b> por <b>R$ ${reais(p.preco)}/mês</b>: perguntas${ATENEO_ATIVO ? ", Ateneos" : ""}, tutor, guias e flashcards sem limite, e a 👑 coroa no seu perfil.</p>
-    ${ACESSO.pedido ? `<p class="aviso-nuvem" style="margin:0">📨 <b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado. Toque em "Verificar" para conferir.</p>` : ""}
-    ${!p.pix ? `<p class="aviso-nuvem" style="margin:0">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</p>` : `
-    <ol style="margin:0;padding-left:20px;display:grid;gap:12px">
-      <li>${NUVEM.user ? `Você está entrando como <b>${esc(email)}</b>. É esse e-mail que será liberado.` : `<b>Entre com sua conta Google</b> (é ela que será liberada).<br><button class="btn-google" data-act="entrar" style="margin-top:6px">${G_ICON}<span>Entrar com Google</span></button>`}</li>
-      <li>Pague o <b>Pix de R$ ${reais(p.preco)}</b>: abra o app do seu banco e <b>aponte a câmera para o QR Code</b>, ou toque em <b>Copiar Pix copia e cola</b> e cole na área Pix do banco. O valor já vai preenchido.
-        <div id="pixAuto" style="margin-top:8px">${NUVEM.user ? `<small class="muted"><span class="spin"></span> Gerando o seu Pix…</small>` : `<small class="muted">Entre com o Google para o Pro ser liberado <b>automaticamente</b> quando o Pix cair.</small>`}</div>
-        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:8px">
-          <div id="pixQR" style="width:176px;height:176px;background:#fff;border-radius:12px;padding:10px;display:grid;place-items:center;flex:none"><span class="spin"></span></div>
-          <div class="stack" style="gap:8px;min-width:0;flex:1 1 210px">
-            <button class="pill" data-act="copiarPixCodigo">📋 Copiar Pix copia e cola</button>
-            <small class="muted">📱 <b>No celular?</b> Toque em <b>Copiar Pix copia e cola</b> e cole na área Pix do app do banco (Pix → Copia e cola). Esse código é só seu e o Pro é liberado sozinho.</small>
-            <small class="muted" id="pixChaveFixa" ${NUVEM.user ? "hidden" : ""}>Ou pague pela chave Pix (nesse caso a liberação é manual, pelo comprovante):<br><code style="word-break:break-all">${esc(p.pix)}</code> <button class="btn small ghost" data-act="copiarPix">Copiar chave</button></small>
-          </div>
-        </div></li>
-      <li>Caso o seu Pro <b>não seja liberado automaticamente</b> em alguns minutos, envie o <b>comprovante</b>${num ? ` para o WhatsApp <b>${esc(p.whats)}</b>` : ""} que faremos a liberação.${num ? `<div style="margin-top:6px"><a class="btn-whats" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.47 14.38c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.79-1.47-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.6-.92-2.2-.24-.58-.49-.5-.67-.5h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.75-.72 2-1.41.25-.69.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35zM12.05 21.8h-.01a9.8 9.8 0 0 1-4.99-1.37l-.36-.21-3.71.97.99-3.62-.23-.37a9.78 9.78 0 0 1-1.5-5.22c0-5.41 4.4-9.82 9.82-9.82 2.62 0 5.09 1.02 6.94 2.88a9.75 9.75 0 0 1 2.87 6.95c0 5.41-4.41 9.81-9.82 9.81zm8.36-18.17A11.75 11.75 0 0 0 12.05.17C5.5.17.17 5.5.17 12.04c0 2.09.55 4.13 1.59 5.93L.07 24l6.17-1.62a11.82 11.82 0 0 0 5.8 1.48h.01c6.55 0 11.88-5.33 11.88-11.87 0-3.17-1.23-6.15-3.48-8.39z"/></svg>Enviar comprovante pelo WhatsApp</a></div>` : ""}</li>
-    </ol>
-    ${NUVEM.user ? `<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--line)" id="caixaCartao"><b>💳 Prefere cartão?</b>
-      <div id="assinaturaSit" style="margin:6px 0"></div>
-      <div class="stack" style="gap:10px;margin-top:6px">
-        <div><button class="pill" data-act="assinar">👑 Assinar no cartão de crédito — renova sozinho todo mês</button><div class="muted" style="font-size:12.5px;margin-top:4px">R$ ${reais(p.preco)} por mês, cobrados automaticamente. Cancele quando quiser, aqui mesmo: o Pro continua até o fim do mês já pago.</div></div>
-        <div><button class="btn small" data-act="pagarCartao">💳 Pagar só 1 mês no cartão (crédito ou débito)</button></div>
+    <div class="pro-fundador"><b>Preço de fundador:</b> quem assina agora paga <b>R$ ${reais(p.preco)}</b> enquanto mantiver a assinatura. O preço vai subir no futuro, <b>mas não para você.</b></div>
+    <ul class="pro-lista">${ok(`Perguntas, tutor, guias e flashcards sem limite`)}${ATENEO_ATIVO ? ok("Ateneos sem limite") : ""}${ok("Sem fidelidade: cancele quando quiser")}</ul>
+    ${ACESSO.pedido ? `<div class="pro-estado"><b>Pedido enviado!</b> Assim que o Pix for confirmado, seu Pro é liberado.</div>` : ""}
+    ${!p.pix ? `<div class="pro-estado">O pagamento ainda está sendo configurado. Tente de novo mais tarde.</div>` : `
+    ${NUVEM.user ? "" : `<div class="pro-entrar"><span>Entre com o Google para o Pro ser liberado na sua conta.</span><button class="btn-google" data-act="entrar">${G_ICON}<span>Entrar com Google</span></button></div>`}
+    <div class="pro-bloco">
+      <div class="pro-tit">Pagar com Pix</div>
+      <div class="pro-pix">
+        <div id="pixQR" class="pro-qr"><span class="spin"></span></div>
+        <div class="stack" style="gap:8px;min-width:0;flex:1 1 190px">
+          <small class="muted">Aponte a câmera do app do banco para o QR Code, ou copie o código e cole em Pix → Copia e cola.</small>
+          <button class="pill" data-act="copiarPixCodigo">Copiar Pix copia e cola</button>
+          <div id="pixAuto">${NUVEM.user ? `<small class="muted"><span class="spin"></span> Gerando o seu Pix…</small>` : ""}</div>
+          <small class="muted" id="pixChaveFixa" ${NUVEM.user ? "hidden" : ""}>Chave Pix (liberação manual pelo comprovante):<br><code style="word-break:break-all">${esc(p.pix)}</code> <button class="btn small ghost" data-act="copiarPix">Copiar chave</button></small>
+        </div>
       </div>
-      <div class="muted" style="font-size:12px;margin-top:6px">Abre a página segura do Mercado Pago (o número do cartão não passa pelo nosso site).</div>
-      <div id="cartaoAviso" style="margin-top:6px"></div></div>` : ""}`}
-    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${!NUVEM.user || !p.pix ? "" : ACESSO.pedido ? `<button class="pill" data-act="jaLiberado">🔄 Verificar se já liberou</button>` : `<button class="pill" data-act="pedirPro">📨 Já paguei, pedir o Pro</button>`}</div>`;
+    </div>
+    ${NUVEM.user ? `<div class="pro-bloco" id="caixaCartao">
+      <div class="pro-tit">Ou no cartão</div>
+      <div id="assinaturaSit"></div>
+      <div class="stack" style="gap:8px">
+        <button class="pill" data-act="assinar">Assinar no cartão de crédito (renova todo mês)</button>
+        <button class="btn small" data-act="pagarCartao">Pagar só 1 mês no cartão</button>
+      </div>
+      <small class="muted">Página segura do Mercado Pago. O número do cartão não passa pelo nosso site.</small>
+      <div id="cartaoAviso"></div></div>` : ""}
+    <details class="pro-ajuda"><summary>Pagou e o Pro não liberou?</summary>
+      <div>Se não liberar sozinho em alguns minutos, envie o <b>comprovante</b>${num ? ` para o WhatsApp <b>${esc(p.whats)}</b>` : ""} que faremos a liberação.${num ? `<div style="margin-top:8px"><a class="btn-whats" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.47 14.38c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.79-1.47-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.6-.92-2.2-.24-.58-.49-.5-.67-.5h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.75-.72 2-1.41.25-.69.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35zM12.05 21.8h-.01a9.8 9.8 0 0 1-4.99-1.37l-.36-.21-3.71.97.99-3.62-.23-.37a9.78 9.78 0 0 1-1.5-5.22c0-5.41 4.4-9.82 9.82-9.82 2.62 0 5.09 1.02 6.94 2.88a9.75 9.75 0 0 1 2.87 6.95c0 5.41-4.41 9.81-9.82 9.81zm8.36-18.17A11.75 11.75 0 0 0 12.05.17C5.5.17.17 5.5.17 12.04c0 2.09.55 4.13 1.59 5.93L.07 24l6.17-1.62a11.82 11.82 0 0 0 5.8 1.48h.01c6.55 0 11.88-5.33 11.88-11.87 0-3.17-1.23-6.15-3.48-8.39z"/></svg>Enviar comprovante pelo WhatsApp</a></div>` : ""}</div>
+    </details>`}
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${!NUVEM.user || !p.pix ? "" : ACESSO.pedido ? `<button class="pill" data-act="jaLiberado">Verificar se já liberou</button>` : `<button class="pill" data-act="pedirPro">Já paguei, pedir o Pro</button>`}</div>`;
   const d = $("#dlgPagar"); if (!d.open) d.showModal();
   if (NUVEM.user) { iniciarPixAuto(); verAssinatura(); }
   else if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(email) }); desenharQRPix(S.pixCodigo); }
@@ -4499,7 +4523,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1939";
+const VERSAO_APP = "2026-11-22-1947";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5174,7 +5198,15 @@ const UI_ES = {
   "Estilo da prova": "Estilo del examen", "Perguntas da professora salvas.": "Preguntas de la profesora guardadas.", "Perguntas da professora removidas.": "Preguntas de la profesora quitadas.",
   "Material muito grande: desative alguns arquivos para a IA ler melhor.": "Material muy grande: desactiva algunos archivos para que la IA lea mejor.",
   "Tempo da prova": "Tiempo del examen", "Sem limite": "Sin límite", "Ou digite outro tempo (minutos)": "O escribe otro tiempo (minutos)", "Começar a prova": "Empezar el examen",
-  "Quantas questões de cada tipo": "Cuántas preguntas de cada tipo", "Verdadeiro ou falso": "Verdadero o falso", "Escolha pelo menos 1 questão de algum tipo.": "Elige al menos 1 pregunta de algún tipo."
+  "Quantas questões de cada tipo": "Cuántas preguntas de cada tipo", "Verdadeiro ou falso": "Verdadero o falso", "Escolha pelo menos 1 questão de algum tipo.": "Elige al menos 1 pregunta de algún tipo.",
+  "Preço de fundador": "Precio de fundador", "Preço de fundador:": "Precio de fundador:", "mas não para você.": "pero no para ti.", "/mês": "/mes",
+  "Perguntas, tutor, guias e flashcards sem limite": "Preguntas, tutor, guías y flashcards sin límite", "Ateneos sem limite": "Ateneos sin límite", "Sem fidelidade: cancele quando quiser": "Sin permanencia: cancela cuando quieras",
+  "Entre com o Google para o Pro ser liberado na sua conta.": "Entra con Google para que el Pro se active en tu cuenta.", "Pagar com Pix": "Pagar con Pix", "Ou no cartão": "O con tarjeta",
+  "Aponte a câmera do app do banco para o QR Code, ou copie o código e cole em Pix → Copia e cola.": "Apunta la cámara de la app del banco al código QR, o copia el código y pégalo en Pix → Copia e cola.",
+  "Chave Pix (liberação manual pelo comprovante):": "Clave Pix (activación manual con el comprobante):", "Assinar no cartão de crédito (renova todo mês)": "Suscribirse con tarjeta de crédito (se renueva cada mes)",
+  "Pagar só 1 mês no cartão": "Pagar solo 1 mes con tarjeta", "Página segura do Mercado Pago. O número do cartão não passa pelo nosso site.": "Página segura de Mercado Pago. El número de la tarjeta no pasa por nuestro sitio.",
+  "Pagou e o Pro não liberou?": "¿Pagaste y el Pro no se activó?", "Você atingiu o limite grátis.": "Llegaste al límite gratis.", "Pedido enviado!": "¡Pedido enviado!",
+  "Verificar se já liberou": "Verificar si ya se activó", "Já paguei, pedir o Pro": "Ya pagué, pedir el Pro", "Enviar comprovante pelo WhatsApp": "Enviar comprobante por WhatsApp", "Você está no Pro!": "¡Estás en el Pro!"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],

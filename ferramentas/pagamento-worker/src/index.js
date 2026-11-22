@@ -214,6 +214,7 @@ async function liberar(env, email, pedidoId, nota = "pago pelo Pix (automático)
     inicio: atual.inicio || int(Number(atual.data?.integerValue) || agora), data: int(agora), expira: int(expira),
     renovacoes: int(Number(atual.renovacoes?.integerValue || 0) + (r.ok ? 1 : 0)),
     nota: txt(nota), por: txt("pagamento automático"),
+    precoFundador: atual.precoFundador || { doubleValue: Number(env.PRECO || "9.99") }, fundadorDesde: atual.fundadorDesde || int(agora),
     pedidosPagos: { arrayValue: { values: [...pagos.slice(-30), pedidoId].map(txt) } }
   };
   const w = await fetch(url, { method: "PATCH", headers: H, body: JSON.stringify({ fields: campos }) });
