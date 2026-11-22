@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mapas mentais · exemplos</title>
+<style>
+:root{--bg:#0d0a24;--panel:#17123d;--line:#2e2670;--text:#fff;--muted:#bdb8ea;--accent:#7b6bff}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:14px 16px 8px;text-align:center}
+h1{margin:0;font-size:20px}header p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.abas{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:8px 16px}
+.abas button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;padding:8px 14px;font:inherit;font-weight:700;font-size:13.5px;cursor:pointer}
+.abas button.on{background:linear-gradient(90deg,#7b55ff,#2f6bff);border-color:transparent}
+.palco{position:relative;height:calc(100vh - 150px);min-height:420px;margin:6px 12px 12px;border-radius:20px;overflow:hidden;border:1px solid var(--line);background:radial-gradient(120% 120% at 50% 40%,#21195a,#0b0820 70%)}
+canvas,svg.mapa{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.dica{position:absolute;bottom:10px;left:0;right:0;text-align:center;color:var(--muted);font-size:12.5px;pointer-events:none}
+.desc{position:absolute;top:10px;left:12px;right:12px;text-align:center;font-size:13px;color:var(--muted);pointer-events:none}
+.desc b{color:#fff}
+</style></head><body>
+<header><h1>🧠 Mapa mental · 3 estilos para escolher</h1><p>Exemplo: Capítulo 20 – Débito cardíaco · gire arrastando com o dedo ou o mouse · toque num tópico para destacar</p></header>
+<div class="abas"><button class="on" data-m="galaxia">A · Galáxia 3D</button><button data-m="neural">B · Rede de neurônios 3D</button><button data-m="classico">C · Mapa clássico colorido</button></div>
+<div class="palco" id="palco"><canvas id="cv"></canvas><svg class="mapa" id="svg" style="display:none"></svg><div class="desc" id="desc"></div><div class="dica" id="dica">arraste para girar · role/pinça para aproximar</div></div>
+<script>
+const MAPA = { t: "Débito cardíaco", s: "≈ 5 L/min em repouso", f: [
+  { t: "Definição", c: "#ffb347", f: ["DC = FC × volume sistólico", "Índice cardíaco ≈ 3 L/min/m²", "Varia com idade, tamanho e exercício"] },
+  { t: "Retorno venoso", c: "#5ee39a", f: ["Principal controlador do DC", "Lei de Frank-Starling", "Pressão média de enchimento ≈ 7 mmHg", "Resistência ao retorno venoso"] },
+  { t: "Regulação", c: "#6cc4ff", f: ["Simpático ↑ FC e contratilidade", "Metabolismo dos tecidos (vasodilatação)", "Hormônios (adrenalina, tireoide)"] },
+  { t: "DC alto", c: "#ff7fa8", f: ["Beribéri", "Fístula arteriovenosa", "Hipertireoidismo", "Anemia"] },
+  { t: "DC baixo", c: "#c792ff", f: ["Infarto / insuficiência cardíaca", "Choque hipovolêmico", "↓ retorno venoso"] },
+  { t: "Como medir", c: "#ffd76a", f: ["Método de Fick (O₂)", "Diluição de indicador", "Ecocardiografia"] }
+]};
+const DESC = {
+  galaxia: "<b>Galáxia 3D</b>: o tema no centro como um sol, os tópicos girando em órbita e os detalhes como luas.",
+  neural: "<b>Rede de neurônios 3D</b>: cada ideia é um neurônio que brilha; as ligações pulsam como sinapses (combina com o nome Hipocampo).",
+  classico: "<b>Mapa clássico colorido</b>: o jeito tradicional (tipo XMind), em 2D, com ramos coloridos e curvas — ótimo para imprimir ou dar print."
+};
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d"), svg = document.getElementById("svg");
+let modo = "galaxia", rx = -0.35, ry = 0.6, zoom = 1, auto = true, sel = null, nos = [], arestas = [], W = 0, H = 0, dpr = 1, t0 = performance.now();
+function montar() {
+  nos = []; arestas = [];
+  const c = { id: 0, t: MAPA.t, s: MAPA.s, cor: "#ffffff", nivel: 0, x: 0, y: 0, z: 0 }; nos.push(c);
+  const n = MAPA.f.length;
+  MAPA.f.forEach((r, i) => {
+    const phi = Math.acos(1 - 2 * (i + 0.5) / n), th = Math.PI * (1 + Math.sqrt(5)) * i;
+    const R = modo === "neural" ? 170 : 200;
+    const b = { id: nos.length, t: r.t, cor: r.c, nivel: 1, x: R * Math.sin(phi) * Math.cos(th), y: R * Math.cos(phi) * 0.75, z: R * Math.sin(phi) * Math.sin(th), pai: 0 };
+    nos.push(b); arestas.push([0, b.id, r.c]);
+    r.f.forEach((f, j) => {
+      const len = Math.hypot(b.x, b.y, b.z), ux = b.x / len, uy = b.y / len, uz = b.z / len;
+      const a = (j / r.f.length) * Math.PI * 2, rr = modo === "neural" ? 70 : 85;
+      // vetores perpendiculares para espalhar os detalhes em volta do tópico
+      let px = -uz, py = 0, pz = ux; const pl = Math.hypot(px, py, pz) || 1; px /= pl; pz /= pl;
+      const qx = uy * pz - uz * py, qy = uz * px - ux * pz, qz = ux * py - uy * px;
+      const k = { id: nos.length, t: f, cor: r.c, nivel: 2, pai: b.id,
+        x: b.x + ux * 70 + (px * Math.cos(a) + qx * Math.sin(a)) * rr, y: b.y + uy * 70 + (py * Math.cos(a) + qy * Math.sin(a)) * rr, z: b.z + uz * 70 + (pz * Math.cos(a) + qz * Math.sin(a)) * rr };
+      nos.push(k); arestas.push([b.id, k.id, r.c]);
+    });
+  });
+}
+function tam() { dpr = Math.min(2, devicePixelRatio || 1); const r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+function projetar(p) {
+  const cy = Math.cos(ry), sy = Math.sin(ry), cx = Math.cos(rx), sx = Math.sin(rx);
+  let x = p.x * cy - p.z * sy, z = p.x * sy + p.z * cy, y = p.y * cx - z * sx; z = p.y * sx + z * cx;
+  const esc = Math.min(W, H) / 640 * zoom, f = 700 / (700 + z);
+  return { X: W / 2 + x * f * esc, Y: H / 2 + y * f * esc, Z: z, f: f * esc };
+}
+function rotulo(txt, x, y, tamanho, cor, peso) {
+  ctx.font = `${peso} ${tamanho}px system-ui,-apple-system,"Segoe UI",sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.lineWidth = 4; ctx.strokeStyle = "rgba(8,6,28,.85)"; ctx.strokeText(txt, x, y); ctx.fillStyle = cor; ctx.fillText(txt, x, y);
+}
+function quebra(txt, max) { const ps = txt.split(" "), ls = []; let l = ""; for (const p of ps) { if ((l + " " + p).trim().length > max && l) { ls.push(l); l = p; } else l = (l + " " + p).trim(); } if (l) ls.push(l); return ls; }
+function desenhar(agora) {
+  if (modo === "classico") return;
+  if (auto && !arrastando) ry += 0.0025;
+  ctx.clearRect(0, 0, W, H);
+  const tm = (agora - t0) / 1000, P = nos.map(projetar);
+  const ativo = id => sel === null || id === sel || nos[id].pai === sel || nos[sel]?.pai === id || (nos[sel] && nos[sel].pai === nos[id].pai && nos[sel].nivel === 2 && false);
+  // estrelas de fundo (galáxia)
+  if (modo === "galaxia") for (let i = 0; i < 90; i++) { const x = (i * 97.13 % 1) * W, y = (i * 57.71 % 1) * H, a = 0.3 + 0.3 * Math.sin(tm * 2 + i); ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillRect((x + i * 53) % W, (y + i * 31) % H, 1.6, 1.6); }
+  // ligações
+  const ord = arestas.map(([a, b, c]) => ({ a, b, c, z: (P[a].Z + P[b].Z) / 2 })).sort((u, v) => v.z - u.z);
+  for (const e of ord) {
+    const A = P[e.a], B = P[e.b], vis = ativo(e.a) && ativo(e.b) ? 1 : 0.18, prof = Math.max(0.25, Math.min(1, 1 - e.z / 500));
+    ctx.globalAlpha = vis * prof;
+    if (modo === "neural") {
+      const mx = (A.X + B.X) / 2 + (A.Y - B.Y) * 0.15, my = (A.Y + B.Y) / 2 - (A.X - B.X) * 0.15;
+      ctx.strokeStyle = e.c; ctx.lineWidth = nos[e.b].nivel === 1 ? 2.4 : 1.3; ctx.setLineDash([3, 5]); ctx.lineDashOffset = -tm * 24;
+      ctx.beginPath(); ctx.moveTo(A.X, A.Y); ctx.quadraticCurveTo(mx, my, B.X, B.Y); ctx.stroke(); ctx.setLineDash([]);
+      const k = (tm * 0.6 + e.b * 0.13) % 1, px = (1 - k) * (1 - k) * A.X + 2 * (1 - k) * k * mx + k * k * B.X, py = (1 - k) * (1 - k) * A.Y + 2 * (1 - k) * k * my + k * k * B.Y;
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(px, py, 2.2, 0, 7); ctx.fill();
+    } else {
+      const g = ctx.createLinearGradient(A.X, A.Y, B.X, B.Y); g.addColorStop(0, e.a === 0 ? "rgba(255,255,255,.7)" : e.c); g.addColorStop(1, e.c);
+      ctx.strokeStyle = g; ctx.lineWidth = (nos[e.b].nivel === 1 ? 3.2 : 1.6) * Math.max(.6, A.f); ctx.beginPath(); ctx.moveTo(A.X, A.Y); ctx.lineTo(B.X, B.Y); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // nós (de trás para frente)
+  const idx = nos.map((n, i) => i).sort((a, b) => P[b].Z - P[a].Z);
+  for (const i of idx) {
+    const n = nos[i], p = P[i], vis = ativo(i) ? 1 : 0.22, prof = Math.max(0.35, Math.min(1, 1 - p.Z / 520));
+    ctx.globalAlpha = vis * prof;
+    const r = (n.nivel === 0 ? 46 : n.nivel === 1 ? 24 : 9) * p.f * (modo === "neural" ? 0.75 : 1);
+    const pulso = modo === "neural" ? 1 + 0.12 * Math.sin(tm * 3 + i) : 1;
+    const g = ctx.createRadialGradient(p.X, p.Y, 0, p.X, p.Y, r * 2.4 * pulso); g.addColorStop(0, n.cor + "cc"); g.addColorStop(1, n.cor + "00");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.X, p.Y, r * 2.4 * pulso, 0, 7); ctx.fill();
+    const g2 = ctx.createRadialGradient(p.X - r * .35, p.Y - r * .35, r * .1, p.X, p.Y, r); g2.addColorStop(0, "#fff"); g2.addColorStop(.35, n.nivel === 0 ? "#cfc6ff" : n.cor); g2.addColorStop(1, n.nivel === 0 ? "#5a46e6" : n.cor);
+    ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(p.X, p.Y, r, 0, 7); ctx.fill();
+    if (n.nivel === 0) { const ls = quebra(n.t, 12); ls.forEach((l, k) => rotulo(l, p.X, p.Y - 8 + k * 17 - (ls.length - 1) * 8, 15 * Math.max(.8, p.f), "#fff", 800)); rotulo(n.s, p.X, p.Y + r + 14, 11.5 * Math.max(.8, p.f), "#ffd76a", 700); }
+    else if (n.nivel === 1) rotulo(n.t, p.X, p.Y - r - 12, 14 * Math.max(.75, p.f), "#fff", 800);
+    else if (modo !== "neural" || p.Z < 60 || sel !== null) { const ls = quebra(n.t, 22); ls.forEach((l, k) => rotulo(l, p.X, p.Y + r + 10 + k * 13, 11 * Math.max(.75, p.f), n.cor, 650)); }
+  }
+  ctx.globalAlpha = 1; P.forEach((p, i) => nos[i].P = p);
+  requestAnimationFrame(desenhar);
+}
+// mapa clássico 2D (SVG)
+function classico() {
+  const w = svg.clientWidth, h = svg.clientHeight, cx = w / 2, cy = h / 2 + 10, n = MAPA.f.length, R = Math.min(w * 0.2, h * 0.34);
+  let s = `<defs><filter id="sombra"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity=".35"/></filter></defs>`;
+  MAPA.f.forEach((r, i) => {
+    const a = -Math.PI / 2 + i / n * Math.PI * 2, bx = cx + Math.cos(a) * R, by = cy + Math.sin(a) * R * 0.82, dir = Math.cos(a) >= 0 ? 1 : -1;
+    s += `<path d="M${cx} ${cy} C ${cx + Math.cos(a) * R * .5} ${cy}, ${bx - dir * 30} ${by}, ${bx} ${by}" stroke="${r.c}" stroke-width="7" fill="none" stroke-linecap="round" opacity=".9"/>`;
+    r.f.forEach((f, j) => {
+      const fy = by + (j - (r.f.length - 1) / 2) * 26 + Math.sin(a) * 30, fx = bx + dir * Math.min(w * .08, 66);
+      s += `<path d="M${bx} ${by} C ${bx + dir * 40} ${by}, ${fx - dir * 40} ${fy}, ${fx} ${fy}" stroke="${r.c}" stroke-width="2.5" fill="none" opacity=".75"/>`;
+      s += `<text x="${fx + dir * 6}" y="${fy + 4}" text-anchor="${dir > 0 ? "start" : "end"}" fill="#e9e6ff" font-size="${w < 600 ? 10.5 : 12.5}" font-weight="600">${f}</text>`;
+    });
+    s += `<g filter="url(#sombra)"><rect x="${bx - 62}" y="${by - 17}" width="124" height="34" rx="17" fill="${r.c}"/><text x="${bx}" y="${by + 5}" text-anchor="middle" font-size="14" font-weight="800" fill="#1b1d3a">${r.t}</text></g>`;
+  });
+  s += `<g filter="url(#sombra)"><ellipse cx="${cx}" cy="${cy}" rx="92" ry="44" fill="url(#gc)"/><text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">${MAPA.t}</text><text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="12" font-weight="700" fill="#ffd76a">${MAPA.s}</text></g>
+    <defs><linearGradient id="gc" x1="0" x2="1"><stop offset="0" stop-color="#7b55ff"/><stop offset="1" stop-color="#2f6bff"/></linearGradient></defs>`;
+  svg.innerHTML = s;
+}
+function trocar(m) {
+  modo = m; document.querySelectorAll(".abas button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  document.getElementById("desc").innerHTML = DESC[m]; sel = null;
+  const plano = m === "classico"; cv.style.display = plano ? "none" : ""; svg.style.display = plano ? "" : "none"; document.getElementById("dica").textContent = plano ? "versão 2D: boa para imprimir e dar print" : "arraste para girar · role/pinça para aproximar · toque num tópico";
+  if (plano) classico(); else { montar(); tam(); requestAnimationFrame(desenhar); }
+}
+let arrastando = false, ux = 0, uy = 0, moveu = 0, pinca = 0;
+cv.addEventListener("pointerdown", e => { arrastando = true; auto = false; ux = e.clientX; uy = e.clientY; moveu = 0; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", e => { if (!arrastando) return; const dx = e.clientX - ux, dy = e.clientY - uy; moveu += Math.abs(dx) + Math.abs(dy); ry += dx * 0.008; rx = Math.max(-1.3, Math.min(1.3, rx + dy * 0.008)); ux = e.clientX; uy = e.clientY; });
+cv.addEventListener("pointerup", e => {
+  arrastando = false; setTimeout(() => auto = true, 2500);
+  if (moveu < 6) { const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; let melhor = null, d0 = 40; nos.forEach((n, i) => { if (!n.P) return; const d = Math.hypot(n.P.X - x, n.P.Y - y); if (d < d0) { d0 = d; melhor = i; } }); sel = melhor === null || melhor === sel ? null : (nos[melhor].nivel === 2 ? nos[melhor].pai : melhor); }
+});
+cv.addEventListener("wheel", e => { e.preventDefault(); zoom = Math.max(.6, Math.min(2.2, zoom * (e.deltaY < 0 ? 1.08 : .93))); }, { passive: false });
+document.querySelectorAll(".abas button").forEach(b => b.onclick = () => trocar(b.dataset.m));
+addEventListener("resize", () => { tam(); if (modo === "classico") classico(); });
+trocar(new URLSearchParams(location.search).get("m") || "galaxia");
+</script></body></html>
