@@ -638,9 +638,10 @@ const MODELOS_WEB = {
   "Qwen2.5-0.5B-Instruct-q4f16_1-MLC": { nome: "Leve (aparelho fraco, erra mais) — ~400 MB", ctx: 8192 }
 };
 const WL = { engine: null, modelo: null, carregando: null };
+// O aviso flutuante "A IA está escrevendo…" foi tirado a pedido: a tela de cada parte já mostra que está carregando
 function progressoIA(txt, pct) {
-  const el = $("#iaProg");
-  if (pct === null) { el.style.display = "none"; return; }
+  const el = $("#iaProg"); if (el) el.style.display = "none";
+  return;
   el.style.display = "block";
   el.querySelector("span").textContent = txt;
   el.querySelector(".prog > div").style.width = Math.round(pct * 100) + "%";
@@ -4236,7 +4237,7 @@ document.addEventListener("keydown", e => {
 $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-21-2349";
+const VERSAO_APP = "2026-11-21-2350";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
