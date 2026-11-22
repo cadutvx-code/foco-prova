@@ -178,6 +178,13 @@ h3{font-size:16px;margin:0 0 6px}
 .card .lab-hipo{margin-top:16px}
 .lab-hipo.espera{opacity:.75;animation:none}
 #labPagina{display:flex;flex-direction:column;gap:14px}
+.lab-aj{border:1px solid var(--line);border-radius:14px;background:var(--panel2)}
+.lab-aj summary{cursor:pointer;padding:10px 14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-weight:800;font-size:14px;list-style:none}
+.lab-aj summary::-webkit-details-marker{display:none}
+.lab-aj summary::before{content:"▸";color:var(--muted);transition:.2s}
+.lab-aj[open] summary::before{transform:rotate(90deg)}
+.lab-aj summary small{color:var(--muted);font-weight:600}
+.lab-aj .lab-opcoes{padding:0 14px 14px}
 .lab-hipo.falando .hipo-svg{animation:labFala .5s ease-in-out infinite alternate}
 .lab-hipo-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .lab-status{font-size:12.5px;font-weight:800;color:var(--accent)}
@@ -4583,7 +4590,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2023";
+const VERSAO_APP = "2026-11-22-2024";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5279,7 +5286,8 @@ const UI_ES = {
   "Sequência:": "Racha:", "Recorde:": "Récord:",
   "Quiz louco": "Quiz loco",
   "Perguntas de múltipla escolha sem filtro, com voz: o Hipo te zoa quando você erra": "Preguntas de opción múltiple sin filtro, con voz: Hipo se burla de ti cuando fallas", "Novo": "Nuevo",
-  "Idioma da voz": "Idioma de la voz", "Voz": "Voz", "Responda que eu comento…": "Responde y yo comento…", "Próxima pergunta →": "Siguiente pregunta →"
+  "Idioma da voz": "Idioma de la voz", "Voz": "Voz", "Responda que eu comento…": "Responde y yo comento…", "Próxima pergunta →": "Siguiente pregunta →",
+  "Ajustes do Hipo": "Ajustes de Hipo"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
@@ -6342,11 +6350,12 @@ function fecharLab() { labParar(); $("#dlgLab").open && $("#dlgLab").close(); }
 
 function labAjustes() {
   const chips = (lista, atual, act, extra = () => "") => `<div class="lab-vozes">${lista.map(v => `<button class="${atual === v[0] ? "on" : ""} ${extra(v)}" data-act="${act}" data-id="${v[0]}">${v[1]}</button>`).join("")}</div>`;
-  return `<div class="lab-opcoes">
+  const nome = (l, k) => (l.find(v => v[0] === k) || l[0])[1];
+  return `<details class="lab-aj" ${S.labAj ? "open" : ""}><summary><span>Ajustes do Hipo</span><small>${nome(LAB_JEITOS, labJeito())} · ${labVoz()[1]} · ${labIdioma() === "es" ? "Español" : "Português"}</small></summary><div class="lab-opcoes">
       <div><div class="lab-rot">Jeito do Hipo</div>${chips(LAB_JEITOS, labJeito(), "labJeito", v => v[0] === "semfiltro" ? "quente" : "")}</div>
       <div><div class="lab-rot">Voz</div>${chips(LAB_VOZES, labVoz()[0], "labVoz")}</div>
       <div><div class="lab-rot">Idioma da voz</div>${chips([["pt", "Português"], ["es", "Español"]], labIdioma(), "labIdioma")}</div>
-    </div>`;
+    </div></details>`;
 }
 function labHipoHTML() {
   const L = S.lab, resp = L.escolha != null;
@@ -6386,8 +6395,8 @@ function labSistema() {
 }
 const LAB_REGRA_FALAS = `"falas": uma fala do Hipo para CADA alternativa, na mesma ordem e com o mesmo número de itens de "alternativas":
 - para a alternativa CERTA: comemore${"" /* jeito entra pelo sistema */} em no máximo 2 frases curtas e diga por que está certo;
-- para cada alternativa ERRADA: no máximo 3 frases curtas — comece reagindo ao erro (no seu jeito), use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença entre o que a pessoa marcou e o certo, e termine com a regra certa numa frase simples.
-Cada fala é sobre AQUELA alternativa específica.`;
+- para cada alternativa ERRADA: no máximo 3 frases curtas — comece reagindo ao erro (no seu jeito), use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença entre o que a pessoa marcou e o certo, e termine com a regra certa numa frase simples que diga o NOME da resposta certa.
+Cada fala é sobre AQUELA alternativa específica. A zoeira nunca usa doença, transtorno ou deficiência (nada de "demência", "retardado", "autista" etc.).`;
 async function labGerarFalas(q) {
   const r = await chamar({
     system: labSistema(), schema: obj({ falas: arr(str) }), maxTokens: 1400, rotulo: "Hipo pensando", fundo: true, zoeira: labJeito() !== "fofo",
@@ -6511,6 +6520,7 @@ async function labFalar() {
     } catch { L.erroFala = "Não consegui tocar a voz neste navegador."; fim(); }
   }
 }
+document.addEventListener("toggle", e => { if (e.target.classList?.contains("lab-aj")) S.labAj = e.target.open; }, true);
 document.addEventListener("change", e => { if (e.target.id === "labFonte" && S.lab) { S.lab.pronta = null; S.lab.fonte = e.target.value; S.lab.i = -1; proxLab(); } });
 $("#dlgLab").addEventListener("close", () => { if (!S.lab?.naPagina) labParar(); });
 
