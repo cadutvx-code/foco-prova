@@ -151,6 +151,7 @@ h3{font-size:16px;margin:0 0 6px}
 .exterior-card{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;padding:14px 16px}
 .exterior-ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#7b55ff,#2f6bff);flex:none}
 .exterior-ic .icx{width:24px;height:24px}
+@media (max-width:520px){.exterior-card .pill{width:100%}}
 .lab-topo{display:flex;justify-content:space-between;align-items:flex-start}
 .lab-topo h2{margin:4px 0 0;font-size:22px}
 .lab-selo{font-size:11px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#7b55ff,#2f6bff);border-radius:999px;padding:3px 10px}
@@ -2950,7 +2951,7 @@ const UI_ESP = () => lsGet("fp-ui", "pt") === "es";
 const verAteneos = () => lsGet("fp-exterior", false) || S.cadernos.some(c => c.oficial);
 function cartaoAteneos() {
   if (!verAteneos()) return `<div class="card exterior-card"><div class="exterior-ic">${iconeSVG("bussola")}</div>
-      <div style="flex:1;min-width:0"><b>Faz medicina no exterior? Isso vai te ajudar.</b><div class="muted" style="font-size:13px">Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.</div></div>
+      <div style="flex:1 1 200px;min-width:0"><b>Faz medicina no exterior? Isso vai te ajudar.</b><div class="muted" style="font-size:13px">Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.</div></div>
       <button class="pill" data-act="exteriorSim">Sim, mostrar</button></div>`;
   return `<div class="card" style="margin-bottom:16px"><div class="row" style="align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:30px">🎤</span>
       <div><h2 style="margin:0">Ateneo oral de Fisiologia</h2><div class="muted" style="font-size:13px">Tire um capítulo, explique e responda às 2 perguntas do professor. A IA corrige e dá a nota.</div></div></div>
@@ -4599,7 +4600,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2026";
+const VERSAO_APP = "2026-11-22-2027";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
