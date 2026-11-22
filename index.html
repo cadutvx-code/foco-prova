@@ -147,6 +147,39 @@ h3{font-size:16px;margin:0 0 6px}
 .prova-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
 .entrada-cta .btn-google span{display:inline!important}
 .guia{position:relative;text-align:center;padding:8px 6px 2px}
+.lab{display:flex;flex-direction:column;gap:14px}
+.lab-topo{display:flex;justify-content:space-between;align-items:flex-start}
+.lab-topo h2{margin:4px 0 0;font-size:22px}
+.lab-selo{font-size:11px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#fff;background:linear-gradient(90deg,#7b55ff,#2f6bff);border-radius:999px;padding:3px 10px}
+.lab-intro{margin:0;font-size:14px;line-height:1.5}
+.lab-opcoes{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.lab-opcoes label{flex:1 1 180px;font-size:13px}
+.lab-rot{font-size:13px;margin-bottom:4px;color:var(--muted)}
+.lab-vozes{display:flex;gap:6px;flex-wrap:wrap}
+.lab-vozes button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:999px;padding:6px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.lab-vozes button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.lab-q{padding:14px;border-radius:16px;border:1px solid var(--line);background:var(--panel2);display:flex;flex-direction:column;gap:10px}
+.lab-enun{font-weight:800;font-size:16.5px;line-height:1.4}
+.lab-alts{display:flex;flex-direction:column;gap:8px}
+.lab-alt{display:flex;gap:12px;align-items:center;text-align:left;padding:11px 13px;border-radius:12px;border:1.5px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:15px;cursor:pointer}
+.lab-alt b{width:26px;height:26px;border-radius:99px;display:grid;place-items:center;background:var(--panel2);flex:none;font-size:13px}
+.lab-alt:hover:not(:disabled){border-color:var(--accent)}
+.lab-alt.certa{border-color:#2ecc71;background:rgba(46,204,113,.14)}
+.lab-alt.errada{border-color:#ff4d6d;background:rgba(255,77,109,.16)}
+.lab-alt.apagada{opacity:.5}
+.lab-alt:disabled{cursor:default}
+.lab-res{font-weight:900;font-size:14px}.lab-res.ok{color:#2ecc71}.lab-res.no{color:#ff4d6d}
+.lab-hipo{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:18px;background:linear-gradient(160deg,rgba(123,85,255,.18),rgba(47,107,255,.12));border:1px solid rgba(123,85,255,.4);animation:labEntra .35s ease-out}
+.lab-hipo-fig{flex:none}
+.lab-hipo.falando .hipo-svg{animation:labFala .5s ease-in-out infinite alternate}
+.lab-hipo-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.lab-status{font-size:12.5px;font-weight:800;color:var(--accent)}
+.lab-fala{font-size:15px;line-height:1.5;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.lab-botoes{display:flex;gap:8px;flex-wrap:wrap}
+.lab-botoes .icx{width:14px;height:14px;vertical-align:-2px}
+@keyframes labFala{from{transform:translateY(0) rotate(-2deg)}to{transform:translateY(-4px) rotate(2deg)}}
+@keyframes labEntra{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+@media (max-width:520px){.lab-hipo{flex-direction:column;text-align:center}.lab-botoes{justify-content:center}}
 #tour{position:fixed;inset:0;z-index:90}
 .tour-buraco{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px rgba(6,4,22,.68);transition:all .32s cubic-bezier(.3,1.2,.4,1);pointer-events:none;outline:3px solid var(--accent);outline-offset:2px;animation:tourPulso 1.6s ease-in-out infinite}
 .tour-buraco.sem{left:50%!important;top:50%!important;width:0!important;height:0!important;outline:none;animation:none}
@@ -590,6 +623,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <label id="fbContatoWrap">Seu e-mail ou WhatsApp (opcional, para a gente responder)<input type="text" id="fbContato" maxlength="100"></label>
   <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharFeedback">Cancelar</button><button class="pill" data-act="enviarFeedback">📨 Enviar</button></div>
 </div></dialog>
+<dialog id="dlgLab" style="width:min(560px,calc(100vw - 24px))"><div id="labCorpo" class="lab"></div></dialog>
 <dialog id="dlgGuia" style="width:min(440px,calc(100vw - 24px))"><div id="guiaCorpo" class="guia"></div></dialog>
 <dialog id="dlgComecar" style="width:min(620px,calc(100vw - 24px))"><div id="comecarCorpo"></div></dialog>
 <dialog id="dlgPublico" style="width:min(760px,calc(100vw - 24px))"><div id="publicoCorpo" class="stack"></div></dialog>
@@ -3255,6 +3289,7 @@ function desenharConta() {
       <button class="cm-item" data-act="temaChave"><span class="cm-chave ${temaEscuro() ? "on" : ""}"></span>Modo escuro</button>
       <button class="cm-item" data-act="idiomaMenu">${icm("idioma")}Mudar idioma</button>
       ${S.idiomaMenu ? `<div class="cm-idiomas"><button data-act="idiomaUi" data-id="pt" class="${lsGet("fp-ui", "pt") === "pt" ? "on" : ""}">Português</button><button data-act="idiomaUi" data-id="es" class="${lsGet("fp-ui", "pt") === "es" ? "on" : ""}">Español</button></div>` : ""}
+      <button class="cm-item" data-act="lab"><span style="width:20px;display:inline-flex">${iconeSVG("brilho")}</span>Laboratório (teste)</button>
       <button class="cm-item" data-act="guia"><span style="width:20px;display:inline-flex">${iconeSVG("bussola")}</span>Guia do app</button>
       <button class="cm-item" data-act="glossario"><span style="width:20px;text-align:center">🔤</span>Meu glossário</button>
       <button class="cm-item" data-act="notificacoes">${icm("sino")}Notificações${avisos.length ? `<span class="badge">${avisos.length}</span>` : ""}</button>
@@ -4306,6 +4341,12 @@ document.addEventListener("click", async e => {
     case "provaModo": iniciarModoProva(id); break;
     case "provasFechar": S.dlgProvas = false; $("#dlgPerfil").close(); break;
     case "provaAntigaApagar": if (confirm("Tirar esta prova antiga?")) { c.provasAntigas = (c.provasAntigas || []).filter(x => x.id !== id); await salvar(c); render(); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); } break;
+    case "lab": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); abrirLab(); break;
+    case "labFechar": fecharLab(); break;
+    case "labResp": labResponder(+id); break;
+    case "labProx": proxLab(); break;
+    case "labOuvir": labFalar(); break;
+    case "labVoz": lsSet("fp-lab-voz", id); desenharLab(); if (S.lab?.fala) labFalar(); break;
     case "guia": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); iniciarTour(atual() ? "caderno" : "casa"); break;
     case "guiaPular": fecharGuia(); break;
     case "tourComecar": iniciarTour("casa"); break;
@@ -4524,7 +4565,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-1948";
+const VERSAO_APP = "2026-11-22-2009";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5207,7 +5248,13 @@ const UI_ES = {
   "Chave Pix (liberação manual pelo comprovante):": "Clave Pix (activación manual con el comprobante):", "Assinar no cartão de crédito (renova todo mês)": "Suscribirse con tarjeta de crédito (se renueva cada mes)",
   "Pagar só 1 mês no cartão": "Pagar solo 1 mes con tarjeta", "Página segura do Mercado Pago. O número do cartão não passa pelo nosso site.": "Página segura de Mercado Pago. El número de la tarjeta no pasa por nuestro sitio.",
   "Pagou e o Pro não liberou?": "¿Pagaste y el Pro no se activó?", "Você atingiu o limite grátis.": "Llegaste al límite gratis.", "Pedido enviado!": "¡Pedido enviado!",
-  "Verificar se já liberou": "Verificar si ya se activó", "Já paguei, pedir o Pro": "Ya pagué, pedir el Pro", "Enviar comprovante pelo WhatsApp": "Enviar comprobante por WhatsApp", "Você está no Pro!": "¡Estás en el Pro!"
+  "Verificar se já liberou": "Verificar si ya se activó", "Já paguei, pedir o Pro": "Ya pagué, pedir el Pro", "Enviar comprovante pelo WhatsApp": "Enviar comprobante por WhatsApp", "Você está no Pro!": "¡Estás en el Pro!",
+  "Laboratório (teste)": "Laboratorio (prueba)", "Teste": "Prueba", "Hipo explica": "Hipo explica",
+  "Responda a pergunta. Se errar, o Hipo explica falando, com uma comparação engraçada para você não esquecer mais.": "Responde la pregunta. Si fallas, Hipo te lo explica hablando, con una comparación divertida para que no lo olvides más.",
+  "Perguntas de": "Preguntas de", "Exemplos prontos": "Ejemplos listos", "Voz do Hipo": "Voz de Hipo", "Desenho animado": "Dibujo animado", "Esquilo": "Ardilla", "Grandão": "Grandote",
+  "Criando a pergunta…": "Creando la pregunta…", "Criando a pergunta": "Creando la pregunta", "Acertou!": "¡Acertaste!", "Não exatamente": "No exactamente",
+  "Hipo está pensando…": "Hipo está pensando…", "Hipo está falando…": "Hipo está hablando…", "Ouvir de novo": "Escuchar de nuevo", "Próxima pergunta": "Siguiente pregunta",
+  "Não consegui tocar a voz neste navegador.": "No pude reproducir la voz en este navegador.", "Hipo pensando": "Hipo pensando"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
@@ -5396,6 +5443,7 @@ function baixarLembrete() {
 function hipoSVG(humor = "normal", tam = 72) {
   const olho = {
     normal: `<circle cx="58" cy="25" r="3.6" fill="#2d2a3e"/><circle cx="59.3" cy="23.7" r="1.3" fill="#fff"/>`,
+    falando: `<circle cx="58" cy="25" r="3.8" fill="#2d2a3e"/><circle cx="59.4" cy="23.6" r="1.4" fill="#fff"/>`,
     feliz: `<path d="M54.5 26 Q58 21.5 61.5 26" stroke="#2d2a3e" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
     festa: `<path d="M54.5 26 Q58 21.5 61.5 26" stroke="#2d2a3e" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
     dormindo: `<path d="M54.5 25 Q58 28 61.5 25" stroke="#2d2a3e" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
@@ -5406,7 +5454,7 @@ function hipoSVG(humor = "normal", tam = 72) {
     dormindo: `<text x="70" y="18" font-size="11" font-weight="900" fill="#9aa5ff" font-family="sans-serif">z</text><text x="78" y="9" font-size="8" font-weight="900" fill="#9aa5ff" font-family="sans-serif">z</text>`,
     feliz: `<path d="M18 14 l1.4 3.6 3.6 1.4 -3.6 1.4 -1.4 3.6 -1.4 -3.6 -3.6 -1.4 3.6 -1.4Z" fill="#ffd76a"/>`
   }[humor] || "";
-  const boca = humor === "saudade" ? `<path d="M41 33 q3 -2 6 0" stroke="#b9741c" stroke-width="2" fill="none" stroke-linecap="round"/>` : `<path d="M40 31 q4 4 8 1" stroke="#b9741c" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+  const boca = humor === "falando" ? `<ellipse class="hipo-boca" cx="44.5" cy="32.4" rx="3.6" ry="0.9" fill="#8a4316"/>` : humor === "saudade" ? `<path d="M41 33 q3 -2 6 0" stroke="#b9741c" stroke-width="2" fill="none" stroke-linecap="round"/>` : `<path d="M40 31 q4 4 8 1" stroke="#b9741c" stroke-width="2" fill="none" stroke-linecap="round"/>`;
   return `<svg class="hipo-svg" viewBox="0 0 100 100" width="${tam}" height="${tam}" aria-hidden="true">
     <path d="M60 64 C 60 76 50 80 52 88 C 54 95 64 95 66 89 C 67 84 62 82 59 85" fill="none" stroke="#ffc94a" stroke-width="7" stroke-linecap="round"/>
     <path d="M60 34 C 72 34 76 46 70 56 C 66 64 60 68 54 68 C 44 68 40 58 44 48 C 46 42 50 36 60 34 Z" fill="#ffd76a"/>
@@ -6196,6 +6244,155 @@ async function baixarMapa() {
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml.includes("xmlns=") ? xml : xml.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"'));
 }
 
+
+/* ================= Laboratório: Hipo explica (área de TESTE, separada do quiz normal) =================
+   Responda; o Hipo explica falando, com voz de desenho e uma comparação engraçada do dia a dia.
+   A voz é o Piper tocado mais rápido e sem manter o tom (fica aguda, de personagem). A boca mexe conforme o volume. */
+const LAB_VOZES = [["desenho", "Desenho animado", 1.22], ["esquilo", "Esquilo", 1.45], ["grandao", "Grandão", 0.8], ["normal", "Normal", 1]];
+const LAB_EXEMPLOS = {
+  pt: [
+    { enunciado: "Onde são produzidos os glóbulos vermelhos no adulto?", alternativas: ["No coração", "No fígado", "Na medula óssea", "Nos pulmões"], correta: 2 },
+    { enunciado: "Qual íon entra na célula e causa a despolarização do neurônio?", alternativas: ["Potássio", "Sódio", "Cloreto", "Magnésio"], correta: 1 },
+    { enunciado: "Qual hormônio diminui a glicose no sangue?", alternativas: ["Glucagon", "Cortisol", "Insulina", "Adrenalina"], correta: 2 },
+    { enunciado: "Onde ocorre a maior parte da absorção de nutrientes?", alternativas: ["Estômago", "Intestino delgado", "Intestino grosso", "Esôfago"], correta: 1 },
+    { enunciado: "Qual câmara do coração bombeia sangue para a aorta?", alternativas: ["Átrio direito", "Ventrículo direito", "Átrio esquerdo", "Ventrículo esquerdo"], correta: 3 }
+  ],
+  es: [
+    { enunciado: "¿Dónde se producen los glóbulos rojos en el adulto?", alternativas: ["En el corazón", "En el hígado", "En la médula ósea", "En los pulmones"], correta: 2 },
+    { enunciado: "¿Qué ion entra en la célula y causa la despolarización de la neurona?", alternativas: ["Potasio", "Sodio", "Cloruro", "Magnesio"], correta: 1 },
+    { enunciado: "¿Qué hormona disminuye la glucosa en sangre?", alternativas: ["Glucagón", "Cortisol", "Insulina", "Adrenalina"], correta: 2 },
+    { enunciado: "¿Dónde ocurre la mayor parte de la absorción de nutrientes?", alternativas: ["Estómago", "Intestino delgado", "Intestino grueso", "Esófago"], correta: 1 },
+    { enunciado: "¿Qué cámara del corazón bombea sangre a la aorta?", alternativas: ["Aurícula derecha", "Ventrículo derecho", "Aurícula izquierda", "Ventrículo izquierdo"], correta: 3 }
+  ]
+};
+const labEs = () => lsGet("fp-ui", "pt") === "es";
+const labVoz = () => LAB_VOZES.find(v => v[0] === lsGet("fp-lab-voz", "desenho")) || LAB_VOZES[0];
+function labLang() {
+  const c = S.lab?.fonte !== "exemplos" ? S.cadernos.find(x => x.id === S.lab?.fonte) : null;
+  return c ? vozIdioma(c) : labEs() ? "es-ES" : "pt-BR";
+}
+function abrirLab() {
+  S.lab ||= { fonte: "exemplos", i: -1, feitas: [] };
+  if (!S.lab.q && !S.lab.gerando) proxLab();
+  desenharLab();
+  const d = $("#dlgLab"); if (!d.open) d.showModal();
+}
+$("#dlgLab").addEventListener("close", () => labParar());
+function fecharLab() { labParar(); $("#dlgLab").open && $("#dlgLab").close(); }
+async function proxLab() {
+  const L = S.lab; labParar();
+  Object.assign(L, { escolha: null, fala: "", pensando: false, falando: false, erroFala: "" });
+  if (L.fonte === "exemplos") {
+    const lista = LAB_EXEMPLOS[labEs() ? "es" : "pt"];
+    L.i = (L.i + 1) % lista.length; L.q = lista[L.i]; desenharLab(); return;
+  }
+  const c = S.cadernos.find(x => x.id === L.fonte);
+  if (!c) { L.fonte = "exemplos"; return proxLab(); }
+  if (!podeUsar()) return;
+  L.q = null; L.gerando = true; desenharLab();
+  try {
+    const r = await gerarJSON(c, `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas ("correta" = índice da certa), sobre um ponto importante do material.\n${REGRAS_PERGUNTA}${L.feitas.length ? `\nNão repita estas:\n${L.feitas.slice(-15).map(x => "- " + x).join("\n")}` : ""}`, SCH.quiz, "", { rotulo: "Criando a pergunta" });
+    const q = r.questoes?.find(x => x.alternativas?.length >= 2 && x.correta >= 0 && x.correta < x.alternativas.length);
+    if (!q) throw new Error("a IA não devolveu uma pergunta válida");
+    gastar(); L.q = q; L.feitas.push(String(q.enunciado).slice(0, 100));
+  } catch (e) { toast("Não consegui criar a pergunta: " + erroMsg(e), true); L.fonte = "exemplos"; L.gerando = false; return proxLab(); }
+  L.gerando = false; desenharLab();
+}
+function desenharLab() {
+  const L = S.lab, el = $("#labCorpo"); if (!L || !el) return;
+  const q = L.q, resp = L.escolha != null, acertou = resp && L.escolha === q.correta;
+  const cads = S.cadernos.filter(c => (c.materiais || []).length || c.oficial);
+  el.innerHTML = `<div class="lab-topo"><div><span class="lab-selo">Teste</span><h2>Hipo explica</h2></div><button class="icon-btn" data-act="labFechar" title="Fechar">${iconeSVG("x")}</button></div>
+    <p class="muted lab-intro">Responda a pergunta. Se errar, o Hipo explica falando, com uma comparação engraçada para você não esquecer mais.</p>
+    <div class="lab-opcoes">
+      <label>Perguntas de<select id="labFonte"><option value="exemplos">Exemplos prontos</option>${cads.map(c => `<option value="${c.id}" ${L.fonte === c.id ? "selected" : ""}>${esc(c.nome || "Caderno")}</option>`).join("")}</select></label>
+      <div><div class="lab-rot">Voz do Hipo</div><div class="lab-vozes">${LAB_VOZES.map(v => `<button class="${labVoz()[0] === v[0] ? "on" : ""}" data-act="labVoz" data-id="${v[0]}">${v[1]}</button>`).join("")}</div></div>
+    </div>
+    ${L.gerando || !q ? `<div class="lab-q"><span class="spin"></span> Criando a pergunta…</div>` : `
+    <div class="lab-q"><div class="lab-enun">${esc(q.enunciado)}</div>
+      <div class="lab-alts">${q.alternativas.map((a, i) => `<button class="lab-alt ${resp ? (i === q.correta ? "certa" : i === L.escolha ? "errada" : "apagada") : ""}" data-act="labResp" data-id="${i}" ${resp ? "disabled" : ""}><b>${"ABCDE"[i]}</b><span>${esc(a)}</span></button>`).join("")}</div>
+      ${resp ? `<div class="lab-res ${acertou ? "ok" : "no"}">${acertou ? "Acertou!" : "Não exatamente"}</div>` : ""}
+    </div>`}
+    ${resp ? `<div class="lab-hipo ${L.falando ? "falando" : ""}">
+      <div class="lab-hipo-fig">${hipoSVG("falando", 132)}</div>
+      <div class="lab-hipo-txt"><div class="lab-status">${L.pensando ? `<span class="spin"></span> Hipo está pensando…` : L.falando ? "Hipo está falando…" : L.erroFala ? esc(L.erroFala) : ""}</div>
+        ${L.fala ? `<div class="lab-fala">${esc(L.fala)}</div>` : ""}
+        <div class="lab-botoes">${L.fala ? `<button class="btn small" data-act="labOuvir">${iconeSVG("play")} Ouvir de novo</button>` : ""}<button class="pill" data-act="labProx">Próxima pergunta</button></div></div>
+    </div>` : ""}`;
+}
+async function labResponder(i) {
+  const L = S.lab, q = L?.q; if (!q || L.escolha != null) return;
+  L.escolha = i; const certo = i === q.correta;
+  if (!podeUsar()) { L.fala = ""; desenharLab(); return; }
+  L.pensando = true; desenharLab();
+  const es = /^es/.test(labLang());
+  const pedido = certo
+    ? `O estudante ACERTOU a pergunta "${q.enunciado}" (resposta: "${q.alternativas[q.correta]}"). Comemore de um jeito engraçado e diga em 1 frase por que está certo, com uma comparação divertida do dia a dia. No máximo 2 frases curtas.`
+    : `Pergunta: "${q.enunciado}". O estudante respondeu "${q.alternativas[i]}", mas a certa é "${q.alternativas[q.correta]}". Explique em no máximo 3 frases curtas: comece com uma reação engraçada ao erro, use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença (ex.: o coração só entrega o sangue, como o motoboy entrega a pizza; quem fabrica é a medula, a pizzaria) e termine com a regra certa numa frase simples.`;
+  try {
+    const t = await chamar({
+      system: `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina: engraçado, carismático e didático, fala como personagem de desenho animado. O texto será FALADO em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos, sem palavrões. Escreva em ${es ? "espanhol" : "português do Brasil"}.`,
+      messages: [{ role: "user", content: pedido }], maxTokens: 400, rotulo: "Hipo pensando"
+    });
+    gastar();
+    if (S.lab !== L || L.q !== q) return;
+    L.fala = String(t).replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
+  } catch (e) {
+    if (S.lab !== L || L.q !== q) return;
+    L.fala = certo ? (es ? "¡Eso! Respuesta correcta." : "Isso! Resposta certa.") : (es ? `Casi. La correcta es: ${q.alternativas[q.correta]}.` : `Quase. A certa é: ${q.alternativas[q.correta]}.`);
+  }
+  L.pensando = false; desenharLab(); labFalar();
+}
+// toca a fala com a voz de desenho e mexe a boca do Hipo conforme o volume
+let LAB_CTX = null;
+function labParar() {
+  const L = S.lab; if (!L) return;
+  L.falaId = (L.falaId || 0) + 1;
+  try { L.audio?.pause(); } catch {} L.audio = null;
+  try { speechSynthesis.cancel(); } catch {}
+  cancelAnimationFrame(L.raf); L.falando = false;
+}
+async function labFalar() {
+  const L = S.lab; if (!L?.fala) return;
+  labParar(); const id = L.falaId, [, , taxa] = labVoz(), lang = labLang();
+  const vivo = () => S.lab === L && L.falaId === id && $("#dlgLab").open;
+  L.falando = true; L.erroFala = ""; desenharLab();
+  const boca = () => document.querySelector("#labCorpo .hipo-boca");
+  const fim = () => { if (!vivo()) return; L.falando = false; cancelAnimationFrame(L.raf); desenharLab(); };
+  try {
+    const url = await audioPiper(L.fala, lang); if (!vivo()) return;
+    const a = L.audio = new Audio(url);
+    a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false;
+    a.playbackRate = taxa;
+    let an = null;
+    try {
+      LAB_CTX ||= new (window.AudioContext || window.webkitAudioContext)(); await LAB_CTX.resume();
+      const src = LAB_CTX.createMediaElementSource(a); an = LAB_CTX.createAnalyser(); an.fftSize = 512;
+      src.connect(an); an.connect(LAB_CTX.destination);
+    } catch { an = null; }
+    const buf = an ? new Uint8Array(an.fftSize) : null;
+    const animar = () => {
+      if (!vivo()) return;
+      let v = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 90));
+      if (an) { an.getByteTimeDomainData(buf); let m = 0; for (const x of buf) m = Math.max(m, Math.abs(x - 128)); v = Math.min(1, m / 50); }
+      const b = boca(); if (b) b.setAttribute("ry", (0.8 + v * 4.2).toFixed(2));
+      L.raf = requestAnimationFrame(animar);
+    };
+    a.onended = fim; a.onerror = fim;
+    await a.play(); animar();
+  } catch (e) {
+    if (!vivo()) return;
+    // sem o Piper: voz do navegador, aguda
+    try {
+      const u = new SpeechSynthesisUtterance(L.fala); u.lang = lang; u.pitch = Math.min(2, 1 + (taxa - 1) * 2.5 + 0.4); u.rate = Math.max(0.7, Math.min(1.4, taxa));
+      u.onend = fim; u.onerror = fim;
+      const animar = () => { if (!vivo() || !L.falando) return; const b = boca(); if (b) b.setAttribute("ry", (0.8 + 4 * Math.abs(Math.sin(performance.now() / 85))).toFixed(2)); L.raf = requestAnimationFrame(animar); };
+      speechSynthesis.speak(u); animar();
+    } catch { L.erroFala = "Não consegui tocar a voz neste navegador."; fim(); }
+  }
+}
+document.addEventListener("change", e => { if (e.target.id === "labFonte" && S.lab) { S.lab.fonte = e.target.value; S.lab.i = -1; proxLab(); } });
+
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
 aplicarTema();
@@ -6206,6 +6403,7 @@ render();
 if (!lsGet("fp-idioma-escolhido", false)) setTimeout(() => { const d = $("#dlgIdioma"); if (d && !d.open) d.showModal(); }, 400);
 else if (!lsGet("fp-guia-visto", false)) setTimeout(() => { if (!document.querySelector("dialog[open]")) abrirGuia(0); }, 900);
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
+if (new URLSearchParams(location.search).has("lab")) { history.replaceState(null, "", location.pathname); setTimeout(() => { document.querySelectorAll("dialog[open]").forEach(d => d.close()); abrirLab(); }, 1200); }
 { const pd = new URLSearchParams(location.search).get("duelo"); if (pd) { try { sessionStorage.setItem("fp-duelo-pendente", pd); } catch {} history.replaceState(null, "", location.pathname); } }
 iniciarNuvem();
 // Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)
