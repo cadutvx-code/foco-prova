@@ -4654,7 +4654,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2322";
+const VERSAO_APP = "2026-11-22-2323";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6412,9 +6412,8 @@ function viewLouco(c) {
 // menu da conta → janela com exemplos (ou o caderno escolhido)
 function abrirLab() {
   if (!S.lab || S.lab.naPagina) S.lab = novoLab("exemplos");
-  if (!S.lab.q && !S.lab.gerando) proxLab();
-  desenharLab();
-  const d = $("#dlgLab"); if (!d.open) d.showModal();
+  const d = $("#dlgLab"); if (!d.open) d.showModal(); // abre ANTES de desenhar: o desenho vai para a janela aberta
+  if (!S.lab.q && !S.lab.gerando) proxLab(); else desenharLab();
   labAquecerVoz();
 }
 function fecharLab() { labParar(); $("#dlgLab").open && $("#dlgLab").close(); }
