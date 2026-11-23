@@ -80,6 +80,19 @@ service cloud.firestore {
         && request.resource.data.nome is string && request.resource.data.nome.size() <= 40;
       allow read: if logado();
     }
+    // caminho até o pagamento: cada conta grava só o próprio (com o e-mail do login); sem login, só o número do aparelho, sem dados pessoais
+    match /funil/{id} {
+      function inteiro(k) { return request.resource.data.get(k, 0) is int; }
+      allow create, update: if request.resource.data.keys().hasOnly(['email', 'nome', 'ap', 'ultimo', 'viu', 'clicou', 'limite', 'qr', 'falhou', 'copiou', 'cartao', 'assinar', 'pediu'])
+        && ((logado() && id == request.auth.uid && request.resource.data.email == request.auth.token.email.lower())
+          || (id.matches('ap_[A-Za-z0-9-]{4,60}') && request.resource.data.ap == id && request.resource.data.email == '' && request.resource.data.nome == ''))
+        && request.resource.data.nome is string && request.resource.data.nome.size() <= 80
+        && request.resource.data.ap is string && request.resource.data.ap.size() <= 64
+        && request.resource.data.ultimo is int && request.resource.data.get('viu', 0) is int && request.resource.data.get('viu', 0) <= 100000
+        && inteiro('clicou') && inteiro('limite') && inteiro('qr') && inteiro('falhou')
+        && inteiro('copiou') && inteiro('cartao') && inteiro('assinar') && inteiro('pediu');
+      allow read, delete: if admin();
+    }
     // chave Pix, WhatsApp, preço e limites do plano grátis: todos leem, só o administrador muda
     match /config/{doc} {
       allow read: if true;

@@ -370,7 +370,7 @@ h3{font-size:16px;margin:0 0 6px}
 .adm-abas .badge{background:var(--bad);color:#fff;padding:1px 7px;margin-left:5px}
 .adm-aba{display:none}.adm-aba.on{display:flex;flex-direction:column;gap:12px}
 .adm-ped-acoes input.admDiasPed{width:56px!important}
-@media(max-width:480px){.adm-abas{gap:0}.adm-abas button{padding:10px 5px;font-size:13px}.adm-abas .badge{margin-left:3px;padding:1px 5px}.adm-ped-acoes .pill{padding:6px 10px!important}.adm-ped{padding:9px 8px}}
+@media(max-width:480px){.adm-abas{gap:0}.adm-abas button{padding:10px 3px;font-size:12px}.adm-abas .badge{margin-left:2px;padding:0 4px;font-size:10px}.adm-ped-acoes .pill{padding:6px 10px!important}.adm-ped{padding:9px 8px}}
 .adm-aviso{border:1px solid #f5a623;border-radius:12px;padding:10px 12px;font-size:14px;overflow-wrap:anywhere}
 .adm-aviso.erro{border-color:var(--bad)}
 .fb-item.novo{border-color:var(--accent);background:rgba(91,141,255,.07)}
@@ -4013,6 +4013,7 @@ async function pedirPro() {
   if (!NUVEM.user) return toast("Entre com o Google primeiro.", true);
   try {
     await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, "solicitacoes/" + emailUser()), { email: emailUser(), nome: nomeUser(), data: Date.now(), avatar: PERFIL.tipo === "emoji" ? { tipo: "emoji", emoji: PERFIL.emoji, cor: PERFIL.cor } : PERFIL.tipo === "avatar" ? { tipo: "avatar", av: PERFIL.av } : null });
+    registrarFunil("pediu");
     ACESSO.pedido = true; abrirPagamento(null); toast("📨 Pedido enviado! Assim que o Pix for confirmado, seu Pro é liberado.");
   } catch (e) { toast("Não consegui enviar o pedido: " + e.message, true); }
 }
@@ -4162,6 +4163,16 @@ function codigoPix({ chave, nome, cidade, valor, txid, descricao }) {
 // identificador do pagamento a partir do e-mail (aparece para você no extrato de alguns bancos)
 function txidDe(email) { let x = 0; for (const ch of String(email || "visitante")) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return "HS" + x.toString(36).toUpperCase().padStart(7, "0").slice(0, 10); }
 const PAG_AUTO = "https://hipocampo-pagamento.pagamento-worker.workers.dev";
+/* Caminho até o pagamento (aba Vendas do painel): funil/{uid ou ap_aparelho} guarda quando a pessoa chegou em cada etapa.
+   Quem está sem login é só um número de aparelho, sem nome nem e-mail. Nunca atrapalha o pagamento (falha em silêncio). */
+function registrarFunil(...etapas) {
+  try {
+    const F = NUVEM.F, u = NUVEM.user; if (!F || !NUVEM.db || ACESSO.admin) return;
+    const agora = Date.now(), ap = "ap_" + idAparelho(), d = { email: u ? emailUser() : "", nome: u ? String(nomeUser()).slice(0, 80) : "", ap, ultimo: agora };
+    for (const k of etapas) d[k] = k === "viu" ? F.increment(1) : agora;
+    F.setDoc(F.doc(NUVEM.db, "funil/" + (u ? u.uid : ap)), d, { merge: true }).catch(e => console.warn("funil:", e?.message));
+  } catch (e) { console.warn("funil:", e?.message); }
+}
 async function pagAuto(rota, dados) {
   const idToken = await NUVEM.user.getIdToken();
   const r = await prazo(fetch(PAG_AUTO + rota, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, ...dados }) }), 20000);
@@ -4178,7 +4189,7 @@ async function iniciarPixAuto() {
     const reusar = S.pixAtual && S.pixAtual.email === emailUser() && Date.now() - S.pixAtual.t < 20 * 60000;
     const d = reusar ? S.pixAtual.d : await pagAuto("/criar");
     if (!d.qr_code) throw new Error("sem QR");
-    if (!reusar) S.pixAtual = { d, t: Date.now(), email: emailUser() };
+    if (!reusar) { S.pixAtual = { d, t: Date.now(), email: emailUser() }; registrarFunil("qr"); }
     S.pixCodigo = d.qr_code; S.pixPedido = d.id;
     const pend = (lsGet("fp-pix-pendentes", []) || []).filter(x => x.ate > Date.now() && x.id !== d.id);
     lsSet("fp-pix-pendentes", [...pend, { id: d.id, ate: Date.now() + 24 * 3600000 }].slice(-10));
@@ -4191,7 +4202,7 @@ async function iniciarPixAuto() {
       for (const x of lsGet("fp-pix-pendentes", []) || []) { try { const s = await pagAuto("/status", { id: x.id }); if (s.pago) { clearInterval(S.pixTimer); return pixConfirmado(s.expira, x.id); } } catch {} }
     }, 5000);
   } catch (e) {
-    console.warn("Pix automático indisponível:", e.message);
+    console.warn("Pix automático indisponível:", e.message); registrarFunil("qr", "falhou");
     caixa.innerHTML = `<small class="muted">O pagamento automático não funcionou agora (${esc(String(e.message).slice(0, 140))}). Pague pelo QR abaixo e envie o comprovante pelo WhatsApp (passo 3) que faremos a liberação.</small>`;
     $("#pixChaveFixa")?.removeAttribute("hidden"); // automático falhou: mostra também a chave (liberação manual)
     const p = ACESSO.pag; if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(emailUser()) }); desenharQRPix(S.pixCodigo); }
@@ -4212,6 +4223,7 @@ async function pagarCartao() {
   try {
     const d = await pagAuto("/cartao");
     if (!d.url) throw new Error("sem link");
+    registrarFunil("cartao");
     if (aba) aba.location.href = d.url; else location.href = d.url;
     lsSet("fp-cartao-pendente", { email: emailUser(), ate: Date.now() + 24 * 3600000 });
     if (aviso) aviso.innerHTML = `<div class="aviso-nuvem" style="margin:0"><span class="spin"></span> <b>Aguardando o pagamento no cartão…</b> Termine na aba do Mercado Pago; quando aprovar, seu Pro é liberado aqui sozinho.</div>`;
@@ -4234,6 +4246,7 @@ async function assinar() {
     const d = await pagAuto("/assinar");
     if (d.jaAtiva) { aba?.close(); desenharAssinatura(d); if (aviso) aviso.innerHTML = ""; return toast("Você já tem uma assinatura ativa. 👑"); }
     if (!d.url) throw new Error("sem link");
+    registrarFunil("assinar");
     if (aba) aba.location.href = d.url; else location.href = d.url;
     lsSet("fp-assinatura-pendente", { email: emailUser(), ate: Date.now() + 24 * 3600000 });
     if (aviso) aviso.innerHTML = `<div class="aviso-nuvem" style="margin:0"><span class="spin"></span> <b>Aguardando a assinatura…</b> Termine na aba do Mercado Pago; quando a 1ª cobrança for aprovada, seu Pro é liberado aqui sozinho (pode levar alguns minutos).</div>`;
@@ -4352,7 +4365,10 @@ function abrirPagamento(tipo) {
       <div>Se não liberar sozinho em alguns minutos, envie o <b>comprovante</b>${num ? ` para o WhatsApp <b>${esc(p.whats)}</b>` : ""} que faremos a liberação.${num ? `<div style="margin-top:8px"><a class="btn-whats" target="_blank" rel="noopener" href="https://wa.me/${num}?text=${encodeURIComponent(msg)}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.47 14.38c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.79-1.47-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.6-.92-2.2-.24-.58-.49-.5-.67-.5h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.75-.72 2-1.41.25-.69.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35zM12.05 21.8h-.01a9.8 9.8 0 0 1-4.99-1.37l-.36-.21-3.71.97.99-3.62-.23-.37a9.78 9.78 0 0 1-1.5-5.22c0-5.41 4.4-9.82 9.82-9.82 2.62 0 5.09 1.02 6.94 2.88a9.75 9.75 0 0 1 2.87 6.95c0 5.41-4.41 9.81-9.82 9.81zm8.36-18.17A11.75 11.75 0 0 0 12.05.17C5.5.17.17 5.5.17 12.04c0 2.09.55 4.13 1.59 5.93L.07 24l6.17-1.62a11.82 11.82 0 0 0 5.8 1.48h.01c6.55 0 11.88-5.33 11.88-11.87 0-3.17-1.23-6.15-3.48-8.39z"/></svg>Enviar comprovante pelo WhatsApp</a></div>` : ""}</div>
     </details>`}
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPagar">Fechar</button>${!NUVEM.user || !p.pix ? "" : ACESSO.pedido ? `<button class="pill" data-act="jaLiberado">Verificar se já liberou</button>` : `<button class="pill" data-act="pedirPro">Já paguei, pedir o Pro</button>`}</div>`;
-  const d = $("#dlgPagar"); if (!d.open) d.showModal();
+  const d = $("#dlgPagar"), quem = NUVEM.user?.uid || "", nova = !d.open || S.funilQuem !== quem; S.funilQuem = quem;
+  if (!d.open) d.showModal();
+  // redesenhar a tela aberta não conta de novo; tipo = abriu sozinha porque o limite grátis acabou
+  if (nova) registrarFunil("viu", tipo ? "limite" : "clicou", ...(!NUVEM.user && p.pix ? ["qr"] : []));
   if (NUVEM.user) { iniciarPixAuto(); verAssinatura(); }
   else if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(email) }); desenharQRPix(S.pixCodigo); }
 }
@@ -4363,7 +4379,8 @@ async function abrirAdmin(alvo = null) {
   const fechar = `<div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`;
   $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2><p class="muted"><span class="spin"></span> Carregando…</p>${fechar}`;
   const d = $("#dlgAdmin"); if (!d.open) d.showModal();
-  const [ped, fb] = await Promise.all([lerPedidos(), lerServidor(F.collection(db, "feedback")).then(r => ({ docs: r.docs }), e => ({ docs: [], erro: msgErro(e) }))]);
+  const ler = q => lerServidor(q).then(r => ({ docs: r.docs }), e => ({ docs: [], erro: msgErro(e) }));
+  const [ped, fb, fun] = await Promise.all([lerPedidos(), ler(F.collection(db, "feedback")), ler(F.query(F.collection(db, "funil"), F.orderBy("ultimo", "desc"), F.limit(1000)))]);
   if (vez !== ADM_VEZ) return; // abriu de novo enquanto carregava: vale a última
   const todosFb = fb.docs.map(x => ({ ...x.data(), id: x.id })).sort((a, b) => (!!a.lido - !!b.lido) || (b.data || 0) - (a.data || 0)), feedbacks = todosFb.slice(0, 60);
   const novosFb = todosFb.filter(x => x.lido === false).length;
@@ -4397,7 +4414,7 @@ async function abrirAdmin(alvo = null) {
   const nPed = pedidos.length;
   // a notificação escolhe a aba; pelo menu, abre onde há algo novo; depois de uma ação, fica na mesma aba
   S.admAba = alvo?.feedback ? "feedback" : alvo?.email ? "pedidos" : S.admAba || (!nPed && novosFb && !ped.erro ? "feedback" : "pedidos");
-  const abas = [["pedidos", "Pedidos", nPed], ["feedback", TT("Feedbacks", "Comentarios"), novosFb], ["membros", TT("Membros", "Miembros"), 0], ["pagamento", TT("Pagamento", "Pago"), 0]];
+  const abas = [["pedidos", "Pedidos", nPed], ["feedback", TT("Feedbacks", "Comentarios"), novosFb], ["vendas", TT("Vendas", "Ventas"), 0], ["membros", TT("Membros", "Miembros"), 0], ["pagamento", TT("Ajustes", "Ajustes"), 0]];
   const on = k => S.admAba === k ? " on" : "";
   const rotFb = { problema: "🐞 Problema", ideia: "💡 Ideia", outro: "✉️ Outro" };
   const cartaoFeedback = `<div class="card" id="admFeedbacks" style="margin:0;${novosFb ? "border-color:var(--accent)" : ""}"><h3 style="margin:0 0 4px">💬 Feedbacks${novosFb ? ` (${novosFb} novo${novosFb > 1 ? "s" : ""})` : ""}</h3>
@@ -4409,6 +4426,7 @@ async function abrirAdmin(alvo = null) {
     <div class="adm-abas" role="tablist">${abas.map(([k, t, n]) => `<button role="tab" aria-selected="${!!on(k)}" class="${on(k)}" data-act="admAba" data-id="${k}">${t}${n ? `<span class="badge">${n}</span>` : ""}</button>`).join("")}</div>
     <div class="adm-aba${on("pedidos")}" data-aba="pedidos">${avisoAlvo}${cartaoPedidos}</div>
     <div class="adm-aba${on("feedback")}" data-aba="feedback">${cartaoFeedback}</div>
+    <div class="adm-aba${on("vendas")}" data-aba="vendas"><div class="card stack" id="admVendas" style="margin:0"></div></div>
     <div class="adm-aba${on("membros")}" data-aba="membros">
     <div class="card stack" style="margin:0"><h3 style="margin:0">Liberar um e-mail manualmente</h3>
       <div class="muted" style="font-size:13px">Se a pessoa te mandou o e-mail direto, digite o Gmail que ela usa para entrar.</div>
@@ -4441,6 +4459,8 @@ async function abrirAdmin(alvo = null) {
     </div>
     </div>
     ${fechar}`;
+  ADM_VENDAS = { docs: fun.docs.map(x => ({ ...x.data(), id: x.id })), lista, erro: fun.erro || ped.erroMembros, aviso: avisoErro };
+  desenharVendas();
   // rola até a pessoa que a notificação apontou
   if (alvo) setTimeout(() => {
     if (vez !== ADM_VEZ) return;
@@ -4449,6 +4469,40 @@ async function abrirAdmin(alvo = null) {
     const el = [...document.querySelectorAll("#admPedidos .adm-ped")].find(x => x.dataset.ped === alvo.email);
     if (el) { el.classList.add("alvo"); el.scrollIntoView({ block: "center" }); }
   }, 60);
+}
+/* ---------- aba Vendas: quantas pessoas chegaram na tela do Pro, viram o QR Code e pagaram ---------- */
+const FUNIL_INICIO = new Date(2026, 10, 23).getTime(); // antes disso nada era registrado
+let ADM_VENDAS = null;
+// junta o aparelho sem login com a conta que depois entrou nele, e descobre quem pagou (pelo registro do Pro, não pelo aparelho)
+function resumoVendas(docs, membros, desde) {
+  const lib = new Map(membros.map(x => [x.email, x])), contas = docs.filter(x => x.email), aps = new Set(contas.map(x => x.ap));
+  const num = v => Number.isFinite(v) ? v : 0, et = (x, k) => num(x[k]) >= desde && num(x[k]) > 0;
+  const pessoas = [...contas, ...docs.filter(x => !x.email && !aps.has(x.ap || x.id))].filter(x => num(x.ultimo) >= desde).map(x => {
+    const l = x.email ? lib.get(x.email) : null;
+    const depois = l && l.nota !== "administrador" && num(l.data) >= Math.max(desde, FUNIL_INICIO);
+    const auto = !!l && (l.por === "pagamento automático" || l.pedidosPagos?.length > 0);
+    return { ...x, qr: et(x, "qr"), copiou: et(x, "copiou"), cartao: et(x, "cartao"), assinar: et(x, "assinar"), pediu: et(x, "pediu"), falhou: et(x, "falhou"), limite: et(x, "limite"), clicou: et(x, "clicou"), pagou: !!depois && auto, liberado: !!depois && !auto };
+  });
+  const quer = x => x.copiou || x.cartao || x.assinar || x.pediu;
+  return { pessoas, viram: pessoas.length, clicaram: pessoas.filter(x => x.clicou).length, sohLimite: pessoas.filter(x => x.limite && !x.clicou).length, semLogin: pessoas.filter(x => !x.email).length,
+    qr: pessoas.filter(x => x.qr).length, tentaram: pessoas.filter(quer).length, pagaram: pessoas.filter(x => x.pagou).length, liberados: pessoas.filter(x => x.liberado).length };
+}
+function desenharVendas() {
+  const el = $("#admVendas"), v = ADM_VENDAS; if (!el || !v) return;
+  if (v.erro) { el.innerHTML = `<h3 style="margin:0">${TT("Caminho até o pagamento", "Camino hasta el pago")}</h3>${v.aviso(TT("Não consegui ler as vendas.", "No pude leer las ventas."), v.erro)}`; return; }
+  const dias = S.vendasDias ?? 30, desde = dias ? Date.now() - dias * DIA_MS : 0, r = resumoVendas(v.docs, v.lista, desde), pct = n => r.viram ? Math.round(n / r.viram * 100) : 0;
+  const barra = (rot, n, sub, cor = "var(--accent)") => `<div><div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap"><b style="font-size:14px">${rot}</b><b style="white-space:nowrap">${n}${r.viram && n !== r.viram ? ` <span class="muted" style="font-weight:600">(${pct(n)}%)</span>` : ""}</b></div><div class="prog" style="height:9px;margin-top:4px"><div style="width:${pct(n)}%;background:${cor}"></div></div>${sub ? `<small class="muted">${sub}</small>` : ""}</div>`;
+  const etapa = x => x.pagou ? [TT("Pagou", "Pagó"), "var(--ok)"] : x.liberado ? [TT("Liberado por você", "Liberado por ti"), "var(--ok)"] : x.pediu ? [TT("Disse que pagou", "Dijo que pagó"), "var(--warn)"] : x.assinar ? [TT("Abriu a assinatura", "Abrió la suscripción"), "var(--warn)"] : x.cartao ? [TT("Abriu o cartão", "Abrió la tarjeta"), "var(--warn)"] : x.copiou ? [TT("Copiou o Pix", "Copió el Pix"), "var(--warn)"] : x.qr ? [TT("Viu o QR Code", "Vio el código QR"), "var(--muted)"] : [TT("Abriu a tela", "Abrió la pantalla"), "var(--muted)"];
+  const nomes = r.pessoas.filter(x => x.email && (S.vendasFiltro !== "nao" || !(x.pagou || x.liberado))).sort((a, b) => b.ultimo - a.ultimo).slice(0, 100);
+  el.innerHTML = `<h3 style="margin:0">${TT("Caminho até o pagamento", "Camino hasta el pago")}</h3>
+    <div class="row" style="gap:6px">${[[7, TT("7 dias", "7 días")], [30, TT("30 dias", "30 días")], [0, TT("Tudo", "Todo")]].map(([n, t]) => `<button class="btn small${n === dias ? "" : " ghost"}" data-act="vendasDias" data-id="${n}" aria-pressed="${n === dias}" ${n === dias ? 'style="border-color:var(--accent);color:var(--accent)"' : ""}>${t}</button>`).join("")}</div>
+    ${!r.viram ? `<p class="muted" style="margin:0">${TT("Ninguém abriu a tela do Pro nesse período. A contagem começou em 23/11/2026.", "Nadie abrió la pantalla del Pro en ese período. El conteo empezó el 23/11/2026.")}</p>` : `
+    ${barra(TT("Abriram a tela do Pro", "Abrieron la pantalla del Pro"), r.viram, TT(`${r.clicaram} clicaram em "Quero o Pro" · ${r.sohLimite} viram só porque o limite grátis acabou · ${r.semLogin} sem login`, `${r.clicaram} tocaron "Quiero el Pro" · ${r.sohLimite} la vieron solo porque se acabó el límite gratis · ${r.semLogin} sin cuenta`))}
+    ${barra(TT("Viram o QR Code", "Vieron el código QR"), r.qr, TT("O QR Code aparece sozinho quando a tela abre.", "El código QR aparece solo cuando se abre la pantalla."))}
+    ${barra(TT("Tentaram pagar", "Intentaron pagar"), r.tentaram, TT("Copiaram o Pix, abriram o cartão ou tocaram em \"Já paguei\". Quem só apontou a câmera para o QR não aparece aqui.", "Copiaron el Pix, abrieron la tarjeta o tocaron \"Ya pagué\". Quien solo apuntó la cámara al QR no aparece aquí."), "var(--warn)")}
+    ${barra(TT("Pagaram (confirmado)", "Pagaron (confirmado)"), r.pagaram, r.liberados ? TT(`Mais ${r.liberados} liberado(s) por você à mão.`, `Más ${r.liberados} liberado(s) por ti a mano.`) : "", "var(--ok)")}
+    <div class="row" style="justify-content:space-between;align-items:center;gap:6px;margin-top:4px"><b>${TT("Pessoas com conta", "Personas con cuenta")} (${nomes.length})</b><button class="btn small ghost" data-act="vendasFiltro">${S.vendasFiltro === "nao" ? TT("Mostrar todas", "Mostrar todas") : TT("Só quem não pagou", "Solo quien no pagó")}</button></div>
+    ${nomes.map(x => { const [t, cor] = etapa(x); return `<div class="mrow adm-ped" style="margin:0"><span class="nm">${esc(x.nome || x.email)}${x.nome ? `<small>${esc(x.email)}</small>` : ""}<small>${fmtData(x.ultimo)} · ${TT(`abriu ${x.viu || 1} vez(es)`, `abrió ${x.viu || 1} vez(ces)`)}${x.falhou ? ` · <span style="color:var(--bad)">${TT("o Pix automático falhou", "el Pix automático falló")}</span>` : ""}</small></span><b style="color:${cor};font-size:13px;text-align:right">${t}</b></div>`; }).join("") || `<p class="muted" style="margin:0">${TT("Ninguém com conta nesse filtro.", "Nadie con cuenta en este filtro.")}</p>`}`}`;
 }
 // lê o campo de dias ao lado do botão (pedido ou membro); vazio = 30
 function diasDoCampo(cls, email) {
@@ -4472,7 +4526,7 @@ async function admLiberar(emailPedido, diasEscolhidos, dePedido = false) {
     const agora = Date.now(), fimAtual = ant ? expiraDe(ant) : agora;
     const base = dias > 0 ? Math.max(fimAtual, agora) : fimAtual, expira = base + dias * DIA_MS;
     const nota = emailPedido ? (ant ? "renovado pelo app" : "pedido pelo app") : ($("#admNota")?.value || "").trim().slice(0, 120) || ant?.nota || "";
-    await F.setDoc(ref, { inicio: ant?.inicio || ant?.data || agora, data: dias > 0 ? agora : (ant?.data || agora), expira, renovacoes: (ant?.renovacoes || 0) + (ant && dias > 0 ? 1 : 0), nota, por: emailUser(), ultimoAjuste: dias });
+    await F.setDoc(ref, { inicio: ant?.inicio || ant?.data || agora, data: dias > 0 ? agora : (ant?.data || agora), expira, renovacoes: (ant?.renovacoes || 0) + (ant && dias > 0 ? 1 : 0), nota, por: emailUser(), ultimoAjuste: dias }, { merge: true }); // merge: não apaga os pagamentos já contados nem o preço de fundador
     if (dias > 0) await F.deleteDoc(F.doc(db, "solicitacoes/" + email)).catch(() => {});
     toast(expira > agora ? `👑 ${email}: ${dias > 0 ? "+" : ""}${dias} dia(s). Pro até ${dataCurta(expira)}.` : `${email}: ${dias} dia(s). O Pro ficou vencido.`); abrirAdmin();
   } catch (e) { toast("Não consegui liberar: " + e.message, true); }
@@ -4841,8 +4895,8 @@ document.addEventListener("click", async e => {
     case "pagarCartao": pagarCartao(); break;
     case "assinar": assinar(); break;
     case "cancelarAssinatura": cancelarAssinaturaSite(); break;
-    case "copiarPixCodigo": navigator.clipboard?.writeText(S.pixCodigo || "").then(() => toast("📋 Pix copia e cola copiado! Cole na área Pix do app do seu banco."), () => toast("Não consegui copiar. Use o QR Code.", true)); break;
-    case "copiarPix": navigator.clipboard?.writeText(ACESSO.pag.pix).then(() => toast("📋 Chave Pix copiada!"), () => toast("Copie a chave manualmente.", true)); break;
+    case "copiarPixCodigo": registrarFunil("copiou"); navigator.clipboard?.writeText(S.pixCodigo || "").then(() => toast("📋 Pix copia e cola copiado! Cole na área Pix do app do seu banco."), () => toast("Não consegui copiar. Use o QR Code.", true)); break;
+    case "copiarPix": registrarFunil("copiou"); navigator.clipboard?.writeText(ACESSO.pag.pix).then(() => toast("📋 Chave Pix copiada!"), () => toast("Copie a chave manualmente.", true)); break;
     case "jaLiberado": await verificarAcesso(); if (ACESSO.liberado && !ACESSO.pedido) { $("#dlgPagar").close(); toast(`🎉 Pro liberado${ACESSO.expira ? ` até ${dataCurta(ACESSO.expira)}` : ""}! Bons estudos.`); } else toast("Ainda não foi liberado. Assim que o administrador confirmar o Pix, toque de novo.", true); break;
     case "admin": NUVEM.menu = false; desenharConta(); if ($("#dlgPerfil").open) $("#dlgPerfil").close(); if (!$("#dlgAdmin").open) S.admAba = null; abrirAdmin(); break;
     case "admAba":
@@ -4850,6 +4904,8 @@ document.addEventListener("click", async e => {
       document.querySelectorAll(".adm-abas button").forEach(b => { b.classList.toggle("on", b.dataset.id === id); b.setAttribute("aria-selected", b.dataset.id === id); });
       document.querySelectorAll(".adm-aba").forEach(x => x.classList.toggle("on", x.dataset.aba === id));
       $("#dlgAdmin").scrollTop = 0; break;
+    case "vendasDias": S.vendasDias = +id; desenharVendas(); break;
+    case "vendasFiltro": S.vendasFiltro = S.vendasFiltro === "nao" ? "" : "nao"; desenharVendas(); break;
     case "adminPedido": $("#dlgPerfil").close(); abrirAdmin({ email: id }); break;
     case "adminFeedback": $("#dlgPerfil").close(); abrirAdmin({ feedback: true }); break;
     case "admLimparPedido": admLimparPedido(id); break;
@@ -5110,7 +5166,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-1854";
+const VERSAO_APP = "2026-11-23-1859";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6440,7 +6496,7 @@ function cartaoEntrada() {
   ];
   return `<section class="entrada">
     <div class="entrada-txt">
-      <span class="entrada-selo">${T("🇧🇷 Feito por estudante de medicina, para estudante de medicina 🇵🇾", "🇵🇾 Hecho por un estudiante de medicina, para estudiantes de medicina 🇧🇷")}</span>
+      <span class="entrada-selo">${T("🇧🇷 Feito por um estudante para outros estudantes 🇵🇾", "🇵🇾 Hecho por un estudiante para otros estudiantes 🇧🇷")}</span>
       <h1>${T("Estude medicina em espanhol <span>sem se perder.</span>", "Estudia medicina <span>sin perderte.</span>")}</h1>
       <p>${T("Mande seus PDFs e slides: a IA transforma em perguntas, flashcards, resumo em áudio e treino de Ateneo, focando no que você ainda não domina.", "Sube tus PDFs y diapositivas: la IA los convierte en preguntas, flashcards, resumen en audio y práctica de Ateneo, enfocada en lo que aún no dominas.")}</p>
       <div class="entrada-cta"><button class="btn-google" data-act="entrar">${G_ICON}<span>${T("Começar grátis com Google", "Empezar gratis con Google")}</span></button><button class="btn ghost" data-act="novo">${T("Testar sem conta →", "Probar sin cuenta →")}</button></div>

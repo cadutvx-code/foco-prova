@@ -27,6 +27,13 @@ casos = [
     ("grava o próprio ranking", "ALLOW", {"auth": auth, "path": P + "/ranking/2026-S47/pessoas/u1", "method": "create", "resource": {"data": {"nome": "Aluno A.", "av": None, "turma": "FISIO1-C", "xp": 120, "atualizado": 1}}}),
     ("grava ranking de outro", "DENY", {"auth": auth, "path": P + "/ranking/2026-S47/pessoas/u2", "method": "create", "resource": {"data": {"nome": "X", "av": None, "turma": "", "xp": 99999, "atualizado": 1}}}),
     ("XP absurdo no ranking", "DENY", {"auth": auth, "path": P + "/ranking/2026-S47/pessoas/u1", "method": "create", "resource": {"data": {"nome": "A", "av": None, "turma": "", "xp": 999999, "atualizado": 1}}}),
+    ("conta grava o próprio funil", "ALLOW", {"auth": auth, "path": P + "/funil/u1", "method": "create", "resource": {"data": {"email": "aluno@gmail.com", "nome": "Aluno", "ap": "ap_abc123", "ultimo": 5, "viu": 1, "clicou": 5, "qr": 5}}}),
+    ("aparelho sem login grava o funil", "ALLOW", {"auth": None, "path": P + "/funil/ap_abc123", "method": "create", "resource": {"data": {"email": "", "nome": "", "ap": "ap_abc123", "ultimo": 5, "viu": 1, "limite": 5}}}),
+    ("funil com e-mail de outro", "DENY", {"auth": auth, "path": P + "/funil/u1", "method": "create", "resource": {"data": {"email": "outro@gmail.com", "nome": "", "ap": "ap_abc123", "ultimo": 5}}}),
+    ("funil de outra conta", "DENY", {"auth": auth, "path": P + "/funil/u2", "method": "create", "resource": {"data": {"email": "aluno@gmail.com", "nome": "", "ap": "ap_abc123", "ultimo": 5}}}),
+    ("sem login não grava e-mail no funil", "DENY", {"auth": None, "path": P + "/funil/ap_abc123", "method": "create", "resource": {"data": {"email": "x@gmail.com", "nome": "", "ap": "ap_abc123", "ultimo": 5}}}),
+    ("campo extra no funil", "DENY", {"auth": auth, "path": P + "/funil/u1", "method": "create", "resource": {"data": {"email": "aluno@gmail.com", "nome": "", "ap": "ap_abc123", "ultimo": 5, "pagou": 5}}}),
+    ("aluno não lê o funil", "DENY", {"auth": auth, "path": P + "/funil/u1", "method": "get"}),
     ("sem login não vê ranking", "DENY", {"path": P + "/ranking/2026-S47/pessoas/u1", "method": "get"}),
 ]
 # na API de teste, os dados novos (request.resource) vão dentro de "request"
