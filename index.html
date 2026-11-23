@@ -610,6 +610,51 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   .brand span{display:none}
   .dica-teclado{display:none}
 }
+
+/* ===== Celular: visual repaginado (23/11/2026) ===== */
+.ri-c{display:none}
+.kit-acoes{display:contents}
+@media (max-width:760px){
+  main{padding:14px 12px 104px}
+  .card{padding:14px;border-radius:16px}
+  .card .card,.card .papel{padding:12px}
+  h2{font-size:19px}
+  /* topo: só o essencial, sem passar da tela */
+  .topbar{height:54px;gap:6px;padding:0 10px}
+  .fb-chip span{display:none}
+  .fb-chip{padding:5px 9px}
+  #seqChip{padding:5px 9px}
+  .topbar .icon-btn{width:34px;height:34px}
+  /* barra de baixo: ícones maiores, nome curto, rola para o lado com dica de que tem mais */
+  .rail{height:calc(68px + env(safe-area-inset-bottom));padding:5px 4px calc(5px + env(safe-area-inset-bottom));gap:2px;scroll-snap-type:x proximity;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+  .rail::-webkit-scrollbar{display:none}
+  .ri{min-width:64px;padding:6px 2px;font-size:11px;gap:3px;scroll-snap-align:start;border-radius:14px}
+  .ri svg{width:24px;height:24px}
+  .ri-l{display:none}.ri-c{display:block}
+  .ri.on{background:var(--accent-soft)}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+  /* caderno: título menor; "Começar a estudar" largo; botões secundários numa fileira que rola */
+  .kit-head{gap:10px;margin-bottom:10px}
+  .kit-head h1{font-size:20px;line-height:1.2}
+  .kit-head .kit-icon{width:44px;height:44px;font-size:22px}
+  .kit-bar{gap:10px;margin-bottom:14px}
+  .kit-bar>.pill{flex:1 0 100%;justify-content:center;padding:12px 16px;font-size:15px}
+  .kit-acoes{display:flex;gap:8px;flex:1 0 100%;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:2px 12px}
+  .kit-acoes::-webkit-scrollbar{display:none}
+  .kit-acoes>.btn{flex:none;white-space:nowrap}
+  /* tela inicial */
+  .ateneo-card,.card:has(>.row .ateneo-esconder){position:relative}
+  .ateneo-esconder{position:absolute;top:10px;right:10px;padding:4px 10px;font-size:12px}
+  .card:has(.ateneo-esconder) h2{padding-right:70px}
+  .grid{gap:10px}
+  .stack{gap:12px}
+  /* perguntas: alternativas mais fáceis de tocar */
+  .alt{padding:13px 14px;font-size:15px}
+  .study-foot .pill{width:100%;justify-content:center}
+  /* janelas ocupam a largura toda */
+  dialog{max-width:calc(100vw - 16px)!important;padding:18px 16px}
+}
 </style>
 </head>
 <body>
@@ -1909,6 +1954,7 @@ function explicacaoHTML(q, escolha) {
   if (!det.certa && !agora) h += `<button class="btn small ghost mais-expl" data-act="explicarMais">${es ? "Explicar mejor" : "Explicar melhor"}</button>`;
   return `<div class="expl md">${h}</div>`;
 }
+const NOME_CURTO = { "Estudo inteligente": "Inteligente", "Guia de estudo": "Guia", "Mapa mental": "Mapa", "Ateneo oral": "Ateneo" };
 // A pergunta já vem com a explicação curta; a longa (1 pedido à IA) só quando a pessoa pede em "Explicar melhor"
 const temExplicacao = q => !!String(q?.explicacao || "").trim() || (q?.explicacoes || []).some(x => String(x || "").trim());
 function questaoAberta(c) {
@@ -2069,7 +2115,7 @@ function render() {
   const emEstudo = !!S.player;
   // As opções de estudo só aparecem depois de escolher um caderno
   $("#rail").innerHTML = `<button class="ri ${!c ? "on" : ""}" data-act="inicio">${svg("inicio")}Início</button>` +
-    (c ? `<div class="sep"></div>` + ABAS.filter(([k]) => k !== "oral" || (c.oficial && ATENEO_ATIVO)).map(([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}${n}</button>`).join("") : "") +
+    (c ? `<div class="sep"></div>` + ABAS.filter(([k]) => k !== "oral" || (c.oficial && ATENEO_ATIVO)).map(([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}<span class="ri-l">${n}</span><span class="ri-c">${NOME_CURTO[n] || n}</span></button>`).join("") : "") +
     `<button class="ri fim" data-act="config">${svg("config")}Ajustes</button>`;
   $("#iaChip span").textContent = nomeIA();
   $("#seqChip").textContent = `🔥 ${diasSeguidos()}`;
@@ -2171,7 +2217,7 @@ function viewCaderno(c, emEstudo) {
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
-    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><button class="btn small provas-btn" data-act="provasAbrir" title="Ensine a IA o estilo de cobrança da sua professora">${iconeSVG("arquivo", 'style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}Estilo da prova${(c.provasAntigas || []).length ? ` (${c.provasAntigas.length})` : ""}</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button><button class="btn small duelo-btn" data-act="duelo" title="Desafie um amigo com 10 perguntas deste caderno" ${S.criandoDuelo ? "disabled" : ""}>${S.criandoDuelo ? `<span class="spin"></span> Criando…` : "⚔️ Duelo"}</button>${barraNivel(c)}
+    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><div class="kit-acoes"><button class="btn small provas-btn" data-act="provasAbrir" title="Ensine a IA o estilo de cobrança da sua professora">${iconeSVG("arquivo", 'style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}Estilo da prova${(c.provasAntigas || []).length ? ` (${c.provasAntigas.length})` : ""}</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button><button class="btn small duelo-btn" data-act="duelo" title="Desafie um amigo com 10 perguntas deste caderno" ${S.criandoDuelo ? "disabled" : ""}>${S.criandoDuelo ? `<span class="spin"></span> Criando…` : "⚔️ Duelo"}</button></div>${barraNivel(c)}
       <label class="inline" title="Idioma das perguntas, respostas e explicações">🌐 <select id="idiomaCaderno" style="width:auto;padding:6px 10px;border-radius:999px">
         <option value="pt" ${idiomaCaderno(c) === "pt" ? "selected" : ""}>Português</option><option value="es" ${idiomaCaderno(c) === "es" ? "selected" : ""}>Español</option></select></label></div>
     ${cartaoPanico(c)}${corpo}`;
@@ -3256,7 +3302,7 @@ function cartaoAteneos() {
       <div style="flex:1 1 200px;min-width:0"><b>Faz medicina no exterior? Isso vai te ajudar.</b><div class="muted" style="font-size:13px">Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.</div></div>
       <button class="pill" data-act="exteriorSim">Sim, mostrar</button></div>`;
   return `<div class="card" style="margin-bottom:16px"><div class="row" style="align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:30px">🎤</span>
-      <div style="flex:1;min-width:0"><h2 style="margin:0">Ateneo oral de Fisiologia</h2><div class="muted" style="font-size:13px">Tire um capítulo, explique e responda às 2 perguntas do professor. A IA corrige e dá a nota.</div></div><button class="btn small ghost" data-act="exteriorNao" title="Esconder o Ateneo da tela inicial">Esconder</button></div>
+      <div style="flex:1;min-width:0"><h2 style="margin:0">Ateneo oral de Fisiologia</h2><div class="muted" style="font-size:13px">Tire um capítulo, explique e responda às 2 perguntas do professor. A IA corrige e dá a nota.</div></div><button class="btn small ghost ateneo-esconder" data-act="exteriorNao" title="Esconder o Ateneo da tela inicial">Esconder</button></div>
     <div class="row" style="gap:10px">${ATENEOS.map(a => {
       const c = cadernoAteneo(a.id), ok = c && ativos(c).length;
       return `<button class="papel" data-act="ateneoAbrir" data-id="${a.id}" ${a.pronto ? "" : "disabled"} style="flex:1;min-width:190px;text-align:left;padding:12px 14px;${a.pronto ? "" : "opacity:.55;cursor:not-allowed"}">
@@ -4911,7 +4957,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0233";
+const VERSAO_APP = "2026-11-23-0237";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5629,7 +5675,8 @@ const UI_ES = {
   "Nos estilos 3D, muita informação junta pode ficar confusa. Para entender melhor, recomendamos um estilo mais simples:": "En los estilos 3D, mucha información junta puede quedar confusa. Para entender mejor, recomendamos un estilo más simple:",
   "Usar Árvore": "Usar Árbol", "Usar Clássico": "Usar Clásico", "Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais.": "Si quieres el 3D de todos modos, saldrá más simple: solo los puntos principales.",
   "Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais. Ou escolha um arquivo só em \"De onde\".": "Si quieres el 3D de todos modos, saldrá más simple: solo los puntos principales. O elige un solo archivo en \"De dónde\".",
-  "Ocultar": "Ocultar", "Mostrar plano": "Mostrar plan", "Encolher o plano (não apaga)": "Contraer el plan (no lo borra)"
+  "Ocultar": "Ocultar", "Mostrar plano": "Mostrar plan", "Encolher o plano (não apaga)": "Contraer el plan (no lo borra)",
+  "Inteligente": "Inteligente", "Guia": "Guía", "Mapa": "Mapa"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
