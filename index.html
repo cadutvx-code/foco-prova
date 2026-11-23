@@ -594,7 +594,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   <nav class="rail" id="rail"></nav>
   <main id="main"></main>
 </div>
-<input type="file" id="arquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp" hidden>
+<input type="file" id="arquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp,.zip" hidden>
 <input type="file" id="backupIn" accept=".json" hidden>
 <div id="toast"></div>
 <div id="iaProg" style="display:none;position:fixed;top:14px;right:14px;z-index:60;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;width:min(320px,calc(100vw - 28px));box-shadow:var(--shadow)">
@@ -615,7 +615,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
     </div>
   </div>
 </dialog>
-<input type="file" id="novoArquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp" hidden>
+<input type="file" id="novoArquivo" multiple accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp,.zip" hidden>
 <datalist id="listaMaterias"></datalist>
 <dialog id="dlgTexto">
   <h2 id="txtTitulo" style="margin-bottom:14px"></h2>
@@ -627,7 +627,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
-<input type="file" id="provaAntigaIn" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp" multiple hidden>
+<input type="file" id="provaAntigaIn" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,.zip" multiple hidden>
 <dialog id="dlgIdioma" style="width:min(460px,calc(100vw - 24px))"><div class="stack" style="text-align:center;gap:14px">
   <div style="font-size:40px;line-height:1">🌎</div>
   <h2 style="margin:0">Em qual idioma você quer estudar?</h2>
@@ -1323,8 +1323,33 @@ async function extrair(file) {
   if (ext === "ppt" || ext === "doc") throw new Error("Formato antigo (.ppt/.doc): salve como .pptx/.docx ou PDF");
   throw new Error("Formato não suportado (." + ext + ")");
 }
+// .zip → os arquivos de dentro, cada um como material separado (zip dentro de zip também, até 2 níveis)
+const ZIP_OK = { pdf: "application/pdf", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", txt: "text/plain", md: "text/plain", csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", heic: "image/heic", heif: "image/heif" };
+const ehZip = f => /\.zip$/i.test(f.name) || /^application\/(x-)?zip(-compressed)?$/.test(f.type || "");
+async function abrirZips(files, nivel = 0) {
+  const out = [];
+  for (const f of files) {
+    if (!ehZip(f)) { out.push(f); continue; }
+    toast("Abrindo " + f.name + "…");
+    try {
+      const zip = await JSZip.loadAsync(f);
+      const dentro = Object.values(zip.files).filter(z => !z.dir && !/(^|\/)(__MACOSX\/|\.)/.test(z.name)).sort((a, b) => a.name.localeCompare(b.name, "pt", { numeric: true }));
+      let n = 0, ignorados = 0;
+      for (const z of dentro) {
+        const ext = z.name.split(".").pop().toLowerCase(), curto = z.name.split("/").filter(Boolean).join(" › ");
+        if (ext === "zip" && nivel < 2) { out.push(...await abrirZips([new File([await z.async("blob")], curto)], nivel + 1)); n++; continue; }
+        if (!ZIP_OK[ext] || n >= 80) { ignorados++; continue; }
+        out.push(new File([await z.async("blob")], curto, { type: ZIP_OK[ext] })); n++;
+      }
+      if (!n) throw new Error("não tem PDF, slides, Word, texto ou foto dentro");
+      toast(`${f.name}: ${n} ${n === 1 ? "arquivo encontrado" : "arquivos encontrados"}${ignorados ? ` (${ignorados} de outro tipo ${ignorados === 1 ? "foi ignorado" : "foram ignorados"})` : ""}.`);
+    } catch (e) { toast(`${f.name}: não consegui abrir o zip (${erroMsg(e)}).`, true); }
+  }
+  return out;
+}
 async function adicionarArquivos(files) {
   const c = atual(); if (!c) return;
+  files = await abrirZips(files);
   for (const f of files) {
     toast("Lendo " + f.name + "…");
     try {
@@ -2015,7 +2040,7 @@ function viewMateriais(c) {
           ${S.verMat === m.id && m.texto ? `<div class="mdet"><pre class="prev">${esc(m.texto.slice(0, 20000))}${m.texto.length > 20000 ? "\n…" : ""}</pre></div>` : ""}`;
       }).join("")}
     </div>
-    <div class="dropzone-hint" id="drop" data-act="escolher">📎 Arraste PDFs, slides (.pptx), Word, textos ou fotos para cá</div><div class="dica-ios">No iPhone: toque em <b>Escolher Arquivo</b> para ver o app Arquivos, ou em <b>Fototeca</b> / <b>Tirar Foto</b>. PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em <b>Salvar em Arquivos</b>.</div>
+    <div class="dropzone-hint" id="drop" data-act="escolher">📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá</div><div class="dica-ios">No iPhone: toque em <b>Escolher Arquivo</b> para ver o app Arquivos, ou em <b>Fototeca</b> / <b>Tirar Foto</b>. PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em <b>Salvar em Arquivos</b>.</div>
     ${n && tokens > 700000 ? `<div class="muted" style="font-size:12px"><b style="color:var(--bad)">Material muito grande: desative alguns arquivos para a IA ler melhor.</b></div>` : ""}
   </div>`;
 }
@@ -4654,7 +4679,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2323";
+const VERSAO_APP = "2026-11-22-2357";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -4713,7 +4738,7 @@ const UI_ES = {
   "▶ Começar a estudar": "▶ Empezar a estudiar", "📂 Mudar de matéria": "📂 Cambiar de materia", "✏️ Renomear": "✏️ Renombrar",
   "✨ Identificar matéria com IA": "✨ Identificar materia con IA", "🗑 Excluir": "🗑 Eliminar", "Excluir": "Eliminar", "🗑️ Excluir": "🗑️ Eliminar",
   "＋ Adicionar": "＋ Agregar", "✍️ Colar texto": "✍️ Pegar texto", "Adicionar texto": "Agregar texto", "Cancelar": "Cancelar",
-  "📎 Arraste PDFs, slides (.pptx), Word, textos ou fotos para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos o fotos aquí",
+  "📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos o fotos aquí",
   "🔍 Ler texto": "🔍 Leer texto", "reenvie o arquivo": "vuelve a subir el archivo", "sem texto": "sin texto", "não usado no estudo": "no se usa en el estudio",
   "domínio geral": "dominio general", "respondidas": "respondidas", "de acerto": "de aciertos", "Domínio por tópico": "Dominio por tema",
   "Clique em um tópico para estudar só ele.": "Haz clic en un tema para estudiar solo ese.", "▶ Continuar estudando": "▶ Seguir estudiando",
@@ -5320,7 +5345,7 @@ const UI_ES = {
   "Excluir este mapa mental?": "¿Eliminar este mapa mental?", "Descreva o estilo que você quer.": "Describe el estilo que quieres.", "Guia do app": "Guía de la app",
   "Minimalista preto e branco": "Minimalista blanco y negro", "Neon no fundo escuro": "Neón con fondo oscuro", "Pastel, fundo claro, árvore": "Pastel, fondo claro, árbol", "Estilo caderno de anatomia (serifado)": "Estilo cuaderno de anatomía (con serifa)",
   "Pular tour": "Omitir", "Próximo": "Siguiente", "Terminar": "Terminar",
-  "Provas antigas": "Exámenes anteriores", "Envie provas anteriores da sua professora (PDF, Word ou foto). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.": "Sube exámenes anteriores de tu profesora (PDF, Word o foto). La IA pregunta con el mismo estilo y se enfoca en los temas que más entran.",
+  "Provas antigas": "Exámenes anteriores", "Envie provas anteriores da sua professora (PDF, Word, foto ou .zip). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.": "Sube exámenes anteriores de tu profesora (PDF, Word o foto). La IA pregunta con el mismo estilo y se enfoca en los temas que más entran.",
   "Enviar prova": "Subir examen", "Lendo…": "Leyendo…", "Tirar": "Quitar", "Tirar esta prova antiga?": "¿Quitar este examen anterior?", "Lendo a prova": "Leyendo el examen",
   "Ou cole perguntas da sua professora (opcional)": "O pega preguntas de tu profesora (opcional)",
   "toque num tópico para ver os detalhes · arraste para girar": "toca un tema para ver los detalles · arrastra para girar",
@@ -5358,11 +5383,13 @@ const UI_ES = {
   "No iPhone: toque em": "En el iPhone: toca", "Escolher Arquivo": "Elegir archivo", "para ver o app Arquivos, ou em": "para ver la app Archivos, o", "Fototeca": "Fototeca", "Tirar Foto": "Hacer foto",
   ". PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em": ". Los PDFs de WhatsApp o del correo hay que guardarlos antes: abre el archivo, toca Compartir y", "Salvar em Arquivos": "Guardar en Archivos",
   "Esconder": "Ocultar", "Esconder o Ateneo da tela inicial": "Ocultar el Ateneo de la pantalla de inicio", "Ateneo escondido. Para ver de novo, toque em Sim, mostrar.": "Ateneo oculto. Para verlo de nuevo, toca Sí, mostrar.",
-  "Baixando a voz (só na primeira vez)…": "Descargando la voz (solo la primera vez)…", "A voz não carregou agora. Toque em Ouvir de novo.": "La voz no cargó ahora. Toca Escuchar de nuevo."
+  "Baixando a voz (só na primeira vez)…": "Descargando la voz (solo la primera vez)…", "A voz não carregou agora. Toque em Ouvir de novo.": "La voz no cargó ahora. Toca Escuchar de nuevo.",
+  "📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos, fotos o .zip aquí",
+  "Envie provas anteriores da sua professora (PDF, Word, foto ou .zip). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.": "Sube exámenes anteriores de tu profesora (PDF, Word, foto o .zip). La IA pregunta con el mismo estilo y se enfoca en los temas que más entran."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^Abrindo (.+)…$/, "Abriendo $1…"], [/^(.+): (\d+) arquivos? encontrados?(.*)\.$/, "$1: $2 archivo(s) encontrado(s)$3."], [/^(.+): não consegui abrir o zip \((.*)\)\.$/, "$1: no pude abrir el zip ($2)."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -5635,7 +5662,7 @@ function estiloProfTxt(c) {
 function cartaoProvasAntigas(c) {
   const lista = c.provasAntigas || [];
   return `<div class="card provas-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div><h3 style="margin:0">${iconeSVG("arquivo", 'style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"')}Provas antigas</h3>
-      <div class="muted" style="font-size:13px">Envie provas anteriores da sua professora (PDF, Word ou foto). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.</div></div>
+      <div class="muted" style="font-size:13px">Envie provas anteriores da sua professora (PDF, Word, foto ou .zip). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.</div></div>
       <button class="btn small primary" data-act="provaAntigaEnviar" ${S.lendoProva ? "disabled" : ""}>${S.lendoProva ? `<span class="spin"></span> Lendo…` : "Enviar prova"}</button></div>
     ${lista.length ? `<div class="provas-lista">${lista.map(x => `<div class="prova-item">${iconeSVG("nota", 'style="width:18px;height:18px;flex:none"')}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.nome)}</span><small class="muted">${Math.max(1, Math.round(x.texto.length / 1000))} mil letras</small><button class="mini" data-act="provaAntigaApagar" data-id="${x.id}" title="Tirar">${iconeSVG("lixo", 'style="width:16px;height:16px"')}</button></div>`).join("")}</div>` : ""}
   </div>`;
@@ -5666,6 +5693,7 @@ async function iniciarModoProva(tipo) {
 }
 async function lerProvasAntigas(files) {
   const c = atual(); if (!c || !files.length) return;
+  files = await abrirZips(files); if (!files.length) return;
   S.lendoProva = true; render(); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas();
   for (const f of files) {
     try {
