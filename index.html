@@ -360,6 +360,19 @@ h3{font-size:16px;margin:0 0 6px}
 .fb-tipos button b{font-size:14px}
 .fb-tipos button.on{border-color:var(--accent);background:rgba(91,141,255,.14)}
 .fb-item{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+.adm-ped{flex-wrap:wrap;margin-top:6px;align-items:center}
+.adm-ped .nm,.adm-ped .nm small{white-space:normal;overflow-wrap:anywhere}
+.adm-ped.alvo,.mrow.adm-ped.alvo:hover{border-color:#f5a623;box-shadow:0 0 0 3px rgba(245,166,35,.28)}
+.adm-ped-acoes{flex-basis:100%;display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-top:4px}
+.adm-abas{display:flex;gap:6px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.adm-abas button{flex:1 0 auto;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;padding:10px 8px;font:inherit;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap}
+.adm-abas button.on{color:var(--text);border-bottom-color:var(--accent)}
+.adm-abas .badge{background:var(--bad);color:#fff;padding:1px 7px;margin-left:5px}
+.adm-aba{display:none}.adm-aba.on{display:flex;flex-direction:column;gap:12px}
+.adm-ped-acoes input.admDiasPed{width:56px!important}
+@media(max-width:480px){.adm-abas{gap:0}.adm-abas button{padding:10px 5px;font-size:13px}.adm-abas .badge{margin-left:3px;padding:1px 5px}.adm-ped-acoes .pill{padding:6px 10px!important}.adm-ped{padding:9px 8px}}
+.adm-aviso{border:1px solid #f5a623;border-radius:12px;padding:10px 12px;font-size:14px;overflow-wrap:anywhere}
+.adm-aviso.erro{border-color:var(--bad)}
 .fb-item.novo{border-color:var(--accent);background:rgba(91,141,255,.07)}
 .fb-item p{margin:6px 0 0;white-space:pre-wrap;word-break:break-word}
 .mais-mat{width:30px;height:30px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:21px;font-weight:800;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0 0 2px;box-shadow:0 3px 10px rgba(61,123,245,.35);transition:transform .15s}
@@ -3677,7 +3690,12 @@ const temaEscuro = () => (document.documentElement.dataset.theme || (matchMedia(
 // Avisos que aparecem no sino
 function notificacoes() {
   const out = [];
-  if (ACESSO.admin && ACESSO.pedidos) out.push({ ic: "coroa", t: `${ACESSO.pedidos} pedido(s) de Pro esperando sua aprovação`, act: "admin" });
+  if (ACESSO.admin) {
+    const lista = ACESSO.pedLista || [], fb = ACESSO.fbNovos || 0;
+    for (const x of lista.slice(0, 6)) out.push({ ic: "coroa", t: `Pedido de Pro: ${x.nome || x.email}`, sub: [x.nome ? x.email : "", x.data ? fmtData(x.data) : ""].filter(Boolean).join(" · "), act: "adminPedido", id: x.email });
+    if (lista.length > 6) out.push({ ic: "coroa", t: TT(`E mais ${lista.length - 6} pedido(s) de Pro`, `Y ${lista.length - 6} pedido(s) de Pro más`), act: "admin" });
+    if (fb) out.push({ ic: "sino", t: TT(`${fb} feedback(s) não lido(s)`, `${fb} comentario(s) sin leer`), sub: TT("Mensagens dos alunos e avisos automáticos de erro", "Mensajes de los alumnos y avisos automáticos de error"), act: "adminFeedback" });
+  }
   if (ACESSO.liberado && !ACESSO.admin && ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS) out.push({ ic: "coroa", t: `Seu Pro acaba em ${diasRestam(ACESSO.expira)} dia(s), no dia ${dataCurta(ACESSO.expira)}. Renove para não perder o acesso.`, act: "pagar" });
   if (!ACESSO.liberado && ACESSO.vencido && ACESSO.expira) out.push({ ic: "coroa", t: `Seu Pro venceu em ${dataCurta(ACESSO.expira)}.`, act: "pagar" });
   if (!ACESSO.liberado && ACESSO.pedido) out.push({ ic: "sino", t: "Seu pedido de Pro foi enviado. Assim que o Pix for confirmado, ele é liberado.", act: "pagar" });
@@ -3691,7 +3709,7 @@ function desenharConta() {
   if (!FB_CONFIG) { el.innerHTML = ""; return; }
   const u = NUVEM.user;
   if (!u) { el.innerHTML = `<button class="btn-google" data-act="entrar">${G_ICON}<span>Entrar com Google</span></button>`; return; }
-  const pro = ACESSO.liberado, ped = ACESSO.pedidos || 0, avisos = notificacoes(), urgentes = avisos.filter(a => a.ic !== "alvo").length;
+  const pro = ACESSO.liberado, ped = (ACESSO.pedidos || 0) + (ACESSO.fbNovos || 0), avisos = notificacoes(), urgentes = avisos.filter(a => a.ic !== "alvo").length;
   const papel = ACESSO.admin ? "Administrador" : pro && ACESSO.expira ? `Estudante · Pro até ${dataCurta(ACESSO.expira)}` : pro ? "Estudante · Pro" : "Estudante";
   el.innerHTML = `<span class="sync" title="Sincronização com a nuvem">${esc(NUVEM.estado || "☁ Sincronizado")}</span>
     ${pro ? `<span class="pro-chip" title="Você está no Hipocampo Study Pro">👑 Pro</span>` : ""}
@@ -3738,12 +3756,19 @@ function abrirConquistas() {
     <div class="row" style="justify-content:flex-end"><button class="pill" data-act="perfilCancelar">Fechar</button></div>`;
   const d = $("#dlgPerfil"); if (!d.open) d.showModal();
 }
-function abrirNotificacoes() {
+function desenharNotificacoes(conferindo = false) {
   const avisos = notificacoes();
-  $("#perfilCorpo").innerHTML = `<h2 style="margin:0">Notificações</h2>
-    ${avisos.length ? avisos.map(a => `<button class="mrow" data-act="${a.act}" style="width:100%;text-align:left;cursor:pointer;align-items:center;gap:12px"><span style="width:22px;height:22px;flex:none;color:var(--accent)">${icm(a.ic)}</span><span style="font-weight:600;font-size:14px">${esc(a.t)}</span></button>`).join("") : `<p class="muted">Nenhuma notificação por enquanto.</p>`}
-    <div class="row" style="justify-content:flex-end"><button class="pill" data-act="perfilCancelar">Fechar</button></div>`;
+  $("#perfilCorpo").innerHTML = `<div id="notifLista" class="stack"><h2 style="margin:0">Notificações</h2>
+    ${avisos.length ? avisos.map(a => `<button class="mrow" data-act="${a.act}"${a.id ? ` data-id="${esc(a.id)}"` : ""} style="width:100%;text-align:left;cursor:pointer;align-items:center;gap:12px"><span style="width:22px;height:22px;flex:none;color:var(--accent)">${icm(a.ic)}</span><span style="font-weight:600;font-size:14px;min-width:0;overflow-wrap:anywhere">${esc(a.t)}${a.sub ? `<small class="muted" style="display:block">${esc(a.sub)}</small>` : ""}</span></button>`).join("") : conferindo ? "" : `<p class="muted">Nenhuma notificação por enquanto.</p>`}
+    ${conferindo ? `<p class="muted" style="margin:0"><span class="spin"></span> ${TT("Conferindo os pedidos…", "Revisando los pedidos…")}</p>` : ACESSO.admin && ACESSO.pedErro ? `<div class="adm-aviso erro">${TT("Não consegui conferir os pedidos de Pro agora.", "No pude revisar los pedidos de Pro ahora.")}</div>` : ""}
+    <div class="row" style="justify-content:flex-end"><button class="pill" data-act="perfilCancelar">Fechar</button></div></div>`;
+}
+async function abrirNotificacoes() {
+  desenharNotificacoes(ACESSO.admin);
   const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+  if (!ACESSO.admin) return;
+  await contarPedidos(); desenharConta(); // a aba pode estar aberta há horas: confere antes de confiar no número
+  if (d.open && $("#notifLista")) desenharNotificacoes();
 }
 function estadoNuvem(t) { NUVEM.estado = t; desenharConta(); }
 
@@ -3943,7 +3968,7 @@ function avatarHTML(tam = 34, p = PERFIL) {
   const est = "width:100%;height:100%;border-radius:50%;object-fit:cover";
   if (p.tipo === "foto" && p.foto) return `<img src="${esc(p.foto)}" alt="" style="${est}">`;
   if (p.tipo === "avatar" && AVATARES_DESENHO[p.av]) return `<span style="${est};display:block;overflow:hidden">${svgAvatar(p.av)}</span>`;
-  if (p.tipo === "emoji" && p.emoji) return `<span style="${est};display:grid;place-items:center;background:${esc(p.cor || CORES_AV[0])};font-size:${Math.round(tam * .55)}px;line-height:1">${p.emoji}</span>`;
+  if (p.tipo === "emoji" && p.emoji) return `<span style="${est};display:grid;place-items:center;background:${esc(p.cor || CORES_AV[0])};font-size:${Math.round(tam * .55)}px;line-height:1">${esc(p.emoji)}</span>`;
   const g = NUVEM.user?.photoURL;
   if (g) return `<img src="${esc(g)}" referrerpolicy="no-referrer" alt="" style="${est}">`;
   return `<span style="font-size:${Math.round(tam * .45)}px">${esc(nomeUser()[0].toUpperCase())}</span>`;
@@ -3991,10 +4016,39 @@ async function pedirPro() {
     ACESSO.pedido = true; abrirPagamento(null); toast("📨 Pedido enviado! Assim que o Pix for confirmado, seu Pro é liberado.");
   } catch (e) { toast("Não consegui enviar o pedido: " + e.message, true); }
 }
-async function contarPedidos() {
-  try { ACESSO.pedidos = (await NUVEM.F.getDocs(NUVEM.F.collection(NUVEM.db, "solicitacoes"))).size; } catch { ACESSO.pedidos = 0; }
-  try { ACESSO.pedidos += (await NUVEM.F.getDocs(NUVEM.F.query(NUVEM.F.collection(NUVEM.db, "feedback"), NUVEM.F.where("lido", "==", false)))).size; } catch {}
+// Fonte única dos pedidos de Pro: o sino, o selo do menu e o Painel usam esta mesma leitura (sempre do servidor, nunca do cache)
+const lerServidor = q => prazo((NUVEM.F.getDocsFromServer || NUVEM.F.getDocs)(q), 15000);
+const msgErro = e => /demorou demais/.test(e?.message) ? TT("O servidor demorou para responder.", "El servidor tardó en responder.") : String(e?.message || e || "erro");
+// esperando = precisa de resposta; atendido = a pessoa já recebeu/renovou o Pro depois de pedir (ex.: pagou pelo Pix automático); invalido = sem e-mail certo.
+// Na dúvida (sem data, relógio errado) fica em "esperando": melhor aparecer do que esconder alguém que pagou
+function classificarPedidos(docs, liberados) {
+  const lib = new Map(liberados.map(x => [x.email, x])), agora = Date.now(), r = { esperando: [], atendidos: [], invalidos: [] };
+  for (const x of docs) {
+    const l = lib.get(x.email), data = Number.isFinite(x.data) && x.data > 0 ? x.data : 0;
+    const ped = { ...x, data, nome: typeof x.nome === "string" ? x.nome.trim().slice(0, 80) : "", exp: l ? expiraDe(l) : 0 };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.email)) r.invalidos.push(ped);
+    else if (l && (l.nota === "administrador" || (data && (l.data || 0) >= data && ped.exp > agora))) r.atendidos.push({ ...ped, semPrazo: l.nota === "administrador" });
+    else r.esperando.push(ped);
+  }
+  for (const k in r) r[k].sort((a, b) => a.data - b.data);
+  return r;
 }
+async function lerPedidos() {
+  const F = NUVEM.F, db = NUVEM.db, conta = emailUser(), [p, l] = await Promise.allSettled([lerServidor(F.collection(db, "solicitacoes")), lerServidor(F.collection(db, "liberados"))]);
+  const lista = l.status === "fulfilled" ? l.value.docs.map(x => ({ ...x.data(), email: x.id })) : [];
+  const out = { lista, erroMembros: l.status === "rejected" ? msgErro(l.reason) : "", erro: p.status === "rejected" ? msgErro(p.reason) : "", esperando: [], atendidos: [], invalidos: [] };
+  if (!out.erro) Object.assign(out, classificarPedidos(p.value.docs.map(x => ({ ...x.data(), email: x.id })), lista));
+  if (emailUser() !== conta) return out; // saiu da conta no meio da leitura
+  if (!out.erro) { ACESSO.pedLista = out.esperando; ACESSO.pedidos = out.esperando.length; }
+  ACESSO.pedErro = out.erro; // se a leitura falhar, mantém o último número conhecido
+  return out;
+}
+async function contarPedidos() {
+  const F = NUVEM.F, conta = emailUser();
+  const [, fb] = await Promise.allSettled([lerPedidos(), lerServidor(F.query(F.collection(NUVEM.db, "feedback"), F.where("lido", "==", false)))]);
+  if (fb.status === "fulfilled" && emailUser() === conta) ACESSO.fbNovos = fb.value.size;
+}
+function zerarAvisosAdm() { ACESSO.pedidos = ACESSO.fbNovos = 0; ACESSO.pedLista = []; ACESSO.pedErro = ""; }
 /* ---------- Feedback: problema, ideia ou outro → chega no painel do administrador ---------- */
 function abrirFeedback() {
   S.fbTipo = "problema";
@@ -4026,7 +4080,7 @@ async function carregarPagamento() {
 }
 async function verificarAcesso() {
   const u = NUVEM.user;
-  if (!u) { ACESSO.liberado = ACESSO.admin = ACESSO.pedido = false; ACESSO.pedidos = 0; PERFIL = {}; lsSet("fp-perfil", {}); lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
+  if (!u) { ACESSO.liberado = ACESSO.admin = ACESSO.pedido = false; zerarAvisosAdm(); PERFIL = {}; lsSet("fp-perfil", {}); lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
   if (PERFIL.uid && PERFIL.uid !== u.uid) PERFIL = {};
   const F = NUVEM.F, db = NUVEM.db;
   // administradores ficam numa lista própria (admins/), separada dos membros Pro (liberados/)
@@ -4043,8 +4097,8 @@ async function verificarAcesso() {
   if (lib && expira && diasRestam(expira) <= AVISO_DIAS && !S.avisouPro) { S.avisouPro = true; setTimeout(() => toast(`⏳ Seu Pro acaba em ${diasRestam(expira)} dia(s), no dia ${dataCurta(expira)}. Renove para não perder o acesso.`), 1500); }
   // perfil (nome, foto ou avatar) e pedidos de Pro
   try { const d = await F.getDoc(F.doc(db, `${caminhoUser()}/conta/perfil`)); PERFIL = d.exists() ? d.data() : {}; lsSet("fp-perfil", { uid: u.uid, ...PERFIL }); } catch {}
-  if (ACESSO.admin) await contarPedidos();
-  else { try { ACESSO.pedido =(await F.getDoc(F.doc(db, "solicitacoes/" + emailUser()))).exists(); } catch { ACESSO.pedido = false; } }
+  if (ACESSO.admin) contarPedidos().then(desenharConta); // sem esperar: a entrada do app não fica presa nessa leitura
+  else { zerarAvisosAdm(); try { ACESSO.pedido =(await F.getDoc(F.doc(db, "solicitacoes/" + emailUser()))).exists(); } catch { ACESSO.pedido = false; } }
   // o contador do plano grátis acompanha a conta (vale o maior entre o aparelho e a nuvem)
   try {
     const ref = F.doc(db, `${caminhoUser()}/conta/uso`), d = await F.getDoc(ref), nv = d.exists() ? d.data() : {}, lo = uso();
@@ -4302,37 +4356,66 @@ function abrirPagamento(tipo) {
   if (NUVEM.user) { iniciarPixAuto(); verAssinatura(); }
   else if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(email) }); desenharQRPix(S.pixCodigo); }
 }
-async function abrirAdmin() {
-  const F = NUVEM.F, db = NUVEM.db, p = ACESSO.pag;
-  $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2><p class="muted"><span class="spin"></span> Carregando…</p>`;
+// alvo: { email } rola até o pedido da pessoa; { feedback: true } abre a aba de feedbacks
+let ADM_VEZ = 0;
+async function abrirAdmin(alvo = null) {
+  const F = NUVEM.F, db = NUVEM.db, p = ACESSO.pag, vez = ++ADM_VEZ;
+  const fechar = `<div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`;
+  $("#adminCorpo").innerHTML = `<h2 style="margin:0">🛡️ Painel do administrador</h2><p class="muted"><span class="spin"></span> Carregando…</p>${fechar}`;
   const d = $("#dlgAdmin"); if (!d.open) d.showModal();
-  let lista = [], pedidos = [], feedbacks = [];
-  try { feedbacks = (await F.getDocs(F.collection(db, "feedback"))).docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.lido - b.lido) || (b.data || 0) - (a.data || 0)).slice(0, 60); } catch (e) { console.warn("feedback", e); }
-  try {
-    lista = (await F.getDocs(F.collection(db, "liberados"))).docs.map(x => ({ email: x.id, ...x.data() }))
-      .map(x => ({ ...x, semPrazo: x.nota === "administrador", exp: expiraDe(x) })).sort((a, b) => (b.semPrazo - a.semPrazo) || (a.exp - b.exp));
-    pedidos = (await F.getDocs(F.collection(db, "solicitacoes"))).docs.map(x => ({ email: x.id, ...x.data() })).sort((a, b) => (a.data || 0) - (b.data || 0));
-    ACESSO.pedidos = pedidos.length + feedbacks.filter(x => !x.lido).length; desenharConta();
+  const [ped, fb] = await Promise.all([lerPedidos(), lerServidor(F.collection(db, "feedback")).then(r => ({ docs: r.docs }), e => ({ docs: [], erro: msgErro(e) }))]);
+  if (vez !== ADM_VEZ) return; // abriu de novo enquanto carregava: vale a última
+  const todosFb = fb.docs.map(x => ({ ...x.data(), id: x.id })).sort((a, b) => (!!a.lido - !!b.lido) || (b.data || 0) - (a.data || 0)), feedbacks = todosFb.slice(0, 60);
+  const novosFb = todosFb.filter(x => x.lido === false).length;
+  if (!fb.erro) ACESSO.fbNovos = novosFb;
+  desenharConta();
+  const lista = ped.lista.map(x => ({ ...x, semPrazo: x.nota === "administrador", exp: expiraDe(x) })).sort((a, b) => (b.semPrazo - a.semPrazo) || (a.exp - b.exp)), pedidos = ped.esperando;
+  const avisoErro = (t, e) => `<div class="adm-aviso erro" style="margin-top:6px"><b>${t}</b><div class="muted" style="font-size:12.5px;margin:4px 0 8px">${esc(e)}</div><button class="btn small" data-act="admin">${TT("Tentar de novo", "Intentar de nuevo")}</button></div>`;
+  const avPed = x => {
+    const a = x.avatar, ok = a && ((a.tipo === "emoji" && a.emoji) || (a.tipo === "avatar" && AVATARES_DESENHO[a.av]));
+    return ok ? `<span class="avatar" style="width:34px;height:34px;cursor:default;flex:none">${avatarHTML(34, a.tipo === "emoji" ? { tipo: "emoji", emoji: String(a.emoji).slice(0, 8), cor: String(a.cor || "").slice(0, 30) } : a)}</span>` : `<span class="fi">👤</span>`;
+  };
+  const linhaPed = (x, tipo) => `<div class="mrow adm-ped" data-ped="${esc(x.email)}">${avPed(x)}<span class="nm">${esc(x.nome || x.email)}${x.nome ? `<small>${esc(x.email)}</small>` : ""}<small>${x.data ? TT("pediu em ", "pidió el ") + fmtData(x.data) : TT("sem data", "sin fecha")}${tipo === "atendido" ? " · " + (x.semPrazo ? TT("já tem acesso completo", "ya tiene acceso completo") : TT("já está no Pro até ", "ya está en el Pro hasta ") + dataCurta(x.exp)) : ""}</small></span>
+        <span class="adm-ped-acoes">${tipo === "esperando" ? `<input type="text" inputmode="numeric" class="admDiasPed" data-email="${esc(x.email)}" value="30" placeholder="dias" title="Digite quantos dias quiser (ex.: 7, 15, 45, 90). No Ajustar, negativo tira dias." style="width:72px;padding:5px 8px"><span class="muted" style="font-size:12px">dias</span><button class="pill" data-act="admAutorizar" data-id="${esc(x.email)}" style="padding:6px 12px">✅ Autorizar</button><button class="btn small ghost" data-act="admRecusar" data-id="${esc(x.email)}" style="color:var(--bad)">${TT("Recusar", "Rechazar")}</button>` : `<button class="btn small ghost" data-act="admLimparPedido" data-id="${esc(x.email)}">${TT("Limpar da lista", "Quitar de la lista")}</button>`}</span></div>`;
+  // veio da notificação e o pedido não está mais esperando: explica o que aconteceu
+  let avisoAlvo = "";
+  if (alvo?.email && !ped.erro && !pedidos.some(x => x.email === alvo.email)) {
+    const m = lista.find(x => x.email === alvo.email);
+    const motivo = m?.semPrazo ? TT("já tem acesso completo.", "ya tiene acceso completo.")
+      : m && m.exp > Date.now() ? TT(`já está no Pro até ${dataCurta(m.exp)}.`, `ya está en el Pro hasta el ${dataCurta(m.exp)}.`)
+      : ped.erroMembros ? TT("o pedido foi atendido ou recusado.", "el pedido fue atendido o rechazado.")
+      : TT("o pedido foi recusado ou apagado, e a pessoa não está no Pro agora.", "el pedido fue rechazado o borrado, y la persona no está en el Pro ahora.");
+    avisoAlvo = `<div class="adm-aviso" id="admAlvo"><b>${TT("Esse pedido não está mais esperando.", "Ese pedido ya no está esperando.")}</b><div style="margin-top:4px">${esc(alvo.email)}: ${motivo} ${TT("O contador já foi corrigido.", "El contador ya fue corregido.")}</div></div>`;
   }
-  catch (e) { $("#adminCorpo").innerHTML = `<h2>🛡️ Painel do administrador</h2><p>Sem permissão: ${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`; return; }
-  const avPed = x => (x.avatar?.emoji || x.avatar?.av) ? `<span class="avatar" style="width:34px;height:34px;cursor:default;flex:none">${avatarHTML(34, x.avatar)}</span>` : `<span class="fi">👤</span>`;
-  $("#adminCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🛡️ Painel do administrador</h2><div class="row" style="gap:6px"><button class="pill" data-act="publico" style="padding:6px 14px">📊 Público</button><button class="btn small ghost" data-act="admin">🔄 Atualizar</button></div></div>
-    ${(() => { const novos = feedbacks.filter(x => !x.lido).length, rot = { problema: "🐞 Problema", ideia: "💡 Ideia", outro: "✉️ Outro" };
-      return `<div class="card" style="margin:0;${novos ? "border-color:var(--accent)" : ""}"><h3 style="margin:0 0 4px">💬 Feedbacks${novos ? ` (${novos} novo${novos > 1 ? "s" : ""})` : ""}</h3>
-      ${feedbacks.length ? feedbacks.map(x => `<div class="fb-item ${x.lido ? "" : "novo"}"><div class="row" style="justify-content:space-between;align-items:center;gap:6px"><b>${rot[x.tipo] || "✉️ Outro"}</b><small class="muted">${fmtData(x.data)}</small></div>
+  const velhos = [...ped.atendidos.map(x => linhaPed(x, "atendido")), ...ped.invalidos.map(x => linhaPed(x, "invalido"))];
+  const cartaoPedidos = `<div class="card" id="admPedidos" style="margin:0;${pedidos.length ? "border-color:#f5a623" : ""}"><h3 style="margin:0 0 4px">👑 Pedidos de Pro${ped.erro ? "" : ` (${pedidos.length})`}</h3>
+      ${ped.erro ? avisoErro(TT("Não consegui ler os pedidos. Isso não quer dizer que não há pedidos.", "No pude leer los pedidos. Eso no quiere decir que no haya pedidos."), ped.erro) : `
+      <div class="muted" style="font-size:13px;margin-bottom:6px">Pessoas que tocaram em "Já paguei". Confira o Pix e o comprovante no WhatsApp antes de autorizar.</div>
+      ${pedidos.length ? pedidos.map(x => linhaPed(x, "esperando")).join("") : `<p class="muted" style="margin:0">Nenhum pedido no momento.</p>`}
+      ${velhos.length ? `<details style="margin-top:10px"><summary class="muted" style="cursor:pointer;font-size:13px">${TT(`Já atendidos ou inválidos, não contam (${velhos.length})`, `Ya atendidos o inválidos, no cuentan (${velhos.length})`)}</summary>${velhos.join("")}</details>` : ""}`}
+    </div>`;
+  const nPed = pedidos.length;
+  // a notificação escolhe a aba; pelo menu, abre onde há algo novo; depois de uma ação, fica na mesma aba
+  S.admAba = alvo?.feedback ? "feedback" : alvo?.email ? "pedidos" : S.admAba || (!nPed && novosFb && !ped.erro ? "feedback" : "pedidos");
+  const abas = [["pedidos", "Pedidos", nPed], ["feedback", TT("Feedbacks", "Comentarios"), novosFb], ["membros", TT("Membros", "Miembros"), 0], ["pagamento", TT("Pagamento", "Pago"), 0]];
+  const on = k => S.admAba === k ? " on" : "";
+  const rotFb = { problema: "🐞 Problema", ideia: "💡 Ideia", outro: "✉️ Outro" };
+  const cartaoFeedback = `<div class="card" id="admFeedbacks" style="margin:0;${novosFb ? "border-color:var(--accent)" : ""}"><h3 style="margin:0 0 4px">💬 Feedbacks${novosFb ? ` (${novosFb} novo${novosFb > 1 ? "s" : ""})` : ""}</h3>
+      ${fb.erro ? avisoErro(TT("Não consegui ler os feedbacks.", "No pude leer los comentarios."), fb.erro) : feedbacks.length ? feedbacks.map(x => `<div class="fb-item ${x.lido ? "" : "novo"}"><div class="row" style="justify-content:space-between;align-items:center;gap:6px"><b>${rotFb[x.tipo] || "✉️ Outro"}</b><small class="muted">${fmtData(x.data)}</small></div>
         <small class="muted">${esc(x.nome || "")}${x.email ? ` · ${esc(x.email)}` : ""}${x.contato ? ` · contato: ${esc(x.contato)}` : ""}${!x.email && !x.contato ? "sem login" : ""}${x.idioma === "es" ? " · 🇵🇾 es" : ""}</small>
         <p>${esc(x.texto)}</p>
-        <div class="row" style="justify-content:flex-end;gap:6px;margin-top:6px">${x.lido ? "" : `<button class="btn small" data-act="admFbLido" data-id="${esc(x.id)}">✔ Marcar como lido</button>`}<button class="btn small ghost" data-act="admFbApagar" data-id="${esc(x.id)}" style="color:var(--bad)">🗑</button></div></div>`).join("") : `<p class="muted" style="margin:0">Nenhum feedback ainda.</p>`}</div>`; })()}
-    <div class="card" style="margin:0;${pedidos.length ? "border-color:#f5a623" : ""}"><h3 style="margin:0 0 4px">👑 Pedidos de Pro (${pedidos.length})</h3>
-      <div class="muted" style="font-size:13px;margin-bottom:6px">Pessoas que tocaram em "Já paguei". Confira o Pix e o comprovante no WhatsApp antes de autorizar.</div>
-      ${pedidos.length ? pedidos.map(x => `<div class="mrow" style="margin-top:6px;align-items:center;flex-wrap:wrap">${avPed(x)}<span class="nm">${esc(x.email)}<small>${esc(x.nome || "")}${x.data ? " · pediu " + fmtData(x.data) : ""}</small></span>
-        <span style="flex-basis:100%;display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:4px"><input type="text" inputmode="numeric" class="admDiasPed" data-email="${esc(x.email)}" value="30" placeholder="dias" title="Digite quantos dias quiser (ex.: 7, 15, 45, 90). No Ajustar, negativo tira dias." style="width:72px;padding:5px 8px" min="1"><span class="muted" style="font-size:12px">dias</span><button class="pill" data-act="admAutorizar" data-id="${esc(x.email)}" style="padding:6px 12px">✅ Autorizar</button><button class="btn small ghost" data-act="admRecusar" data-id="${esc(x.email)}" style="color:var(--bad)">Recusar</button></span></div>`).join("") : `<p class="muted" style="margin:0">Nenhum pedido no momento.</p>`}
-    </div>
+        <div class="row" style="justify-content:flex-end;gap:6px;margin-top:6px">${x.lido ? "" : `<button class="btn small" data-act="admFbLido" data-id="${esc(x.id)}">✔ Marcar como lido</button>`}<button class="btn small ghost" data-act="admFbApagar" data-id="${esc(x.id)}" style="color:var(--bad)">🗑</button></div></div>`).join("") : `<p class="muted" style="margin:0">Nenhum feedback ainda.</p>`}</div>`;
+  $("#adminCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🛡️ Painel do administrador</h2><div class="row" style="gap:6px"><button class="pill" data-act="publico" style="padding:6px 14px">📊 Público</button><button class="btn small ghost" data-act="admin">🔄 Atualizar</button></div></div>
+    <div class="adm-abas" role="tablist">${abas.map(([k, t, n]) => `<button role="tab" aria-selected="${!!on(k)}" class="${on(k)}" data-act="admAba" data-id="${k}">${t}${n ? `<span class="badge">${n}</span>` : ""}</button>`).join("")}</div>
+    <div class="adm-aba${on("pedidos")}" data-aba="pedidos">${avisoAlvo}${cartaoPedidos}</div>
+    <div class="adm-aba${on("feedback")}" data-aba="feedback">${cartaoFeedback}</div>
+    <div class="adm-aba${on("membros")}" data-aba="membros">
     <div class="card stack" style="margin:0"><h3 style="margin:0">Liberar um e-mail manualmente</h3>
       <div class="muted" style="font-size:13px">Se a pessoa te mandou o e-mail direto, digite o Gmail que ela usa para entrar.</div>
       <div class="row"><input type="email" id="admEmail" placeholder="pessoa@gmail.com" style="flex:1;min-width:200px"><input type="text" id="admNota" placeholder="observação (ex.: promoção, divulgou 2 pessoas)" style="flex:1;min-width:160px"><span style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="text" inputmode="numeric" id="admDias" value="30" placeholder="dias" title="Digite quantos dias quiser (ex.: 7, 15, 45, 90)" style="width:72px;padding:5px 8px"><span class="muted" style="font-size:12px">dias</span><button class="pill" data-act="admLiberar">✅ Liberar</button></span></div>
     </div>
     ${(() => {
+      if (ped.erroMembros) return `<div class="card" style="margin:0"><h3 style="margin:0">👑 Membros Pro</h3>${avisoErro(TT("Não consegui ler os membros.", "No pude leer los miembros."), ped.erroMembros)}</div>`;
       const agora = Date.now(), ativos = lista.filter(x => x.semPrazo || x.exp > agora), vencidos = lista.filter(x => !x.semPrazo && x.exp <= agora);
       const linha = x => {
         const n = diasRestam(x.exp), perto = !x.semPrazo && x.exp > agora && n <= AVISO_DIAS;
@@ -4343,6 +4426,8 @@ async function abrirAdmin() {
       return `<div class="card" style="margin:0"><h3 style="margin:0 0 8px">👑 Membros Pro ativos (${ativos.length})</h3>${ativos.length ? ativos.map(linha).join("") : `<p class="muted" style="margin:0">Ninguém no Pro agora.</p>`}</div>
         ${vencidos.length ? `<div class="card" style="margin:0"><h3 style="margin:0 0 8px">⏰ Pro vencido (${vencidos.length})</h3><div class="muted" style="font-size:13px">Saíram do Pro sozinhos ao completar 30 dias. Se pagarem de novo, toque em "+30 dias".</div>${vencidos.map(linha).join("")}</div>` : ""}`;
     })()}
+    </div>
+    <div class="adm-aba${on("pagamento")}" data-aba="pagamento">
     <div class="card stack" style="margin:0"><h3 style="margin:0">Pagamento e plano grátis</h3>
       <label>Chave Pix<input type="text" id="admPix" value="${esc(p.pix || "")}" placeholder="CPF, e-mail, telefone ou chave aleatória"></label>
       <div class="row"><label style="flex:2">Nome que aparece no Pix (seu nome, como no banco)<input type="text" id="admPixNome" maxlength="25" value="${esc(p.pixNome || "")}" placeholder="ex.: CARLOS EDUARDO"></label><label style="flex:1">Cidade<input type="text" id="admPixCidade" maxlength="15" value="${esc(p.pixCidade || "")}" placeholder="ex.: SAO PAULO"></label></div>
@@ -4354,20 +4439,33 @@ async function abrirAdmin() {
       </div>
       <div><button class="pill" data-act="admSalvarPag">💾 Salvar</button></div>
     </div>
-    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharAdmin">Fechar</button></div>`;
+    </div>
+    ${fechar}`;
+  // rola até a pessoa que a notificação apontou
+  if (alvo) setTimeout(() => {
+    if (vez !== ADM_VEZ) return;
+    if (alvo.feedback) return;
+    if (avisoAlvo) return $("#admAlvo").scrollIntoView({ block: "center" });
+    const el = [...document.querySelectorAll("#admPedidos .adm-ped")].find(x => x.dataset.ped === alvo.email);
+    if (el) { el.classList.add("alvo"); el.scrollIntoView({ block: "center" }); }
+  }, 60);
 }
 // lê o campo de dias ao lado do botão (pedido ou membro); vazio = 30
 function diasDoCampo(cls, email) {
   const el = [...document.querySelectorAll("." + cls)].find(x => x.dataset.email === email);
   const v = parseInt(el?.value, 10); return Number.isFinite(v) ? v : 30;
 }
-async function admLiberar(emailPedido, diasEscolhidos) {
+const ADM_OCUPADO = new Set();
+const pedidoExiste = async email => (await prazo((NUVEM.F.getDocFromServer || NUVEM.F.getDoc)(NUVEM.F.doc(NUVEM.db, "solicitacoes/" + email)), 15000)).exists();
+async function admLiberar(emailPedido, diasEscolhidos, dePedido = false) {
   const email = (emailPedido || $("#admEmail").value || "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Digite um e-mail válido.", true);
   const dias = Math.round(diasEscolhidos ?? (emailPedido ? 30 : parseInt($("#admDias")?.value, 10) || 30));
   if (!dias || Math.abs(dias) > 3650) return toast("Escolha uma quantidade de dias válida.", true);
   const F = NUVEM.F, db = NUVEM.db;
+  if (ADM_OCUPADO.has(email)) return; ADM_OCUPADO.add(email); // toque duplo não soma os dias duas vezes
   try {
+    if (dePedido && !(await pedidoExiste(email))) return abrirAdmin({ email }); // já foi pago, aprovado ou recusado em outro lugar
     // dias positivos: somam a partir de hoje (ou do que ainda falta); negativos: tiram da data de expiração
     const ref = F.doc(db, "liberados/" + email), atual = await F.getDoc(ref), ant = atual.exists() ? atual.data() : null;
     if (dias < 0 && !ant) return toast("Essa pessoa não está no Pro para tirar dias.", true);
@@ -4378,6 +4476,7 @@ async function admLiberar(emailPedido, diasEscolhidos) {
     if (dias > 0) await F.deleteDoc(F.doc(db, "solicitacoes/" + email)).catch(() => {});
     toast(expira > agora ? `👑 ${email}: ${dias > 0 ? "+" : ""}${dias} dia(s). Pro até ${dataCurta(expira)}.` : `${email}: ${dias} dia(s). O Pro ficou vencido.`); abrirAdmin();
   } catch (e) { toast("Não consegui liberar: " + e.message, true); }
+  finally { ADM_OCUPADO.delete(email); }
 }
 /* ---------- 📊 Público: visitas (todo mundo, anônimo) e contas (quem entrou com o Google) ---------- */
 // acessos/{dia}/aparelhos/{aparelho} = { aberturas, ultimo, logado }  ·  contas/{uid} = { nome, email, foto, primeiro, ultimo, acessos }
@@ -4448,9 +4547,13 @@ async function abrirPublico() {
   } catch (e) { $("#publicoCorpo").innerHTML = `<h2>📊 Público</h2><p>Não consegui carregar: ${esc(e.message)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharPublico">Fechar</button></div>`; }
 }
 async function admRecusar(email) {
-  if (!confirm(`Recusar o pedido de ${email}? (a pessoa pode pedir de novo)`)) return;
-  try { await NUVEM.F.deleteDoc(NUVEM.F.doc(NUVEM.db, "solicitacoes/" + email)); toast("Pedido recusado."); abrirAdmin(); }
+  if (!confirm(TT(`Recusar o pedido de ${email}? (a pessoa pode pedir de novo)`, `¿Rechazar el pedido de ${email}? (la persona puede pedir de nuevo)`))) return;
+  try { if (!(await pedidoExiste(email))) return abrirAdmin({ email }); await NUVEM.F.deleteDoc(NUVEM.F.doc(NUVEM.db, "solicitacoes/" + email)); toast("Pedido recusado."); abrirAdmin(); }
   catch (e) { toast("Não consegui recusar: " + e.message, true); }
+}
+async function admLimparPedido(email) {
+  try { await NUVEM.F.deleteDoc(NUVEM.F.doc(NUVEM.db, "solicitacoes/" + email)); abrirAdmin(); }
+  catch (e) { toast(TT("Não consegui limpar: ", "No pude limpiar: ") + e.message, true); }
 }
 async function admRemover(email) {
   if (!confirm(`Remover o acesso de ${email}?`)) return;
@@ -4741,10 +4844,18 @@ document.addEventListener("click", async e => {
     case "copiarPixCodigo": navigator.clipboard?.writeText(S.pixCodigo || "").then(() => toast("📋 Pix copia e cola copiado! Cole na área Pix do app do seu banco."), () => toast("Não consegui copiar. Use o QR Code.", true)); break;
     case "copiarPix": navigator.clipboard?.writeText(ACESSO.pag.pix).then(() => toast("📋 Chave Pix copiada!"), () => toast("Copie a chave manualmente.", true)); break;
     case "jaLiberado": await verificarAcesso(); if (ACESSO.liberado && !ACESSO.pedido) { $("#dlgPagar").close(); toast(`🎉 Pro liberado${ACESSO.expira ? ` até ${dataCurta(ACESSO.expira)}` : ""}! Bons estudos.`); } else toast("Ainda não foi liberado. Assim que o administrador confirmar o Pix, toque de novo.", true); break;
-    case "admin": NUVEM.menu = false; desenharConta(); abrirAdmin(); break;
+    case "admin": NUVEM.menu = false; desenharConta(); if ($("#dlgPerfil").open) $("#dlgPerfil").close(); if (!$("#dlgAdmin").open) S.admAba = null; abrirAdmin(); break;
+    case "admAba":
+      S.admAba = id;
+      document.querySelectorAll(".adm-abas button").forEach(b => { b.classList.toggle("on", b.dataset.id === id); b.setAttribute("aria-selected", b.dataset.id === id); });
+      document.querySelectorAll(".adm-aba").forEach(x => x.classList.toggle("on", x.dataset.aba === id));
+      $("#dlgAdmin").scrollTop = 0; break;
+    case "adminPedido": $("#dlgPerfil").close(); abrirAdmin({ email: id }); break;
+    case "adminFeedback": $("#dlgPerfil").close(); abrirAdmin({ feedback: true }); break;
+    case "admLimparPedido": admLimparPedido(id); break;
     case "fecharAdmin": $("#dlgAdmin").close(); break;
     case "admLiberar": admLiberar(); break;
-    case "admAutorizar": admLiberar(id, diasDoCampo("admDiasPed", id)); break;
+    case "admAutorizar": admLiberar(id, diasDoCampo("admDiasPed", id), true); break;
     case "admAjustar": admLiberar(id, diasDoCampo("admDiasMem", id)); break;
     case "publico": abrirPublico(); break;
     case "fecharPublico": $("#dlgPublico").close(); break;
@@ -4999,7 +5110,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-1631";
+const VERSAO_APP = "2026-11-23-1854";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5295,7 +5406,6 @@ const UI_ES = {
   "Assim que o Pix cair, seu Pro é liberado": "Apenas caiga el Pix, tu Pro se libera",
   "O pagamento com cartão não abriu agora (": "El pago con tarjeta no se abrió ahora (",
   "Saia do estudo para adicionar materiais.": "Sal del estudio para agregar materiales.",
-  "pedido(s) de Pro esperando sua aprovação": "pedido(s) de Pro esperando tu aprobación",
   "📋 Sabe quais capítulos caem na sua prova?": "📋 ¿Sabes qué capítulos entran en tu examen?",
   "Entre com o Google para o Pro ser liberado": "Entra con Google para que el Pro se libere",
   "Lendo os materiais e escolhendo os tópicos…": "Leyendo los materiales y eligiendo los temas…",
