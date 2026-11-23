@@ -1254,12 +1254,15 @@ function paginaTemTexto(t) {
 const juntarPaginas = paginas => paginas.map((t, i) => t ? `[Página ${i + 1}]\n${t}` : "").filter(Boolean).join("\n\n");
 async function extrairPDF(file) {
   const pdf = await abrirPDF(new Uint8Array(await file.arrayBuffer()));
-  const paginas = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    if (pdf.numPages > 20 && i % 10 === 0) toast(`Lendo ${file.name}: página ${i} de ${pdf.numPages}…`);
+  const paginas = Array(pdf.numPages).fill("");
+  const lerPag = async i => {
     const tc = await (await pdf.getPage(i)).getTextContent();
     const t = tc.items.map(it => it.str + (it.hasEOL ? "\n" : " ")).join("").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-    paginas.push(paginaTemTexto(t) ? t : "");
+    paginas[i - 1] = paginaTemTexto(t) ? t : "";
+  };
+  for (let i = 1; i <= pdf.numPages; i += 8) { // 8 páginas de cada vez
+    if (pdf.numPages > 40 && i > 1) toast(`Lendo ${file.name}: página ${i} de ${pdf.numPages}…`);
+    await Promise.all(Array.from({ length: Math.min(8, pdf.numPages - i + 1) }, (_, k) => lerPag(i + k)));
   }
   const faltam = paginas.map((t, i) => t ? 0 : i + 1).filter(Boolean);
   // Páginas quase vazias no meio de um PDF com texto (capa, figura) não precisam de OCR
@@ -1269,9 +1272,10 @@ async function extrairPDF(file) {
 async function extrairPPTX(file) {
   const zip = await JSZip.loadAsync(file);
   const nums = Object.keys(zip.files).map(n => n.match(/^ppt\/slides\/slide(\d+)\.xml$/)).filter(Boolean).map(m => +m[1]).sort((a, b) => a - b);
-  const out = [];
+  const out = [], paginas = [], faltam = [];
   for (const n of nums) {
     const t = xmlTexto(await zip.file(`ppt/slides/slide${n}.xml`).async("string"), "a:p", "a:t");
+    const temImagem = !!(await zip.file(`ppt/slides/_rels/slide${n}.xml.rels`)?.async("string") || "").match(/\/image"/);
     let notas = "";
     const rels = zip.file(`ppt/slides/_rels/slide${n}.xml.rels`);
     if (rels) {
@@ -1279,9 +1283,12 @@ async function extrairPPTX(file) {
       const nf = m && zip.file(`ppt/notesSlides/${m[1]}`);
       if (nf) notas = xmlTexto(await nf.async("string"), "a:p", "a:t").split("\n").filter(l => !/^\d+$/.test(l.trim())).join("\n").trim();
     }
-    out.push(`[Slide ${n}]\n${t}${notas ? `\n(Notas do apresentador: ${notas})` : ""}`);
+    const txt = `${t}${notas ? `\n(Notas do apresentador: ${notas})` : ""}`.trim();
+    out.push(`[Slide ${n}]\n${txt}`); paginas[n - 1] = txt;
+    if (temImagem && (t.match(/\p{L}/gu) || []).length < 40) faltam.push(n); // slide que é foto/print: o texto está na imagem
   }
-  return { tipo: "pptx", texto: out.join("\n\n"), extra: `${nums.length} slides` };
+  const imagens = faltam.length >= Math.max(1, nums.length * 0.15);
+  return { tipo: "pptx", texto: out.join("\n\n"), extra: `${nums.length} slides`, paginas: Array.from(paginas, x => x || ""), ...(imagens ? { poucoTexto: true, faltam, arquivo: file } : {}) };
 }
 async function extrairDOCX(file) {
   const zip = await JSZip.loadAsync(file);
@@ -1354,9 +1361,10 @@ async function adicionarArquivos(files) {
     toast("Lendo " + f.name + "…");
     try {
       const r = await extrair(f);
-      c.materiais.push({ id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r });
+      const novo = { id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r };
+      c.materiais.push(novo);
       await salvar(c); render();
-      if (r.poucoTexto) toast(`${f.name}: parece escaneado. Clique em “Ler texto (grátis)”.`);
+      if (r.poucoTexto) { toast(`${f.name}: tem páginas em imagem. Lendo com IA…`); lerRapido(novo.id); }
     } catch (e) { toast(`${f.name}: ${e.message}`, true); }
   }
   toast("Materiais adicionados.");
@@ -1491,6 +1499,103 @@ async function transcrever(id) {
   } catch (e) { toast(erroMsg(e), true); }
   delete m.transcrevendo; await salvar(c); render();
 }
+
+
+/* ================= Leitura rápida com IA (como os apps grandes fazem) =================
+   Páginas/slides que são IMAGEM não passam mais pelo leitor do celular (minutos): viram JPEG pequenos e vão em lotes
+   para o Gemini, vários lotes ao mesmo tempo. Começa sozinho ao enviar o arquivo. Se a IA falhar ou o limite grátis
+   acabou, o que faltar cai no leitor do celular (Tesseract), como antes. */
+const LEITURA = { fila: Promise.resolve() };
+const cadernoDoMaterial = id => S.cadernos.find(c => (c.materiais || []).some(m => m.id === id));
+async function canvasJPEG(cv, larg = 1100) {
+  let alvo = cv;
+  if (cv.width > larg) { alvo = Object.assign(document.createElement("canvas"), { width: larg, height: Math.round(cv.height * larg / cv.width) }); alvo.getContext("2d").drawImage(cv, 0, 0, alvo.width, alvo.height); }
+  const blob = await new Promise(r => alvo.toBlob(r, "image/jpeg", 0.72));
+  return b64(blob);
+}
+async function imagemParaJPEG64(blob) {
+  const img = await createImageBitmap(blob);
+  const cv = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height });
+  const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0);
+  return canvasJPEG(cv);
+}
+// as imagens de cada slide do PowerPoint (na ordem em que aparecem)
+async function imagensDoSlide(zip, n) {
+  const rels = zip.file(`ppt/slides/_rels/slide${n}.xml.rels`); if (!rels) return [];
+  const alvos = [...(await rels.async("string")).matchAll(/Type="[^"]*\/image"[^>]*Target="\.\.\/media\/([^"]+)"|Target="\.\.\/media\/([^"]+)"[^>]*Type="[^"]*\/image"/g)].map(m => m[1] || m[2]);
+  const out = [];
+  for (const a of alvos) { if (!/\.(png|jpe?g|gif|bmp|webp)$/i.test(a)) continue; const f = zip.file("ppt/media/" + a); if (f) out.push(await f.async("blob")); }
+  return out;
+}
+function lerRapido(id) { LEITURA.fila = LEITURA.fila.catch(() => {}).then(() => lerComIA(id)); return LEITURA.fila; }
+async function lerComIA(id) {
+  const c = cadernoDoMaterial(id), m = c?.materiais.find(x => x.id === id); if (!m || m.transcrevendo) return;
+  const dados = await dadosOriginais(m);
+  if (!dados) return toast("O arquivo original não foi guardado. Remova este material e adicione o arquivo de novo.", true);
+  if (!podeUsarSilencioso()) return lerComOCR(id); // sem uso grátis: leitor do celular, como antes
+  m.transcrevendo = true; m.progLeitura = ""; render();
+  const inicio = Date.now(), limpar = t => String(t || "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  let pdf = null, zip = null;
+  try {
+    // 1) quais páginas precisam ser lidas
+    let fila;
+    if (m.tipo === "imagem") { m.paginas = [""]; fila = [1]; }
+    else if (m.tipo === "pptx") { zip = await JSZip.loadAsync(dados); fila = (m.faltam || []).slice(); }
+    else {
+      pdf = await abrirPDF(dados);
+      if (!m.paginas) m.paginas = Array(pdf.numPages).fill("");
+      fila = (m.faltam?.length ? m.faltam : m.paginas.map((t, i) => t ? 0 : i + 1).filter(Boolean)).filter(n => !m.paginas[n - 1]);
+    }
+    const total = fila.length; let feitas = 0, ultimoRender = 0;
+    const mostrar = () => { m.progLeitura = `${feitas}/${total}`; if (Date.now() - ultimoRender > 600) { ultimoRender = Date.now(); render(); } };
+    // 2) cada página vira imagem leve
+    const imagens = async n => {
+      if (m.tipo === "imagem") return [await imagemParaJPEG64(new Blob([dados], { type: m.mime }))];
+      if (zip) return Promise.all((await imagensDoSlide(zip, n)).slice(0, 4).map(imagemParaJPEG64));
+      const pg = await pdf.getPage(n), base = pg.getViewport({ scale: 1 });
+      const vp = pg.getViewport({ scale: Math.min(2, Math.max(0.8, 1100 / base.width)) });
+      const cv = Object.assign(document.createElement("canvas"), { width: Math.round(vp.width), height: Math.round(vp.height) });
+      await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+      const r = await canvasJPEG(cv); cv.width = cv.height = 0; return [r];
+    };
+    // 3) lotes de páginas para a IA, vários ao mesmo tempo
+    const LOTE = zip ? 6 : 8, PARALELO = 3, lotes = [];
+    for (let i = 0; i < fila.length; i += LOTE) lotes.push(fila.slice(i, i + LOTE));
+    const rot = zip ? "Slide" : "Página";
+    const fazerLote = async lote => {
+      const content = [];
+      for (const n of lote) { const ims = await imagens(n); if (!ims.length) continue; content.push({ type: "text", text: `[${rot} ${n}]` }, ...ims.map(d => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: d } }))); }
+      if (!content.length) { lote.forEach(n => { if (zip) m.paginas[n - 1] ||= " "; }); return; }
+      content.push({ type: "text", text: `Transcreva TODO o texto de cada ${rot.toLowerCase()} acima, na ordem, fielmente e no idioma original (títulos, tópicos, tabelas em linhas). Em figuras, gráficos e esquemas, descreva em 1 frase entre colchetes o que mostram. Não resuma e não comente. Responda em JSON: {"paginas":[{"n": número, "texto": "..."}]} com um item para cada ${rot.toLowerCase()} enviado.` });
+      let erro;
+      for (let vez = 0; vez < 2; vez++) {
+        try {
+          const r = await chamar({ system: "Você transcreve slides e páginas de material de estudo de medicina com fidelidade.", messages: [{ role: "user", content }], schema: obj({ paginas: arr(obj({ n: int, texto: str })) }), maxTokens: 12000, fundo: true });
+          for (const p of r.paginas || []) if (lote.includes(p.n) && limpar(p.texto)) m.paginas[p.n - 1] = (m.paginas[p.n - 1] && zip ? m.paginas[p.n - 1] + "\n" : "") + limpar(p.texto);
+          return;
+        } catch (e) { erro = e; }
+      }
+      console.warn("leitura com IA, lote falhou:", erro);
+    };
+    let prox = 0;
+    const trabalhador = async () => { while (prox < lotes.length) { const lote = lotes[prox++]; await fazerLote(lote); feitas += lote.length; mostrar(); if (prox % 3 === 0) { m.texto = zip ? textoSlides(m.paginas) : juntarPaginas(m.paginas); salvar(c); } } };
+    mostrar(); await Promise.all(Array.from({ length: Math.min(PARALELO, lotes.length) }, trabalhador));
+    // 4) junta tudo
+    m.texto = m.tipo === "imagem" ? m.paginas[0] : zip ? textoSlides(m.paginas) : juntarPaginas(m.paginas);
+    const sobrou = m.tipo === "imagem" ? (m.texto ? [] : [1]) : fila.filter(n => !m.paginas[n - 1]);
+    if (sobrou.length < total) gastar();
+    if (sobrou.length && !zip) { m.faltam = sobrou; delete m.transcrevendo; await salvar(c); toast("Algumas páginas não foram lidas pela IA. Terminando no leitor do celular…"); return lerComOCR(id); }
+    m.faltam = []; m.poucoTexto = false; delete m.b64; if (!zip) delete m.arquivo;
+    if (m.texto.replace(/\[(Página|Slide) \d+\]|\s/g, "").length < 20) throw new Error("não encontrei texto nas imagens");
+    toast(`${m.nome}: lido em ${Math.max(1, Math.round((Date.now() - inicio) / 1000))} s.`);
+  } catch (e) {
+    console.warn("leitura com IA:", e); delete m.transcrevendo; await salvar(c);
+    if (!zip) { toast("A leitura rápida falhou; usando o leitor do celular…"); return lerComOCR(id); }
+    toast(`${m.nome}: ${erroMsg(e)}`, true);
+  }
+  delete m.transcrevendo; delete m.progLeitura; await salvar(c); render();
+}
+const textoSlides = paginas => paginas.map((t, i) => t && t.trim() ? `[Slide ${i + 1}]\n${t.trim()}` : "").filter(Boolean).join("\n\n");
 
 /* ================= geração ================= */
 function lerForm() {
@@ -2028,8 +2133,8 @@ function viewMateriais(c) {
       ${c.materiais.map(m => {
         const off = m.ativo === false;
         const meta = [m.extra, m.texto ? m.texto.length.toLocaleString("pt-BR") + " caracteres" : "sem texto", off ? "não usado no estudo" : ""].filter(Boolean).join(" · ");
-        const escaneado = m.poucoTexto ? (m.transcrevendo ? `<span class="badge warn"><span class="spin"></span> lendo…</span>`
-          : (m.b64 || m.arquivo) ? `<button class="btn small primary" data-act="ocr" data-id="${m.id}">🔍 Ler texto</button>${(cfg().provider === "anthropic" && cfg().apiKey) || (cfg().provider === "gemini" && GEMINI_OK()) ? `<button class="mini" data-act="transcrever" data-id="${m.id}" title="Transcrever com IA na nuvem (melhor qualidade)">✨</button>` : ""}`
+        const escaneado = m.poucoTexto ? (m.transcrevendo ? `<span class="badge warn"><span class="spin"></span> lendo${m.progLeitura ? " " + m.progLeitura : "…"}</span>`
+          : (m.b64 || m.arquivo) ? `<button class="btn small primary" data-act="lerRapido" data-id="${m.id}">${iconeSVG("lupa", 'style="width:14px;height:14px;vertical-align:-2px"')} Ler texto</button>`
           : `<span class="badge warn" title="Remova e adicione o arquivo de novo">reenvie o arquivo</span>`) : "";
         return `<div class="mrow ${off ? "off" : ""}"><span class="fi">${iconeMat(m)}</span>
           <span class="nm">${esc(m.nome)}<small>${esc(meta)}</small></span>
@@ -4552,6 +4657,7 @@ document.addEventListener("click", async e => {
     case "excluirMat": { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); await salvar(c); render(); } break; }
     case "transcrever": transcrever(id); break;
     case "ocr": lerComOCR(id); break;
+    case "lerRapido": lerRapido(id); break;
     case "gerar": gerar(id); break;
     case "excluir": if (confirm("Excluir este item?")) { c[el.dataset.tipo] = c[el.dataset.tipo].filter(x => x.id !== id); await salvar(c); render(); } break;
     case "sair": fecharVoz(); if (S.player?.tipo === "louco") { labParar(); S.lab = null; S.aba = "quiz"; } if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
@@ -4679,7 +4785,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2357";
+const VERSAO_APP = "2026-11-23-0004";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5385,11 +5491,12 @@ const UI_ES = {
   "Esconder": "Ocultar", "Esconder o Ateneo da tela inicial": "Ocultar el Ateneo de la pantalla de inicio", "Ateneo escondido. Para ver de novo, toque em Sim, mostrar.": "Ateneo oculto. Para verlo de nuevo, toca Sí, mostrar.",
   "Baixando a voz (só na primeira vez)…": "Descargando la voz (solo la primera vez)…", "A voz não carregou agora. Toque em Ouvir de novo.": "La voz no cargó ahora. Toca Escuchar de nuevo.",
   "📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos, fotos o .zip aquí",
-  "Envie provas anteriores da sua professora (PDF, Word, foto ou .zip). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.": "Sube exámenes anteriores de tu profesora (PDF, Word, foto o .zip). La IA pregunta con el mismo estilo y se enfoca en los temas que más entran."
+  "Envie provas anteriores da sua professora (PDF, Word, foto ou .zip). A IA passa a perguntar no mesmo estilo e foca nos assuntos que mais caem.": "Sube exámenes anteriores de tu profesora (PDF, Word, foto o .zip). La IA pregunta con el mismo estilo y se enfoca en los temas que más entran.",
+  "Algumas páginas não foram lidas pela IA. Terminando no leitor do celular…": "Algunas páginas no las leyó la IA. Terminando con el lector del celular…", "A leitura rápida falhou; usando o leitor do celular…": "La lectura rápida falló; usando el lector del celular…"
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^Abrindo (.+)…$/, "Abriendo $1…"], [/^(.+): (\d+) arquivos? encontrados?(.*)\.$/, "$1: $2 archivo(s) encontrado(s)$3."], [/^(.+): não consegui abrir o zip \((.*)\)\.$/, "$1: no pude abrir el zip ($2)."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^Abrindo (.+)…$/, "Abriendo $1…"], [/^(.+): (\d+) arquivos? encontrados?(.*)\.$/, "$1: $2 archivo(s) encontrado(s)$3."], [/^(.+): não consegui abrir o zip \((.*)\)\.$/, "$1: no pude abrir el zip ($2)."], [/^(.+): tem páginas em imagem\. Lendo com IA…$/, "$1: tiene páginas en imagen. Leyendo con IA…"], [/^(.+): lido em (\d+) s\.$/, "$1: leído en $2 s."], [/^lendo (\d+)\/(\d+)$/, "leyendo $1/$2"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
