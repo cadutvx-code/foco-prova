@@ -6,6 +6,7 @@
 //         POST /assinar { idToken }            → cria uma ASSINATURA mensal no cartão de crédito (Mercado Pago) e devolve o link
 //         POST /assinatura { idToken }         → situação da assinatura; libera os meses já cobrados que ainda não foram somados
 //         POST /cancelar-assinatura { idToken } → cancela a renovação (o Pro vai até o fim do que já foi pago)
+//         POST /ia { idToken, system, prompt, json, maxTokens } → IA RESERVA (quando a cota grátis do Gemini acaba): Groq → Cloudflare → OpenRouter
 //         POST /webhook (aviso do Mercado Pago) → confere o pedido e libera
 // Segredos (wrangler secret put): MP_TOKEN (Access Token do Mercado Pago), SA_JSON (chave da conta de serviço do Firebase)
 
@@ -28,6 +29,7 @@ export default {
       const corpo = await req.json().catch(() => ({}));
       const email = await emailDoLogin(env, corpo.idToken);
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
+      if (rota === "/ia") return json(req, await iaReserva(env, corpo));
       if (rota === "/criar") return json(req, await criarPix(env, email));
       if (rota === "/status") return json(req, await conferir(env, corpo.id, email));
       if (rota === "/cartao") return json(req, await criarCheckout(env, email));
@@ -296,4 +298,38 @@ async function avisoAssinatura(env, tipo, id) {
   if (!email || !email.includes("@")) return;
   await guardarIdAssinatura(env, email, preId);
   await liberarCobrancas(env, email, preId);
+}
+
+// ================= IA reserva =================
+// Só para quem está logado (o e-mail é conferido acima). Tenta, em ordem: Groq (se GROQ_KEY), a IA do próprio Cloudflare
+// (grátis, sem cadastro) e OpenRouter (se OPENROUTER_KEY). Modelos grandes, temperatura baixa (menos invenção).
+// testados em 23/11/2026 (todos acertaram a pergunta de teste; o DeepSeek dá 403 nesta conta)
+// ordem pedida pelo usuário: GPT primeiro, Llama por último
+const MODELOS_CF = ["@cf/openai/gpt-oss-120b", "@cf/openai/gpt-oss-20b", "@cf/qwen/qwen3.8-27b", "@cf/google/gemma-4-26b-a4b-it", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"];
+async function iaReserva(env, { system = "", prompt = "", json: querJSON = false, maxTokens = 2500 }) {
+  system = String(system).slice(0, 16000); prompt = String(prompt).slice(0, 9000);
+  const messages = [{ role: "system", content: system }, { role: "user", content: prompt }];
+  const max = Math.min(4000, Math.max(200, Number(maxTokens) || 2500)), erros = [];
+  const openai = async (url, chave, model) => {
+    const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, messages, max_tokens: max, temperature: 0.3, ...(querJSON ? { response_format: { type: "json_object" } } : {}) }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error((d.error?.message || "HTTP " + r.status).slice(0, 120));
+    return d.choices?.[0]?.message?.content || "";
+  };
+  if (env.GROQ_KEY) for (const m of String(env.GROQ_MODELOS || "llama-3.3-70b-versatile").split(",")) {
+    try { const t = await openai("https://api.groq.com/openai/v1/chat/completions", env.GROQ_KEY, m.trim()); if (t) return { texto: t, via: "groq" }; } catch (e) { erros.push("groq " + m + ": " + e.message); }
+  }
+  if (env.AI) for (const m of MODELOS_CF) {
+    try {
+      const r = await env.AI.run(m, { messages, max_tokens: max, temperature: 0.3 });
+      let t = typeof r?.response === "string" ? r.response : r?.response ? JSON.stringify(r.response) : r?.choices?.[0]?.message?.content || r?.output_text || "";
+      t = String(t).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      if (t) return { texto: t, via: "cloudflare " + m.split("/").pop() };
+    } catch (e) { erros.push(m + ": " + String(e?.message || e).slice(0, 120)); }
+  }
+  if (env.OPENROUTER_KEY) for (const m of String(env.OPENROUTER_MODELOS || "deepseek/deepseek-chat:free,openai/gpt-oss-120b:free").split(",")) {
+    try { const t = await openai("https://openrouter.ai/api/v1/chat/completions", env.OPENROUTER_KEY, m.trim()); if (t) return { texto: t, via: "openrouter" }; } catch (e) { erros.push("openrouter " + m + ": " + e.message); }
+  }
+  console.log("IA reserva falhou:", erros.join(" | "));
+  throw new Error("reservas indisponíveis agora");
 }

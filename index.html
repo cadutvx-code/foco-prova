@@ -51,7 +51,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .brand .nome b{font-weight:600;opacity:.75;margin-left:4px}
 .topbar .sp{flex:1}
 .ia-chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--muted);max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ia-chip i{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.ia-chip i{width:8px;height:8px;border-radius:50%;background:#22c55e;flex:none;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:iaLigada 2s ease-out infinite}
+.ia-chip span{font-weight:800;letter-spacing:.3px;color:var(--text)}
+@keyframes iaLigada{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
 .pill-dark{white-space:nowrap;background:var(--navy);color:#fff;border:none;border-radius:999px;padding:7px 14px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .shell{display:grid;grid-template-columns:96px 1fr;min-height:calc(100vh - 58px)}
 .rail{background:var(--rail);border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:4px;position:sticky;top:58px;height:calc(100vh - 58px);overflow:auto}
@@ -554,6 +556,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .mini:hover{background:var(--panel);color:var(--text)}
 .mdet{max-width:640px;margin:-2px 0 4px}
 .mais-expl{margin-top:10px}
+.ia-ok{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;vertical-align:1px}
 .dica-ios{display:none;max-width:640px;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:8px}
 .ios .dica-ios{display:block}
 .dropzone-hint{max-width:640px;border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
@@ -585,7 +588,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <header class="topbar">
   <button class="brand" data-act="inicio"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"><path d="M12 18.6 L 29 14.2"/><path d="M29 14.2 C 30 6.4 38.4 3.6 42.2 8.2 C 45.4 12 44.2 17 41.2 19.6 C 48.6 23.6 50.2 33 45.2 39.6 C 42.2 43.6 38.6 45.2 37 49.2 C 35.2 54 37.8 59.6 43 59.4 C 47.6 59.2 48.6 53.6 45.2 52.2 C 43 51.4 41.2 53.4 42.4 55.2"/><path d="M30.6 19 C 23.4 24.6 23 34.6 29.6 39.6 C 32 41.4 34.6 42.6 37.6 44.6"/><path d="M33.4 5.6 L 35 1.9 L 37.6 5.1"/><path d="M46.8 27.2 C 51.6 26.8 53.6 31.8 50.6 35"/></g><circle cx="35.8" cy="11.2" r="2.3" fill="currentColor"/><path d="M13 4 C 13.8 7.4 14.8 8.4 18.2 9.2 C 14.8 10 13.8 11 13 14.4 C 12.2 11 11.2 10 7.8 9.2 C 11.2 8.4 12.2 7.4 13 4 Z" fill="#3d8bff"/></svg><span class="nome">Hipocampo<b>Study</b></span></button>
   <div class="sp"></div>
-  <button class="ia-chip" data-act="config" id="iaChip" title="Escolher a IA"><i></i><span></span></button>
+  <button class="ia-chip" data-act="config" id="iaChip" title="IA ligada"><i></i><span></span></button>
   <button class="ia-chip fb-chip" data-act="feedback" title="Enviar um problema, ideia ou sugestão">💬 <span>Feedback</span></button>
   <button class="ia-chip" id="seqChip" data-act="metaDia" title="Dias seguidos estudando — clique para mudar a meta diária">🔥 0</button>
   <button class="icon-btn" id="temaTopo" data-act="tema" title="Tema claro/escuro">🌓</button>
@@ -652,7 +655,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
-    <div class="muted" style="font-size:14px">🤖 IA usada: <b>Gemini</b> (Google) — rápida e eficiente.</div>
+    <div class="muted" style="font-size:14px">IA: várias IAs trabalhando juntas, escolhidas automaticamente para ser rápido e preciso.</div>
     <select id="cfgProvider" hidden><option value="gemini">Gemini</option></select>
     <div id="cfgWeb" class="stack" style="display:none">
       <label>Tamanho da IA<select id="cfgWModel"></select></label>
@@ -1206,7 +1209,49 @@ async function chamar(opts) {
     try { return await chamarGemini(s, opts); }
     catch (e) { ultimo = e; if (!e.reserva || opts.sinal?.aborted) break; console.warn("Gemini ocupado, tentando de novo:", e.message); }
   }
+  // cota do Gemini acabou (ou ele falhou): IA reserva, sem a pessoa perceber
+  if (!opts.sinal?.aborted && reservaPossivel(opts)) {
+    try { return await chamarReserva(opts); } catch (e) { console.warn("IA reserva:", e.message); }
+  }
   throw ultimo;
+}
+/* ---------- IA reserva (Groq / Cloudflare / OpenRouter, pelo nosso servidor) ----------
+   Só para quem está logado e só para pedidos de TEXTO (imagens continuam no leitor do celular).
+   Perguntas criadas pela reserva passam por uma CONFERÊNCIA: outra chamada responde cada pergunta olhando o material;
+   se o gabarito não bater, a pergunta é descartada (nunca mostrar gabarito errado). */
+const textoDasMensagens = msgs => { const partes = []; for (const m of msgs || []) { if (typeof m.content === "string") partes.push(m.content); else for (const b of m.content || []) { if (b.type !== "text") return null; partes.push(b.text); } } return partes.join("\n\n"); };
+const reservaPossivel = opts => !!NUVEM.user && textoDasMensagens(opts.messages) !== null;
+async function pedirReserva(system, prompt, querJSON, maxTokens) {
+  const idToken = await NUVEM.user.getIdToken();
+  const r = await prazo(fetch(PAG_AUTO + "/ia", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, system, prompt, json: querJSON, maxTokens }) }), 70000);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.erro || !d.texto) throw new Error(d.erro || "reserva indisponível");
+  console.info("IA reserva usada:", d.via);
+  return d.texto;
+}
+async function chamarReserva(opts) {
+  const system = textoDoSystem(opts.system) + (opts.schema ? "\n\nResponda SOMENTE com JSON válido (sem texto antes ou depois, sem ```) que siga exatamente este esquema JSON:\n" + JSON.stringify(opts.schema) : "");
+  const texto = await pedirReserva(system, textoDasMensagens(opts.messages), !!opts.schema, Math.min(opts.maxTokens || 3000, 4000));
+  if (!opts.schema) return String(texto).trim();
+  const r = limparJSON(texto);
+  return conferirGabarito(r, textoDoSystem(opts.system));
+}
+// confere o gabarito de cada pergunta da reserva; fica só o que bate
+async function conferirGabarito(r, material) {
+  const chave = Array.isArray(r?.itens) ? "itens" : Array.isArray(r?.questoes) ? "questoes" : null;
+  if (!chave) return r;
+  const lista = r[chave].map(q => ({ q, alts: Array.isArray(q?.alternativas) && q.alternativas.length >= 2 ? q.alternativas : (q?.tipo === "vf" ? ["Verdadeiro", "Falso"] : null) })).filter(x => x.alts && Number.isInteger(x.q.correta));
+  if (!lista.length) return r;
+  const prompt = `Responda cada questão abaixo usando SOMENTE o material do sistema. Para cada uma, diga o índice (começando em 0) da alternativa correta. Se o material não permitir ter certeza, ou se houver mais de uma correta, ou nenhuma, responda -1.\n\n${lista.map((x, i) => `Questão ${i + 1}: ${x.q.enunciado}\n${x.alts.map((a, k) => `  ${k}) ${a}`).join("\n")}`).join("\n\n")}\n\nResponda SOMENTE em JSON: {"respostas":[{"n": número da questão, "correta": índice}]}`;
+  let conf;
+  for (let vez = 0; vez < 2 && !conf; vez++) { try { conf = limparJSON(await pedirReserva(material.slice(0, 16000), prompt, true, 800)); } catch (e) { if (vez) throw e; } }
+  const certo = new Map((conf.respostas || []).map(x => [Number(x.n), Number(x.correta)]));
+  const boas = new Set(lista.filter((x, i) => certo.get(i + 1) === x.q.correta).map(x => x.q));
+  const antes = r[chave].length;
+  r[chave] = r[chave].filter(q => boas.has(q));
+  console.info(`conferência do gabarito: ${r[chave].length} de ${antes} perguntas aprovadas`);
+  if (!r[chave].length) throw new Error("nenhuma pergunta da reserva passou na conferência");
+  return r;
 }
 
 function gerarJSON(c, instrucao, schema, foco = "", extra = {}) {
@@ -2053,7 +2098,7 @@ function viewHome() {
       <li><div><b>A IA identifica a matéria</b> (ex.: Nutrição Clínica, Fisiologia) e organiza seus cadernos por ela.</div></li>
       <li><div><b>Clique em “Começar a estudar”:</b> perguntas que focam nos seus pontos fracos.</div></li>
     </ol>
-    <p class="muted" style="font-size:13px;margin-bottom:0">IA em uso: <b>${esc(nomeIA())}</b> — troque em Ajustes.</p></div>`}
+    <p class="muted" style="font-size:13px;margin-bottom:0"><span class="ia-ok"></span> <b>IA ON</b>: várias IAs trabalhando juntas.</p></div>`}
   <div class="rodape-contato"><span class="muted" style="font-size:13px">Dúvidas, sugestões ou problemas? Fale com a gente:</span>
     <button class="btn small" data-act="feedback">💬 Enviar feedback</button>
     <a class="ig-link" href="https://www.instagram.com/hipocampostudy?utm_source=ig_web_button_share_sheet&avpt=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>@hipocampostudy</a></div>`;
@@ -4493,7 +4538,7 @@ async function detectarModelos() {
     toast(models.length ? `${models.length} modelo(s) encontrado(s).` : "Ollama está rodando, mas sem modelos baixados.");
   } catch { toast("Não encontrei o Ollama nesse endereço. Ele está instalado e aberto?", true); }
 }
-const nomeIA = () => "Gemini";
+const nomeIA = () => "IA ON";
 function aplicarTema() {
   const t = lsGet("fp-tema", null);
   if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
@@ -4798,7 +4843,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0018";
+const VERSAO_APP = "2026-11-23-0023";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5505,7 +5550,9 @@ const UI_ES = {
   "Baixando a voz (só na primeira vez)…": "Descargando la voz (solo la primera vez)…", "A voz não carregou agora. Toque em Ouvir de novo.": "La voz no cargó ahora. Toca Escuchar de nuevo.",
   "📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos, fotos o .zip aquí",
   "Envie exemplos de questões no formato que sua professora cobra (PDF, Word, foto ou .zip). A IA aprende o estilo de cobrança e foca nos assuntos que mais aparecem.": "Sube ejemplos de preguntas con el formato que tu profesora usa (PDF, Word, foto o .zip). La IA aprende su estilo y se enfoca en los temas que más aparecen.",
-  "Algumas páginas não foram lidas pela IA. Terminando no leitor do celular…": "Algunas páginas no las leyó la IA. Terminando con el lector del celular…", "A leitura rápida falhou; usando o leitor do celular…": "La lectura rápida falló; usando el lector del celular…"
+  "Algumas páginas não foram lidas pela IA. Terminando no leitor do celular…": "Algunas páginas no las leyó la IA. Terminando con el lector del celular…", "A leitura rápida falhou; usando o leitor do celular…": "La lectura rápida falló; usando el lector del celular…",
+  "IA: várias IAs trabalhando juntas, escolhidas automaticamente para ser rápido e preciso.": "IA: varias IAs trabajando juntas, elegidas automáticamente para ser rápido y preciso.", "IA do Hipocampo": "IA de Hipocampo",
+  "IA ligada": "IA encendida", ": várias IAs trabalhando juntas.": ": varias IAs trabajando juntas."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
