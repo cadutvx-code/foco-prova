@@ -4870,7 +4870,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0036";
+const VERSAO_APP = "2026-11-23-0037";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6604,9 +6604,17 @@ function mapa3D(cv, dados, o) {
     const etiqueta = (i, linhas, tmF, cor, peso, lugares, obrigatoria) => {
       ctx.font = `${peso} ${tmF}px ${o.fonte}`;
       const lh = tmF * 1.22, larg = Math.max(...linhas.map(l => ctx.measureText(l).width)) + 12, alt = linhas.length * lh + 6;
-      let q = null;
-      for (const [cx, cy] of lugares) { const t = { x0: cx - larg / 2, y0: cy - alt / 2, x1: cx + larg / 2, y1: cy + alt / 2 }; if (t.x0 < 2 || t.x1 > W - 2 || t.y0 < 2 || t.y1 > H - 2) continue; if (!bate(t, i)) { q = t; break; } }
-      if (!q) { if (!obrigatoria) return; const [cx, cy] = lugares[0]; q = { x0: cx - larg / 2, y0: cy - alt / 2, x1: cx + larg / 2, y1: cy + alt / 2 }; }
+      // tenta os lugares pedidos e, se precisar, os mesmos lugares mais afastados e na diagonal
+      const [ax, ay] = lugares[0], p0 = P[i], tentativas = [...lugares];
+      for (const k of [1.6, 2.3]) for (const [cx, cy] of lugares) tentativas.push([p0.X + (cx - p0.X) * k, p0.Y + (cy - p0.Y) * k]);
+      for (const [dx, dy] of [[1, -1], [-1, -1], [1, 1], [-1, 1]]) tentativas.push([p0.X + dx * (p0.r + larg / 2 + 6), p0.Y + dy * (p0.r + alt / 2 + 4)]);
+      const sobra = t => ocupado.reduce((n, o2) => o2.dono === i ? n : n + Math.max(0, Math.min(t.x1, o2.x1) - Math.max(t.x0, o2.x0)) * Math.max(0, Math.min(t.y1, o2.y1) - Math.max(t.y0, o2.y0)), 0);
+      let q = null, menor = null, menorA = Infinity;
+      for (const [cx, cy] of tentativas) {
+        const t = { x0: cx - larg / 2, y0: cy - alt / 2, x1: cx + larg / 2, y1: cy + alt / 2 }; if (t.x0 < 2 || t.x1 > W - 2 || t.y0 < 2 || t.y1 > H - 2) continue;
+        const a2 = sobra(t); if (!a2) { q = t; break; } if (a2 < menorA) { menorA = a2; menor = t; }
+      }
+      if (!q) { if (!obrigatoria) return; q = menor || { x0: ax - larg / 2, y0: ay - alt / 2, x1: ax + larg / 2, y1: ay + alt / 2 }; }
       ocupado.push({ ...q, dono: -1 });
       ctx.globalAlpha = alfa(i);
       ctx.fillStyle = "rgba(10,8,32,.72)"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0, 7) : ctx.rect(q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0); ctx.fill();
