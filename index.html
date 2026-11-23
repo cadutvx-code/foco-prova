@@ -4874,7 +4874,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0043";
+const VERSAO_APP = "2026-11-23-0213";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6854,9 +6854,28 @@ function labGarantirFalas(q) {
     q.falasPr = labGerarFalas(q).then(f => { if (f?.length !== q.alternativas.length) return null; gastar(); q.falas = f; q.falasDe = chave; return f; }).catch(() => null);
   }
   const lang = labLang();
-  q.falasPr.then(f => { if (f && S.lab?.q === q) f.forEach(t => { const p = labFrases(t)[0]; if (p) audioPiper(p, lang).catch(() => {}); }); });
+  q.falasPr.then(f => { if (f && S.lab?.q === q) labPrepararVozes(f.map(labLimparFala), lang); });
   return q.falasPr;
 }
+// texto exatamente igual ao que vai ser falado (a voz guardada é achada pelo texto)
+const labLimparFala = t => String(t || "").replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
+const labVozPronta = (t, lang) => AUDIO_CACHE.has("piper|" + vozPiper(idiomaVoz(lang)) + "|" + t);
+// gera as vozes uma por vez; nunca enquanto o Hipo está falando (no celular, gerar e tocar ao mesmo tempo engasga o áudio)
+function labPrepararVozes(textos, lang) {
+  const F = LAB_VOZFILA; F.lang = lang; F.fila = textos.filter(t => t && !labVozPronta(t, lang));
+  if (F.rodando) return; F.rodando = true;
+  (async () => {
+    while (F.fila.length) {
+      while (S.lab?.falando) await new Promise(r => setTimeout(r, 250));
+      const t = F.fila.shift();
+      try { await audioPiper(t, F.lang); } catch {}
+    }
+    F.rodando = false;
+  })();
+}
+const LAB_VOZFILA = { fila: [], rodando: false, lang: "pt-BR" };
+// a alternativa marcada passa na frente da fila
+function labFurarFila(t) { const F = LAB_VOZFILA, k = F.fila.indexOf(t); if (k > 0) { F.fila.splice(k, 1); F.fila.unshift(t); } }
 
 async function proxLab() {
   const L = S.lab; if (!L) return; labParar();
@@ -6899,7 +6918,7 @@ async function labResponder(i) {
   if (S.lab !== L || L.q !== q) return;
   if (!f && podeUsar()) { q.falasPr = null; q.falasKey = null; f = await labGarantirFalas(q); if (S.lab !== L || L.q !== q) return; }
   const es = labIdioma() === "es";
-  L.fala = String(f?.[i] || (certo ? (es ? "¡Eso! Respuesta correcta." : "Isso! Resposta certa.") : (es ? `Casi. La correcta es: ${q.alternativas[q.correta]}.` : `Quase. A certa é: ${q.alternativas[q.correta]}.`))).replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
+  L.fala = labLimparFala(f?.[i] || (certo ? (es ? "¡Eso! Respuesta correcta." : "Isso! Resposta certa.") : (es ? `Casi. La correcta es: ${q.alternativas[q.correta]}.` : `Quase. A certa é: ${q.alternativas[q.correta]}.`))).replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
   L.pensando = false; desenharLab(); labFalar();
 }
 
@@ -6914,31 +6933,31 @@ function labParar() {
 }
 async function labFalar() {
   const L = S.lab; if (!L?.fala) return;
-  labParar(); const id = L.falaId, taxa = labVoz()[2], lang = labLang();
+  labParar(); const id = L.falaId, taxa = labVoz()[2], lang = labLang(), texto = L.fala;
   const vivo = () => S.lab === L && L.falaId === id && !!labEl();
   const boca = () => labEl()?.querySelector(".hipo-boca");
-  L.falando = true; L.erroFala = ""; desenharLab();
-  const fim = () => { if (!vivo()) return; L.falando = false; cancelAnimationFrame(L.raf); desenharLab(); };
-  const partes = labFrases(L.fala);
+  const fim = () => { if (!vivo()) return; L.falando = false; L.pensando = false; cancelAnimationFrame(L.raf); desenharLab(); };
+  const medir = matchMedia("(pointer: fine)").matches && !IOS; // só no computador: no celular o medidor pode picotar o som
   try {
+    if (!labVozPronta(texto, lang)) { labFurarFila(texto); L.pensando = true; desenharLab(); }
+    const url = await audioPiper(texto, lang); if (!vivo()) return;
+    L.pensando = false; L.falando = true; L.erroFala = ""; desenharLab();
+    const a = L.audio = new Audio(url);
+    a.preload = "auto"; a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false; a.playbackRate = taxa;
     let an = null, buf = null;
-    try { LAB_CTX ||= new (window.AudioContext || window.webkitAudioContext)(); LAB_CTX.resume(); } catch {}
+    if (medir) try {
+      LAB_CTX ||= new (window.AudioContext || window.webkitAudioContext)(); LAB_CTX.resume();
+      const src = LAB_CTX.createMediaElementSource(a); an = LAB_CTX.createAnalyser(); an.fftSize = 512; buf = new Uint8Array(an.fftSize); src.connect(an); an.connect(LAB_CTX.destination);
+    } catch { an = null; }
     const animar = () => {
-      if (!vivo()) return;
-      let v = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 90));
+      if (!vivo() || !L.falando) return;
+      let v;
       if (an) { an.getByteTimeDomainData(buf); let m = 0; for (const x of buf) m = Math.max(m, Math.abs(x - 128)); v = Math.min(1, m / 50); }
+      else { const t = performance.now(); v = a.paused ? 0 : .35 + .65 * Math.abs(Math.sin(t / 95) * Math.sin(t / 230 + 1)); }
       const b = boca(); if (b) b.setAttribute("ry", (0.8 + v * 4.2).toFixed(2));
       L.raf = requestAnimationFrame(animar);
     };
-    for (let k = 0; k < partes.length; k++) {
-      const url = await audioPiper(partes[k], lang); if (!vivo()) return;
-      if (partes[k + 1]) audioPiper(partes[k + 1], lang).catch(() => {}); // já prepara a próxima frase
-      const a = L.audio = new Audio(url);
-      a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false; a.playbackRate = taxa;
-      try { const src = LAB_CTX.createMediaElementSource(a); an = LAB_CTX.createAnalyser(); an.fftSize = 512; buf = new Uint8Array(an.fftSize); src.connect(an); an.connect(LAB_CTX.destination); } catch { an = null; }
-      await new Promise((ok, erro) => { a.onended = ok; a.onerror = erro; a.play().then(() => { cancelAnimationFrame(L.raf); animar(); }).catch(erro); });
-      if (!vivo()) return;
-    }
+    await new Promise((ok, erro) => { a.onended = ok; a.onerror = erro; a.play().then(() => { cancelAnimationFrame(L.raf); animar(); }).catch(erro); });
     fim();
   } catch (e) {
     if (!vivo()) return;
