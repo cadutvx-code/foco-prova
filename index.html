@@ -2977,7 +2977,7 @@ function audioPiper(texto, lang) {
     throw erro;
   });
   AUDIO_CACHE.set(chave, pr); pr.catch(() => AUDIO_CACHE.delete(chave));
-  if (AUDIO_CACHE.size > 40) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value);
+  if (AUDIO_CACHE.size > 90) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value);
   return pr;
 }
 const usaPiper = lang => vozPiper(idiomaVoz(lang)) !== "navegador";
@@ -3036,7 +3036,7 @@ function audioGemini(texto, lang) {
     throw new Error("sem áudio");
   })();
   AUDIO_CACHE.set(chave, pr); pr.catch(() => AUDIO_CACHE.delete(chave));
-  if (AUDIO_CACHE.size > 40) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value);
+  if (AUDIO_CACHE.size > 90) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value);
   return pr;
 }
 // Gera o áudio antes (as perguntas do professor tocam na hora)
@@ -4717,7 +4717,7 @@ document.addEventListener("click", async e => {
     case "provasFechar": S.dlgProvas = false; $("#dlgPerfil").close(); break;
     case "provaAntigaApagar": if (confirm("Tirar este arquivo?")) { c.provasAntigas = (c.provasAntigas || []).filter(x => x.id !== id); await salvar(c); render(); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); } break;
     case "labCaderno": if (c) iniciarQuizLouco(c); break;
-    case "labIdioma": lsSet("fp-lab-idioma", id); if (S.lab) { S.lab.idioma = id; S.lab.pronta = null; labAquecerVoz(); proxLab(); } break;
+    case "labIdioma": lsSet("fp-lab-idioma", id); if (S.lab) { S.lab.idioma = id; S.lab.pronta = null; labPrepararReacoes(); proxLab(); } break;
     case "exteriorNao": lsSet("fp-exterior", false); render(); toast("Ateneo escondido. Para ver de novo, toque em Sim, mostrar."); break;
     case "exteriorSim": lsSet("fp-exterior", true); render(); setTimeout(() => document.querySelector('[data-act="ateneoAbrir"]')?.scrollIntoView({ block: "center", behavior: "smooth" }), 80); break;
     case "lab": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); abrirLab(); break;
@@ -4725,7 +4725,7 @@ document.addEventListener("click", async e => {
     case "labResp": labResponder(+id); break;
     case "labProx": proxLab(); break;
     case "labOuvir": labFalar(); break;
-    case "labJeito": if (id === "semfiltro" && labJeito() !== "semfiltro" && !confirm("Modo Sem filtro: o Hipo fala palavrões e zoa você pesado, de brincadeira. É para maiores de 18. Ativar?")) break; lsSet("fp-lab-jeito", id); if (S.lab) { S.lab.pronta = null; if (S.lab.q && S.lab.escolha == null) labGarantirFalas(S.lab.q); } desenharLab(); break;
+    case "labJeito": if (id === "semfiltro" && labJeito() !== "semfiltro" && !confirm("Modo Sem filtro: o Hipo fala palavrões e zoa você pesado, de brincadeira. É para maiores de 18. Ativar?")) break; lsSet("fp-lab-jeito", id); labPrepararReacoes(); if (S.lab) { S.lab.pronta = null; if (S.lab.q && S.lab.escolha == null) labGarantirFalas(S.lab.q); } desenharLab(); break;
     case "labVoz": lsSet("fp-lab-voz", id); desenharLab(); if (S.lab?.fala) labFalar(); break;
     case "guia": NUVEM.menu = false; desenharConta(); document.querySelectorAll("dialog[open]").forEach(d => d.close()); iniciarTour(atual() ? "caderno" : "casa"); break;
     case "guiaPular": fecharGuia(); break;
@@ -4958,7 +4958,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0238";
+const VERSAO_APP = "2026-11-23-0242";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6850,7 +6850,7 @@ function iniciarQuizLouco(c) {
   fecharVoz();
   S.lab = novoLab(c.id, lsGet("fp-lab-idioma", "") || idiomaCaderno(c), true);
   S.aba = "louco"; S.player = { tipo: "louco" }; render(); window.scrollTo(0, 0);
-  labAquecerVoz(); proxLab();
+  labPrepararReacoes(); proxLab();
 }
 function viewLouco(c) {
   if (S.player?.tipo !== "louco" || !S.lab?.naPagina) { S.aba = "quiz"; return viewQuiz(c); }
@@ -6914,8 +6914,8 @@ function labSistema() {
   return `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina, engraçado e didático, que fala como personagem de desenho animado e trata o estudante como um amigo da mesma idade (nada de "netinho", "querido" ou jeito de avô).\n${LAB_PERSONA[labJeito()]}\nAs falas serão FALADAS em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos. O conteúdo tem que estar CERTO. Escreva TUDO em ${es ? "espanhol (se for zoar com palavrões, use os de espanhol: carajo, mierda, pendejo, boludo etc.)" : "português do Brasil"}.`;
 }
 const LAB_REGRA_FALAS = `"falas": uma fala do Hipo para CADA alternativa, na mesma ordem e com o mesmo número de itens de "alternativas":
-- para a alternativa CERTA: comemore${"" /* jeito entra pelo sistema */} em no máximo 2 frases curtas e diga por que está certo;
-- para cada alternativa ERRADA: no máximo 3 frases curtas — comece reagindo ao erro (no seu jeito), use UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença entre o que a pessoa marcou e o certo, e termine com a regra certa numa frase simples que diga o NOME da resposta certa.
+- para a alternativa CERTA: 1 frase curta dizendo por que está certo. NÃO comece comemorando (a comemoração já é falada antes, separada).
+- para cada alternativa ERRADA: no máximo 2 ou 3 frases curtas, SEM reação no começo (nada de "Porra", "Sério?", "Ops" ou xingamento logo de cara: a reação já é falada antes, separada). Comece DIRETO por UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença entre o que a pessoa marcou e o certo (pode zoar no meio, no seu jeito) e termine com a regra certa numa frase simples que diga o NOME da resposta certa.
 Cada fala é sobre AQUELA alternativa específica. A zoeira nunca usa doença, transtorno ou deficiência (nada de "demência", "retardado", "autista" etc.).`;
 async function labGerarFalas(q) {
   const r = await chamar({
@@ -6948,6 +6948,54 @@ function labGarantirFalas(q) {
   return q.falasPr;
 }
 // texto exatamente igual ao que vai ser falado (a voz guardada é achada pelo texto)
+// ---------- banco de reações prontas (tocam na hora do toque; a voz fica guardada no aparelho) ----------
+const LAB_REACOES = {
+  pt: {
+    fofo: { erro: ["Ops, quase!", "Ih, não foi dessa vez.", "Calma, acontece com todo mundo.", "Quase lá, olha só.", "Errou, mas tá aprendendo!", "Hmm, vamos ver isso juntos.", "Opa, deixa eu te explicar.", "Tudo bem, errar faz parte.", "Ah, essa é pegadinha mesmo.", "Não desanima, vem comigo.", "Quase, quase!", "Tranquilo, agora você não esquece mais."],
+            acerto: ["Isso aí!", "Arrasou!", "Muito bem!", "Perfeito!", "Mandou bem demais!", "É isso!", "Que orgulho!", "Brilhou!", "Acertou em cheio!", "Show de bola!", "Você tá voando!", "Exatamente isso!"] },
+    zoeiro: { erro: ["Tá de brincadeira comigo?", "Ai, ai, ai, cabeça de vento.", "Sério isso? Que vergonha.", "Errou feio, errou rude!", "Meu Deus, que lesado!", "Não acredito no que eu vi.", "Anta, anta, anta!", "Ô loco, meu!", "Volta duas casas, por favor.", "Isso foi um chute ou um tropeço?", "Minha nossa, que vexame!", "Eu vou fingir que não vi isso."],
+              acerto: ["Olha só, acertou! Milagre!", "Até que enfim, hein!", "Uau, alguém estudou hoje!", "Acertou? Tô chocado.", "Nem acredito, mandou bem!", "Opa, tá ficando esperto!", "Quem diria, hein!", "Foi sorte ou foi estudo?", "Olha o gênio aí!", "Agora sim, tá prestando!", "Até que você não é tão lesado!", "Caiu do céu essa, hein!"] },
+    semfiltro: { erro: ["Porra, sério?", "Puta que pariu, eu vou chorar.", "Caralho, que burrice!", "Seu jumento, presta atenção!", "Puta merda, errou feio!", "Cacete, isso não!", "Vai estudar, sua anta!", "Porra, você dormiu na aula?", "Caralho, que vergonha alheia!", "Puta que pariu, de novo não!", "Merda, eu desisto de você.", "Cacete, até minha avó sabia essa!"],
+                 acerto: ["Caralho, acertou!", "Porra, até que enfim!", "Puta merda, você sabe alguma coisa!", "Caramba, acertou essa porra!", "Olha só, o jumento aprendeu!", "Cacete, mandou bem!", "Porra, tô impressionado!", "Caralho, quem é você?", "Puta que pariu, que orgulho!", "Porra, assim que eu gosto!", "Caralho, virou médico agora?", "Merda, acertou mesmo!"] }
+  },
+  es: {
+    fofo: { erro: ["¡Uy, casi!", "No pasa nada, vamos a verlo.", "Casi, casi, mira.", "Tranquilo, a todos nos pasa.", "Ups, no fue esta vez.", "Ven, te lo explico.", "Equivocarse es parte de aprender.", "Esa era trampita, ¿eh?", "No te desanimes.", "¡Casi lo tenías!", "Tranquilo, ahora no lo olvidas.", "Mmm, veamos juntos."],
+            acerto: ["¡Eso es!", "¡Muy bien!", "¡Perfecto!", "¡Genial!", "¡Lo lograste!", "¡Qué orgullo!", "¡Brillante!", "¡Diste en el clavo!", "¡Excelente!", "¡Vas volando!", "¡Exactamente!", "¡Bravo!"] },
+    zoeiro: { erro: ["¿Me estás tomando el pelo?", "Ay, ay, ay, cabeza hueca.", "¿En serio? Qué vergüenza.", "¡Fallaste feo!", "No lo puedo creer.", "¡Tontito, tontito!", "¡Madre mía!", "Vuelve dos casillas, por favor.", "¿Eso fue un tiro al aire?", "¡Qué papelón!", "Voy a hacer como que no vi eso.", "¿Estudiaste o te lo inventaste?"],
+              acerto: ["¡Mira, acertaste! ¡Milagro!", "¡Por fin, eh!", "¡Alguien estudió hoy!", "¿Acertaste? Estoy en shock.", "¡Te estás poniendo listo!", "¡Quién lo diría!", "¿Suerte o estudio?", "¡Miren al genio!", "¡Ahora sí, presta atención!", "¡No eres tan despistado!", "¡Esa te cayó del cielo!", "¡Bueno, bueno, bueno!"] },
+    semfiltro: { erro: ["¿Carajo, en serio?", "¡Puta madre, voy a llorar!", "¡Mierda, qué burrada!", "¡Pendejo, pon atención!", "¡Carajo, no!", "¡Ve a estudiar, boludo!", "¿Carajo, te dormiste en clase?", "¡Puta madre, otra vez no!", "¡Mierda, me rindo contigo!", "¡Joder, qué vergüenza ajena!", "¡Carajo, hasta mi abuela sabía esa!", "¡Puta madre, qué desastre!"],
+                 acerto: ["¡Carajo, acertaste!", "¡Puta madre, por fin!", "¡Mierda, sí sabes algo!", "¡Joder, bien hecho!", "¡Mira, el burro aprendió!", "¡Carajo, estoy impresionado!", "¡Puta madre, qué orgullo!", "¡Joder, así me gusta!", "¿Carajo, quién eres?", "¡Mierda, acertaste de verdad!", "¡Carajo, ya eres médico!", "¡Joder, qué crack!"] }
+  }
+};
+const LAB_REAC_URL = new Map();
+const labReacoes = () => { const b = LAB_REACOES[labIdioma()][labJeito()] || LAB_REACOES.pt.zoeiro; return [...b.erro, ...b.acerto]; };
+const labChaveReacao = (t, lang) => "reacao|" + vozPiper(idiomaVoz(lang)) + "|" + t;
+const labReacaoPronta = (t, lang) => LAB_REAC_URL.has(labChaveReacao(t, lang));
+// voz de uma reação: memória → guardada no aparelho → gera e guarda
+async function labVozReacao(t, lang) {
+  const k = labChaveReacao(t, lang);
+  if (LAB_REAC_URL.has(k)) return LAB_REAC_URL.get(k);
+  const salva = await vozGuardada(k);
+  if (salva) { LAB_REAC_URL.set(k, salva); return salva; }
+  const url = await audioPiper(t, lang);
+  try { guardarVoz(k, await (await fetch(url)).blob()); } catch {}
+  LAB_REAC_URL.set(k, url); return url;
+}
+// prepara as reações do jeito/idioma atuais em segundo plano (primeiro as que já estão no aparelho: instantâneo)
+async function labPrepararReacoes() {
+  const lang = labLang(), lista = labReacoes(), id = (S.labReacId = (S.labReacId || 0) + 1);
+  for (const t of lista) {
+    if (S.labReacId !== id) return;
+    while (S.lab?.falando) await new Promise(r => setTimeout(r, 250));
+    try { await labVozReacao(t, lang); } catch {}
+  }
+}
+function labEscolherReacao(certo) {
+  const b = LAB_REACOES[labIdioma()][labJeito()] || LAB_REACOES.pt.zoeiro, lista = certo ? b.acerto : b.erro, lang = labLang();
+  const ultimas = (S.labUltReac ||= []); // não repete nenhuma das últimas 6
+  const livres = lista.filter(x => !ultimas.includes(x)), prontas = livres.filter(x => labReacaoPronta(x, lang)), opcoes = prontas.length ? prontas : livres.length ? livres : lista;
+  const t = opcoes[Math.floor(Math.random() * opcoes.length)]; ultimas.push(t); if (ultimas.length > 6) ultimas.shift(); return t;
+}
 const labLimparFala = t => String(t || "").replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
 const labVozPronta = (t, lang) => AUDIO_CACHE.has("piper|" + vozPiper(idiomaVoz(lang)) + "|" + t);
 // gera as vozes uma por vez; nunca enquanto o Hipo está falando (no celular, gerar e tocar ao mesmo tempo engasga o áudio)
@@ -7002,14 +7050,18 @@ async function labResponder(i) {
   L.escolha = i; const certo = i === q.correta;
   if (certo) { L.acertos++; L.seq++; L.melhor = Math.max(L.melhor, L.seq); } else { L.erros++; L.seq = 0; }
   try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro); contarResposta(); } catch {}
-  L.pensando = true; desenharLab();
+  // a reação sai NA HORA (banco pronto); a explicação daquela pergunta vem logo em seguida
+  L.reacao = labEscolherReacao(certo); L.explic = null; L.explicFim = false; L.fala = L.reacao;
+  desenharLab(); labFalar();
   setTimeout(() => labEl()?.querySelector(".lab-hipo")?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
   let f = await labGarantirFalas(q);
   if (S.lab !== L || L.q !== q) return;
   if (!f && podeUsar()) { q.falasPr = null; q.falasKey = null; f = await labGarantirFalas(q); if (S.lab !== L || L.q !== q) return; }
-  const es = labIdioma() === "es";
-  L.fala = labLimparFala(f?.[i] || (certo ? (es ? "¡Eso! Respuesta correcta." : "Isso! Resposta certa.") : (es ? `Casi. La correcta es: ${q.alternativas[q.correta]}.` : `Quase. A certa é: ${q.alternativas[q.correta]}.`))).replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
-  L.pensando = false; desenharLab(); labFalar();
+  const es = labIdioma() === "es", certaTxt = q.alternativas[q.correta];
+  L.explic = labLimparFala(f?.[i] || (certo ? (es ? `La respuesta es ${certaTxt}.` : `A resposta é ${certaTxt}.`) : (es ? `La correcta es: ${certaTxt}.` : `A certa é: ${certaTxt}.`)));
+  L.explicFim = true; L.fala = L.reacao + " " + L.explic;
+  if (!labVozPronta(L.explic, labLang())) { labFurarFila(L.explic); audioPiper(L.explic, labLang()).catch(() => {}); }
+  desenharLab();
 }
 
 // ---------- voz ----------
@@ -7022,16 +7074,13 @@ function labParar() {
   cancelAnimationFrame(L.raf); L.falando = false;
 }
 async function labFalar() {
-  const L = S.lab; if (!L?.fala) return;
-  labParar(); const id = L.falaId, taxa = labVoz()[2], lang = labLang(), texto = L.fala;
+  const L = S.lab; if (!L?.reacao && !L?.explic && !L?.fala) return;
+  labParar(); const id = L.falaId, taxa = labVoz()[2], lang = labLang();
   const vivo = () => S.lab === L && L.falaId === id && !!labEl();
   const boca = () => labEl()?.querySelector(".hipo-boca");
   const fim = () => { if (!vivo()) return; L.falando = false; L.pensando = false; cancelAnimationFrame(L.raf); desenharLab(); };
   const medir = matchMedia("(pointer: fine)").matches && !IOS; // só no computador: no celular o medidor pode picotar o som
-  try {
-    if (!labVozPronta(texto, lang)) { labFurarFila(texto); L.pensando = true; desenharLab(); }
-    const url = await audioPiper(texto, lang); if (!vivo()) return;
-    L.pensando = false; L.falando = true; L.erroFala = ""; desenharLab();
+  const tocar = url => new Promise((ok, erro) => {
     const a = L.audio = new Audio(url);
     a.preload = "auto"; a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false; a.playbackRate = taxa;
     let an = null, buf = null;
@@ -7040,14 +7089,28 @@ async function labFalar() {
       const src = LAB_CTX.createMediaElementSource(a); an = LAB_CTX.createAnalyser(); an.fftSize = 512; buf = new Uint8Array(an.fftSize); src.connect(an); an.connect(LAB_CTX.destination);
     } catch { an = null; }
     const animar = () => {
-      if (!vivo() || !L.falando) return;
+      if (!vivo() || L.audio !== a) return;
       let v;
       if (an) { an.getByteTimeDomainData(buf); let m = 0; for (const x of buf) m = Math.max(m, Math.abs(x - 128)); v = Math.min(1, m / 50); }
       else { const t = performance.now(); v = a.paused ? 0 : .35 + .65 * Math.abs(Math.sin(t / 95) * Math.sin(t / 230 + 1)); }
       const b = boca(); if (b) b.setAttribute("ry", (0.8 + v * 4.2).toFixed(2));
       L.raf = requestAnimationFrame(animar);
     };
-    await new Promise((ok, erro) => { a.onended = ok; a.onerror = erro; a.play().then(() => { cancelAnimationFrame(L.raf); animar(); }).catch(erro); });
+    a.onended = ok; a.onerror = erro; a.play().then(() => { cancelAnimationFrame(L.raf); animar(); }).catch(erro);
+  });
+  try {
+    L.falando = true; L.erroFala = ""; desenharLab();
+    // 1) a reação (banco pronto: sai na hora)
+    if (L.reacao) { const url = await labVozReacao(L.reacao, lang); if (!vivo()) return; await tocar(url); if (!vivo()) return; }
+    // 2) a explicação daquela pergunta (espera ficar pronta, se ainda não estiver)
+    if (L.reacao) { while (vivo() && !L.explicFim) { L.pensando = true; await new Promise(r => setTimeout(r, 120)); } if (!vivo()) return; }
+    const explic = L.reacao ? L.explic : L.fala;
+    if (explic) {
+      if (!labVozPronta(explic, lang)) { labFurarFila(explic); L.pensando = true; desenharLab(); }
+      const url = await audioPiper(explic, lang); if (!vivo()) return;
+      L.pensando = false; desenharLab();
+      await tocar(url);
+    }
     fim();
   } catch (e) {
     if (!vivo()) return;
