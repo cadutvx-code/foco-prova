@@ -2664,18 +2664,51 @@ function audioPiper(texto, lang) {
   if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
   // uma fala de cada vez (assim a voz é baixada uma vez só, mesmo se várias falas forem pedidas juntas)
   const pr = PIPER_FILA = PIPER_FILA.catch(() => {}).then(async () => {
-    const tts = await motorPiper();
-    let avisou = false;
-    const wav = await tts.predict({ text: texto, voiceId: voz }, p => {
-      if (p?.total && p.loaded < p.total && !avisou) { avisou = true; toast("Baixando a voz do professor (só na primeira vez)…"); }
-    });
-    return URL.createObjectURL(wav);
+    let erro;
+    for (let vez = 0; vez < 3; vez++) {
+      try {
+        if (vez) await new Promise(r => setTimeout(r, vez * 1500));
+        const tts = await motorPiper();
+        if (vez === 2) { try { await tts.remove?.(voz); } catch {} } // voz guardada estragada: baixa de novo
+        let avisou = false;
+        const wav = await tts.predict({ text: texto, voiceId: voz }, p => {
+          if (p?.total && p.loaded < p.total && !avisou && !VOZ_FUNDO.baixando) { avisou = true; toast("Baixando a voz (só na primeira vez)…"); }
+        });
+        VOZ_FUNDO.ok = true;
+        return URL.createObjectURL(wav);
+      } catch (e) { erro = e; console.warn("Piper, tentativa " + (vez + 1) + ":", e); PIPER = null; }
+    }
+    throw erro;
   });
   AUDIO_CACHE.set(chave, pr); pr.catch(() => AUDIO_CACHE.delete(chave));
   if (AUDIO_CACHE.size > 40) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value);
   return pr;
 }
 const usaPiper = lang => vozPiper(idiomaVoz(lang)) !== "navegador";
+const VOZ_FUNDO = { baixando: false, ok: false };
+async function prepararVozFundo() {
+  try { await navigator.storage?.persist?.(); } catch {}
+  const con = navigator.connection;
+  if (con?.saveData || /(^|-)2g$/.test(con?.effectiveType || "")) return; // internet fraca ou economia de dados: baixa só quando precisar
+  const idiomas = [lsGet("fp-ui", "pt") === "es" ? "es" : "pt"];
+  if (S.cadernos.some(c => c.oficial) || S.cadernos.some(c => idiomaCaderno(c) === "es")) idiomas.push("es");
+  try {
+    const tts = await motorPiper();
+    const guardadas = (await tts.stored?.()) || [];
+    for (const idi of [...new Set(idiomas)]) {
+      const voz = vozPiper(idi); if (voz === "navegador" || guardadas.includes(voz)) continue;
+      VOZ_FUNDO.baixando = true;
+      try { if (tts.download) await tts.download(voz, () => {}); else await tts.predict({ text: idi === "es" ? "Hola." : "Oi.", voiceId: voz }); } catch (e) { console.warn("voz em segundo plano:", e); }
+      VOZ_FUNDO.baixando = false;
+    }
+  } catch (e) { PIPER = null; console.warn("voz em segundo plano:", e); }
+}
+setTimeout(() => (window.requestIdleCallback || setTimeout)(() => { PIPER_FILA = PIPER_FILA.catch(() => {}).then(prepararVozFundo); }), 5000); // na mesma fila das falas: nunca baixa a mesma voz duas vezes ao mesmo tempo
+// aviso (uma vez) quando a voz não carrega: nunca troca pela voz de robô do navegador
+function avisarVozFalhou(e) {
+  if (S.avisouVoz) return; S.avisouVoz = true;
+  toast("A voz não carregou agora (" + String(e?.message || e).slice(0, 60) + "). O texto continua na tela e a voz volta sozinha." + (navigator.brave ? " No Brave, desative os escudos (Shields) para este site." : ""), true);
+}
 // As falas do Gemini ficam guardadas no aparelho: frase repetida nunca gasta a cota grátis de novo
 const CACHE_VOZ = "fp-voz-v1";
 const urlVoz = chave => "https://voz.focoprova/" + encodeURIComponent(chave);
@@ -2718,11 +2751,7 @@ function falar(texto, lang) {
   pararAudio(); const vez = ++S.falaId;
   if (usaPiper(lang)) {
     audioPiper(texto, lang).then(url => { if (vez !== S.falaId) return; audioAtual = new Audio(url); audioAtual.play().catch(() => {}); })
-      .catch(e => {
-        console.warn("voz Piper falhou:", e);
-        if (usaPiper(lang) && !S.avisouVoz) { S.avisouVoz = true; toast("A voz do professor não carregou neste navegador (" + String(e?.message || e).slice(0, 80) + "). Usando a voz do navegador." + (navigator.brave ? " No Brave, desative os escudos (Shields) para este site ou use o Chrome." : ""), true); }
-        if (vez === S.falaId) falarNavegador(texto, lang);
-      });
+      .catch(e => { console.warn("voz Piper falhou:", e); avisarVozFalhou(e); });
     return;
   }
   falarNavegador(texto, lang);
@@ -4625,7 +4654,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-22-2030";
+const VERSAO_APP = "2026-11-22-2322";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5328,11 +5357,12 @@ const UI_ES = {
   "Faz medicina no exterior? Isso vai te ajudar.": "¿Estudias medicina en el exterior? Esto te va a ayudar.", "Material pronto da faculdade e treino do Ateneo oral de Fisiologia, com aulas em espanhol.": "Material listo de la facultad y práctica del Ateneo oral de Fisiología, con clases en español.", "Sim, mostrar": "Sí, mostrar",
   "No iPhone: toque em": "En el iPhone: toca", "Escolher Arquivo": "Elegir archivo", "para ver o app Arquivos, ou em": "para ver la app Archivos, o", "Fototeca": "Fototeca", "Tirar Foto": "Hacer foto",
   ". PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em": ". Los PDFs de WhatsApp o del correo hay que guardarlos antes: abre el archivo, toca Compartir y", "Salvar em Arquivos": "Guardar en Archivos",
-  "Esconder": "Ocultar", "Esconder o Ateneo da tela inicial": "Ocultar el Ateneo de la pantalla de inicio", "Ateneo escondido. Para ver de novo, toque em Sim, mostrar.": "Ateneo oculto. Para verlo de nuevo, toca Sí, mostrar."
+  "Esconder": "Ocultar", "Esconder o Ateneo da tela inicial": "Ocultar el Ateneo de la pantalla de inicio", "Ateneo escondido. Para ver de novo, toque em Sim, mostrar.": "Ateneo oculto. Para verlo de nuevo, toca Sí, mostrar.",
+  "Baixando a voz (só na primeira vez)…": "Descargando la voz (solo la primera vez)…", "A voz não carregou agora. Toque em Ouvir de novo.": "La voz no cargó ahora. Toca Escuchar de nuevo."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^Prova "(.+)" adicionada\. As próximas perguntas seguem o estilo dela\.$/, "Examen \"$1\" agregado. Las próximas preguntas siguen su estilo."], [/^Provas antigas \((\d+)\)$/, "Exámenes anteriores ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -6553,12 +6583,7 @@ async function labFalar() {
     fim();
   } catch (e) {
     if (!vivo()) return;
-    try { // sem o Piper: voz do navegador, aguda
-      const u = new SpeechSynthesisUtterance(L.fala); u.lang = lang; u.pitch = Math.min(2, 1.4 + (taxa - 1) * 2.5); u.rate = Math.max(0.7, Math.min(1.5, taxa + 0.1));
-      u.onend = fim; u.onerror = fim;
-      const animar = () => { if (!vivo() || !L.falando) return; const b = boca(); if (b) b.setAttribute("ry", (0.8 + 4 * Math.abs(Math.sin(performance.now() / 85))).toFixed(2)); L.raf = requestAnimationFrame(animar); };
-      speechSynthesis.speak(u); animar();
-    } catch { L.erroFala = "Não consegui tocar a voz neste navegador."; fim(); }
+    L.erroFala = "A voz não carregou agora. Toque em Ouvir de novo."; avisarVozFalhou(e); fim();
   }
 }
 document.addEventListener("toggle", e => { if (e.target.classList?.contains("lab-aj")) S.labAj = e.target.open; }, true);
