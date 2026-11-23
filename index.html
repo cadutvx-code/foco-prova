@@ -5206,7 +5206,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-1917";
+const VERSAO_APP = "2026-11-23-1954";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -7193,7 +7193,7 @@ function labGarantirFalas(q) {
     q.falasPr = labGerarFalas(q).then(f => { if (f?.length !== q.alternativas.length) return null; gastar(); q.falas = f; q.falasDe = chave; return f; }).catch(() => null);
   }
   const lang = labLang();
-  q.falasPr.then(f => { if (f && S.lab?.q === q) labPrepararVozes(f.map(labTextoExplic), lang); });
+  q.falasPr.then(f => { if (f && S.lab?.q === q && S.lab.escolha == null) labPrepararVozes(labOrdemFalas(q, f), lang); });
   return q.falasPr;
 }
 // texto exatamente igual ao que vai ser falado (a voz guardada é achada pelo texto)
@@ -7217,7 +7217,64 @@ const LAB_REACOES = {
   }
 };
 const LAB_REAC_URL = new Map();
-const labReacoes = () => { const b = LAB_REACOES[labIdioma()][labJeito()] || LAB_REACOES.pt.zoeiro, out = []; for (let k = 0; k < Math.max(b.erro.length, b.acerto.length); k++) { if (b.erro[k]) out.push(b.erro[k]); if (b.acerto[k]) out.push(b.acerto[k]); } return out; };
+// frases de ligação gravadas: entram só quando a voz da explicação ainda não ficou pronta, para o Hipo não ficar mudo
+const LAB_PONTES = {
+  pt: {
+    fofo: { erro: ["Olha só, deixa eu te mostrar um jeito fácil de nunca mais esquecer isso.", "Vem cá que eu tenho uma comparação perfeita para essa.", "Respira, que eu vou te contar uma historinha e vai fazer sentido."], acerto: ["E sabe por que está certo? Escuta só.", "Deixa eu só reforçar o motivo, para fixar de vez."] },
+    zoeiro: { erro: ["Senta aí, que eu vou te explicar de um jeito que nem dormindo você esquece.", "Calma, calma, deixa eu pensar numa comparação à altura desse desastre.", "Tá, vamos por partes, porque essa aí merece uma explicação caprichada."], acerto: ["Mas você sabe por que acertou? Então escuta.", "Agora confirma comigo o motivo, só para eu acreditar."] },
+    semfiltro: { erro: ["Senta essa bunda aí, que eu vou te explicar essa merda de um jeito que você nunca mais esquece.", "Calma, deixa eu respirar, porque essa porra merece uma explicação decente.", "Abre bem esse ouvido, cacete, que eu só vou explicar uma vez."], acerto: ["Mas sabe por que acertou essa porra? Escuta aí.", "Agora ouve o motivo, cacete, para não ter sido só sorte."] }
+  },
+  es: {
+    fofo: { erro: ["Mira, te muestro una forma fácil de no olvidarlo nunca más.", "Ven, que tengo una comparación perfecta para esto.", "Respira, te cuento una historia y vas a ver que tiene sentido."], acerto: ["¿Y sabes por qué está bien? Escucha.", "Déjame reforzar el motivo, para que se te quede."] },
+    zoeiro: { erro: ["Siéntate, que te lo explico de una forma que ni en sueños se te olvida.", "Calma, calma, déjame pensar una comparación a la altura de este desastre.", "Bueno, vamos por partes, porque esto merece una buena explicación."], acerto: ["¿Pero sabes por qué acertaste? Escucha.", "Ahora confirma conmigo el motivo, para que te crea."] },
+    semfiltro: { erro: ["Siéntate, carajo, que te explico esta mierda de una forma que nunca más se te olvida.", "Calma, déjame respirar, porque esta mierda merece una explicación decente.", "Abre bien los oídos, carajo, que lo explico una sola vez."], acerto: ["¿Pero sabes por qué acertaste, carajo? Escucha.", "Ahora oye el motivo, joder, para que no haya sido pura suerte."] }
+  }
+};
+// ordem de gravação: 2 reações, 1 frase de ligação… (erro e acerto alternados)
+const labReacoes = () => {
+  const b = LAB_REACOES[labIdioma()][labJeito()] || LAB_REACOES.pt.zoeiro, pt = LAB_PONTES[labIdioma()][labJeito()] || LAB_PONTES.pt.zoeiro, out = [];
+  for (let k = 0; k < Math.max(b.erro.length, b.acerto.length); k++) { for (const x of [b.erro[k], b.acerto[k], pt.erro[k], pt.acerto[k]]) if (x) out.push(x); }
+  return out;
+};
+function labEscolherPonte(certo, lang) {
+  const l = (LAB_PONTES[labIdioma()][labJeito()] || LAB_PONTES.pt.zoeiro)[certo ? "acerto" : "erro"].filter(x => labReacaoPronta(x, lang));
+  const livres = l.filter(x => x !== S.labUltPonte), t = (livres.length ? livres : l)[Math.floor(Math.random() * (livres.length || l.length))] || "";
+  if (t) S.labUltPonte = t; return t;
+}
+// ---------- junta falas num áudio só (sem buraco entre elas): corta o silêncio das pontas e põe uma pausa natural ----------
+async function lerWav(url) {
+  const b = await (await fetch(url)).arrayBuffer(), v = new DataView(b), id = o => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
+  if (id(0) !== "RIFF" || id(8) !== "WAVE") throw new Error("áudio não é WAV");
+  let o = 12, fmt = null;
+  while (o + 8 <= b.byteLength) {
+    const nome = id(o), n = v.getUint32(o + 4, true);
+    if (nome === "fmt ") fmt = { tipo: v.getUint16(o + 8, true), canais: v.getUint16(o + 10, true), taxa: v.getUint32(o + 12, true), bits: v.getUint16(o + 22, true) };
+    else if (nome === "data") {
+      const ini = o + 8, tam = Math.min(n, b.byteLength - ini), bytes = fmt.bits / 8;
+      if (!(fmt.canais === 1 && ((fmt.tipo === 1 && bytes === 2) || (fmt.tipo === 3 && bytes === 4)))) throw new Error("formato de áudio diferente");
+      const x = new Float32Array(Math.floor(tam / bytes));
+      for (let k = 0; k < x.length; k++) x[k] = bytes === 2 ? v.getInt16(ini + k * 2, true) / 32768 : v.getFloat32(ini + k * 4, true);
+      return { taxa: fmt.taxa, x };
+    }
+    o += 8 + n + (n & 1);
+  }
+  throw new Error("áudio vazio");
+}
+async function labJuntar(urls, pausa = 0.16) {
+  const ws = await Promise.all(urls.map(lerWav)), taxa = ws[0].taxa;
+  if (ws.some(w => w.taxa !== taxa)) throw new Error("taxas diferentes");
+  const folga = Math.round(taxa * 0.03), partes = ws.map(({ x }) => {
+    let a = 0, z = x.length - 1; while (a < z && Math.abs(x[a]) < 0.012) a++; while (z > a && Math.abs(x[z]) < 0.012) z--;
+    return x.subarray(Math.max(0, a - folga), Math.min(x.length, z + folga));
+  });
+  const vao = Math.round(taxa * pausa), total = partes.reduce((t, x) => t + x.length, 0) + vao * (partes.length - 1), buf = new ArrayBuffer(44 + total * 2), v = new DataView(buf);
+  const txt = (o, t) => [...t].forEach((c, k) => v.setUint8(o + k, c.charCodeAt(0)));
+  txt(0, "RIFF"); v.setUint32(4, 36 + total * 2, true); txt(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, taxa, true); v.setUint32(28, taxa * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); txt(36, "data"); v.setUint32(40, total * 2, true);
+  let o = 44;
+  partes.forEach((x, n) => { if (n) o += vao * 2; for (let k = 0; k < x.length; k++, o += 2) v.setInt16(o, Math.max(-1, Math.min(1, x[k])) * 32767, true); });
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
 const labChaveReacao = (t, lang) => "reacao|" + vozPiper(idiomaVoz(lang)) + "|" + t;
 const labReacaoPronta = (t, lang) => LAB_REAC_URL.has(labChaveReacao(t, lang));
 // voz de uma reação: memória → guardada no aparelho → gera e guarda
@@ -7233,12 +7290,12 @@ async function labVozReacao(t, lang) {
 // prepara as reações do jeito/idioma atuais em segundo plano (primeiro as que já estão no aparelho: instantâneo)
 async function labPrepararReacoes(quantas) {
   const lang = labLang(), id = (S.labReacId = (S.labReacId || 0) + 1);
-  const lista = labReacoes().slice(0, quantas || (CELULAR ? 6 : 99));
+  const lista = labReacoes().slice(0, quantas || (CELULAR ? 8 : 99));
   let liberar; S.labReacBase = new Promise(r => liberar = r); setTimeout(liberar, 8000); // nunca segura as falas por mais de 8 s
   for (const [k, t] of lista.entries()) {
-    if (k === 6) liberar();
+    if (k === 8) liberar();
     if (S.labReacId !== id) { liberar(); return; }
-    while (S.lab?.falando) await new Promise(r => setTimeout(r, 250));
+    while (S.lab?.falando || (k >= 8 && LAB_VOZFILA.rodando)) { await new Promise(r => setTimeout(r, 250)); if (S.labReacId !== id) { liberar(); return; } } // as falas da pergunta vêm antes das reações extras
     try { await labVozReacao(t, lang); } catch {}
   }
   liberar();
@@ -7264,6 +7321,16 @@ function labTirarReacaoInicial(t) {
 const labTextoExplic = t => labTirarReacaoInicial(labLimparFala(t));
 const labLimparFala = t => String(t || "").replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
 const labVozPronta = (t, lang) => AUDIO_CACHE.has("piper|" + vozPiper(idiomaVoz(lang)) + "|" + t);
+// só fica aqui quando a voz terminou de ser gerada (o AUDIO_CACHE guarda também as que ainda estão no forno)
+const LAB_FEITA = new Map();
+const labVozFeita = (t, lang) => LAB_FEITA.get(vozPiper(idiomaVoz(lang)) + "|" + t);
+function labGerarVoz(t, lang) {
+  const k = vozPiper(idiomaVoz(lang)) + "|" + t, pr = audioPiper(t, lang);
+  pr.then(u => { LAB_FEITA.delete(k); LAB_FEITA.set(k, u); if (LAB_FEITA.size > 60) LAB_FEITA.delete(LAB_FEITA.keys().next().value); }, () => {});
+  return pr;
+}
+// a resposta certa é a mais marcada: grava primeiro a fala dela
+const labOrdemFalas = (q, f) => [f[q.correta], ...f.filter((_, k) => k !== q.correta)].map(labTextoExplic);
 // gera as vozes uma por vez; nunca enquanto o Hipo está falando (no celular, gerar e tocar ao mesmo tempo engasga o áudio)
 function labPrepararVozes(textos, lang) {
   const F = LAB_VOZFILA; F.lang = lang; F.fila = textos.filter(t => t && !labVozPronta(t, lang));
@@ -7273,7 +7340,8 @@ function labPrepararVozes(textos, lang) {
     while (F.fila.length) {
       while (S.lab?.falando) await new Promise(r => setTimeout(r, 250));
       const t = F.fila.shift();
-      try { await audioPiper(t, F.lang); } catch {}
+      if (!t) continue; // a fila foi trocada enquanto esperava
+      try { await labGerarVoz(t, F.lang); } catch {}
     }
     F.rodando = false;
   })();
@@ -7308,7 +7376,14 @@ function labPreparar() {
   const L = S.lab, c = labCad(); if (!c || L.pronta || !podeUsarSilencioso()) return;
   const fonte = L.fonte, chave = labChave();
   L.pronta = { fonte, chave, promessa: labGerarPergunta(c, { feitas: [...L.feitas, String(L.q?.enunciado || "").slice(0, 100)] }).then(q => { gastar(); L.feitas.push(String(q.enunciado).slice(0, 100)); return q; }) };
-  L.pronta.promessa.catch(() => { if (L.pronta?.fonte === fonte) L.pronta = null; });
+  L.pronta.promessa.then(() => { if (S.lab === L && L.escolha != null) labAdiantarVozes(L); }, () => { if (L.pronta?.fonte === fonte) L.pronta = null; });
+}
+// já respondeu esta: grava as vozes da PRÓXIMA pergunta (a fila espera o Hipo terminar de falar)
+async function labAdiantarVozes(L) {
+  const pr = L.pronta; if (!pr || pr.chave !== labChave()) return;
+  const q = await pr.promessa.catch(() => null);
+  if (!q || S.lab !== L || L.pronta !== pr || L.escolha == null || q.falas?.length !== q.alternativas.length || q.falasDe !== labChave()) return;
+  labPrepararVozes(labOrdemFalas(q, q.falas), labLang());
 }
 function podeUsarSilencioso() { conferirValidade(); if (ACESSO.liberado) return true; const u = uso(); return u.n < ACESSO.pag.limite; }
 
@@ -7318,8 +7393,10 @@ async function labResponder(i) {
   if (certo) { L.acertos++; L.seq++; L.melhor = Math.max(L.melhor, L.seq); } else { L.erros++; L.seq = 0; }
   try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro); contarResposta(); } catch {}
   // a reação sai NA HORA (banco pronto); a explicação daquela pergunta vem logo em seguida
-  L.reacao = labEscolherReacao(certo); L.explic = null; L.explicFim = false; L.fala = L.reacao;
-  if (CELULAR) S.labReacMais = Math.min(24, (S.labReacMais || 6) + 2); // no celular o banco cresce aos poucos
+  LAB_VOZFILA.fila = []; // as falas das outras alternativas não servem mais
+  L.certo = certo; L.reacao = labEscolherReacao(certo); L.explic = null; L.explicFim = false; L.fala = L.reacao;
+  if (CELULAR) S.labReacMais = Math.min(24, (S.labReacMais || 8) + 2); // no celular o banco cresce aos poucos
+  if (q.falas?.length === q.alternativas.length && q.falasDe === labChave()) { L.explic = labTextoExplic(q.falas[i]); L.explicFim = true; L.fala = L.reacao + " " + L.explic; labGerarVoz(L.explic, labLang()).catch(() => {}); }
   desenharLab(); labFalar();
   setTimeout(() => labEl()?.querySelector(".lab-hipo")?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
   let f = await labGarantirFalas(q);
@@ -7329,8 +7406,8 @@ async function labResponder(i) {
   L.explic = labTextoExplic(f?.[i] || (certo ? (es ? `La respuesta es ${certaTxt}.` : `A resposta é ${certaTxt}.`) : (es ? `La correcta es: ${certaTxt}.` : `A certa é: ${certaTxt}.`)));
   L.explicFim = true; L.fala = L.reacao + " " + L.explic;
   if (CELULAR) setTimeout(() => labPrepararReacoes(S.labReacMais), 4000);
-  if (!labVozPronta(L.explic, labLang())) { labFurarFila(L.explic); audioPiper(L.explic, labLang()).catch(() => {}); }
-  desenharLab();
+  labGerarVoz(L.explic, labLang()).catch(() => {});
+  desenharLab(); labAdiantarVozes(L);
 }
 
 // ---------- voz ----------
@@ -7368,20 +7445,37 @@ async function labFalar() {
   };
   try {
     L.falando = true; L.erroFala = ""; desenharLab();
-    // 1) a reação (banco pronto: sai na hora)
+    const espera = (pr, ms) => Promise.race([Promise.resolve(pr).catch(() => null), new Promise(r => setTimeout(() => r(null), ms))]);
+    const junto = async urls => { try { return await labJuntar(urls); } catch (e) { console.warn("juntar falas:", e?.message); return null; } };
+    let feito = false;
     if (L.reacao) {
-      const url = await Promise.race([labVozReacao(L.reacao, lang).catch(() => null), new Promise(r => setTimeout(() => r(null), 400))]);
+      const reac = await espera(labVozReacao(L.reacao, lang), 400); if (!vivo()) return;
+      // 1) explicação já pronta: reação + explicação num áudio só, como uma fala de verdade
+      let exp = L.explicFim && L.explic ? labVozFeita(L.explic, lang) || await espera(audioPiper(L.explic, lang), 120) : null; if (!vivo()) return;
+      if (reac && exp) {
+        const tudo = await junto([reac, exp]); if (!vivo()) return;
+        if (tudo) { S.labEmenda = { modo: "junto", buraco: 0 }; await tocar(tudo).finally(() => URL.revokeObjectURL(tudo)); feito = true; }
+      }
+      // 2) ainda não: reação + frase de ligação gravada, enquanto a voz da explicação termina
+      if (!feito && reac) {
+        const pt = exp ? "" : labEscolherPonte(L.certo, lang), uPt = pt ? await espera(labVozReacao(pt, lang), 200) : null; if (!vivo()) return;
+        const inicio = uPt ? await junto([reac, uPt]) : null; if (!vivo()) return;
+        await (inicio ? tocar(inicio).finally(() => URL.revokeObjectURL(inicio)) : tocar(reac));
+      }
       if (!vivo()) return;
-      if (url) { await tocar(url); if (!vivo()) return; }
     }
-    // 2) a explicação daquela pergunta (espera ficar pronta, se ainda não estiver)
-    if (L.reacao) { while (vivo() && !L.explicFim) { L.pensando = true; await new Promise(r => setTimeout(r, 120)); } if (!vivo()) return; }
-    const explic = L.reacao ? L.explic : L.fala;
-    if (explic) {
-      if (!labVozPronta(explic, lang)) { labFurarFila(explic); L.pensando = true; desenharLab(); }
-      const url = await audioPiper(explic, lang); if (!vivo()) return;
-      L.pensando = false; desenharLab();
-      await tocar(url);
+    // 3) a explicação daquela pergunta (espera ficar pronta, se ainda não estiver)
+    if (!feito) {
+      const t0 = performance.now();
+      if (L.reacao) { while (vivo() && !L.explicFim) { L.pensando = true; await new Promise(r => setTimeout(r, 60)); } if (!vivo()) return; }
+      const explic = L.reacao ? L.explic : L.fala;
+      if (explic) {
+        if (!labVozFeita(explic, lang)) { L.pensando = true; desenharLab(); }
+        const url = await labGerarVoz(explic, lang); if (!vivo()) return;
+        L.pensando = false; desenharLab(); S.labEmenda = { modo: "ponte", buraco: Math.round(performance.now() - t0) };
+        const limpo = await junto([url]); if (!vivo()) return;
+        await (limpo ? tocar(limpo).finally(() => URL.revokeObjectURL(limpo)) : tocar(url));
+      }
     }
     fim();
   } catch (e) {
