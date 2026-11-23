@@ -4958,7 +4958,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0242";
+const VERSAO_APP = "2026-11-23-0243";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6968,7 +6968,7 @@ const LAB_REACOES = {
   }
 };
 const LAB_REAC_URL = new Map();
-const labReacoes = () => { const b = LAB_REACOES[labIdioma()][labJeito()] || LAB_REACOES.pt.zoeiro; return [...b.erro, ...b.acerto]; };
+const labReacoes = () => { const b = LAB_REACOES[labIdioma()][labJeito()] || LAB_REACOES.pt.zoeiro, out = []; for (let k = 0; k < Math.max(b.erro.length, b.acerto.length); k++) { if (b.erro[k]) out.push(b.erro[k]); if (b.acerto[k]) out.push(b.acerto[k]); } return out; };
 const labChaveReacao = (t, lang) => "reacao|" + vozPiper(idiomaVoz(lang)) + "|" + t;
 const labReacaoPronta = (t, lang) => LAB_REAC_URL.has(labChaveReacao(t, lang));
 // voz de uma reação: memória → guardada no aparelho → gera e guarda
@@ -6984,11 +6984,14 @@ async function labVozReacao(t, lang) {
 // prepara as reações do jeito/idioma atuais em segundo plano (primeiro as que já estão no aparelho: instantâneo)
 async function labPrepararReacoes() {
   const lang = labLang(), lista = labReacoes(), id = (S.labReacId = (S.labReacId || 0) + 1);
-  for (const t of lista) {
-    if (S.labReacId !== id) return;
+  let liberar; S.labReacBase = new Promise(r => liberar = r); setTimeout(liberar, 8000); // nunca segura as falas por mais de 8 s
+  for (const [k, t] of lista.entries()) {
+    if (k === 6) liberar();
+    if (S.labReacId !== id) { liberar(); return; }
     while (S.lab?.falando) await new Promise(r => setTimeout(r, 250));
     try { await labVozReacao(t, lang); } catch {}
   }
+  liberar();
 }
 function labEscolherReacao(certo) {
   const b = LAB_REACOES[labIdioma()][labJeito()] || LAB_REACOES.pt.zoeiro, lista = certo ? b.acerto : b.erro, lang = labLang();
@@ -7003,6 +7006,7 @@ function labPrepararVozes(textos, lang) {
   const F = LAB_VOZFILA; F.lang = lang; F.fila = textos.filter(t => t && !labVozPronta(t, lang));
   if (F.rodando) return; F.rodando = true;
   (async () => {
+    try { await S.labReacBase; } catch {} // primeiro as reações básicas (saem na hora do toque)
     while (F.fila.length) {
       while (S.lab?.falando) await new Promise(r => setTimeout(r, 250));
       const t = F.fila.shift();
@@ -7101,7 +7105,11 @@ async function labFalar() {
   try {
     L.falando = true; L.erroFala = ""; desenharLab();
     // 1) a reação (banco pronto: sai na hora)
-    if (L.reacao) { const url = await labVozReacao(L.reacao, lang); if (!vivo()) return; await tocar(url); if (!vivo()) return; }
+    if (L.reacao) {
+      const url = await Promise.race([labVozReacao(L.reacao, lang).catch(() => null), new Promise(r => setTimeout(() => r(null), 400))]);
+      if (!vivo()) return;
+      if (url) { await tocar(url); if (!vivo()) return; }
+    }
     // 2) a explicação daquela pergunta (espera ficar pronta, se ainda não estiver)
     if (L.reacao) { while (vivo() && !L.explicFim) { L.pensando = true; await new Promise(r => setTimeout(r, 120)); } if (!vivo()) return; }
     const explic = L.reacao ? L.explic : L.fala;
