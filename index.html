@@ -4870,7 +4870,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0037";
+const VERSAO_APP = "2026-11-23-0038";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6567,8 +6567,9 @@ function mapa3D(cv, dados, o) {
     r.itens.forEach((t, j) => { const a = j / r.itens.length * Math.PI * 2, rr = o.neural ? 72 : 88;
       nos.push({ t, nivel: 2, pai: bi, cor, ref: { r: i, k: j }, x: b.x + ux * 72 + (px * Math.cos(a) + qx * Math.sin(a)) * rr, y: b.y + uy * 72 + (qy * Math.sin(a)) * rr, z: b.z + uz * 72 + (pz * Math.cos(a) + qz * Math.sin(a)) * rr }); ar.push([bi, nos.length - 1, cor]); });
   });
+  const primeiraVez = !S.mmVista;
   const vista = S.mmVista ||= { rx: -0.35, ry: 0.6, zoom: 1 };
-  let rx = vista.rx, ry = vista.ry, zoom = vista.zoom, auto = !S.mmEditando, sel = null, arr = false, ux0 = 0, uy0 = 0, moveu = 0, W = 0, H = 0, t0 = performance.now(), toques = new Map(), pinca = 0;
+  let rx = vista.rx, ry = vista.ry, zoom = vista.zoom, auto = primeiraVez && !S.mmEditando, sel = null, arr = false, ux0 = 0, uy0 = 0, moveu = 0, W = 0, H = 0, t0 = performance.now(), toques = new Map(), pinca = 0;
   const tam = () => { const d = Math.min(2, devicePixelRatio || 1), r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0); };
   tam(); window.onresize = () => S.mapaAberto && tam();
   const proj = p => { const cy = Math.cos(ry), sy = Math.sin(ry), cx = Math.cos(rx), sx = Math.sin(rx); let x = p.x * cy - p.z * sy, z = p.x * sy + p.z * cy, y = p.y * cx - z * sx; z = p.y * sx + z * cx; const k = Math.min(W, H) / 640 * zoom, f = 700 / (700 + z); return { X: W / 2 + x * f * k, Y: H / 2 + y * f * k, Z: z, f: f * k }; };
@@ -6577,7 +6578,7 @@ function mapa3D(cv, dados, o) {
   const ativo = i => sel === null || i === sel || nos[i].pai === sel || nos[sel]?.pai === i;
   const frame = agora => {
     if (!S.mapaAberto || !cv.isConnected) return;
-    if (auto && !arr) ry += 0.0025;
+    if (auto && !arr) { const k = (agora - t0) / 3000; if (k >= 1) auto = false; else ry += 0.012 * (1 - k); } // apresentação de 3 s, depois para
     ctx.clearRect(0, 0, W, H); const tm = (agora - t0) / 1000, P = nos.map(proj);
     if (o.estrelas) for (let i = 0; i < 80; i++) { ctx.fillStyle = `rgba(255,255,255,${0.25 + 0.25 * Math.sin(tm * 2 + i)})`; ctx.fillRect((i * 97.13 % 1 * W + i * 53) % W, (i * 57.71 % 1 * H + i * 31) % H, 1.6, 1.6); }
     for (const [a, b, cor] of ar.map(x => x).sort((u, v) => (P[v[0]].Z + P[v[1]].Z) - (P[u[0]].Z + P[u[1]].Z))) {
@@ -6643,7 +6644,7 @@ function mapa3D(cv, dados, o) {
   cv.onpointermove = ev => { if (!arr) return; toques.set(ev.pointerId, ev);
     if (toques.size === 2) { const [a, b] = [...toques.values()], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); if (pinca) zoom = Math.max(.6, Math.min(2.4, zoom * d / pinca)); pinca = d; moveu += 10; return; }
     const dx = ev.clientX - ux0, dy = ev.clientY - uy0; moveu += Math.abs(dx) + Math.abs(dy); ry += dx * .008; rx = Math.max(-1.3, Math.min(1.3, rx + dy * .008)); ux0 = ev.clientX; uy0 = ev.clientY; };
-  cv.onpointerup = ev => { toques.delete(ev.pointerId); if (toques.size) return; arr = false; pinca = 0; setTimeout(() => auto = !S.mmEditando, 2500);
+  cv.onpointerup = ev => { toques.delete(ev.pointerId); if (toques.size) return; arr = false; pinca = 0; /* depois que a pessoa mexe, o mapa fica parado onde ela deixou */
     if (moveu < 6) { const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top; let mi = null, d0 = 40; nos.forEach((no, i) => { if (!no.P) return; const d = Math.hypot(no.P.X - x, no.P.Y - y); if (d < d0) { d0 = d; mi = i; } }); if (S.mmEditando) { if (mi !== null) mmSelecionar(nos[mi].ref); return; } sel = mi === null || mi === sel ? null : (nos[mi].nivel === 2 ? nos[mi].pai : mi); } };
   cv.onwheel = ev => { ev.preventDefault(); zoom = Math.max(.6, Math.min(2.4, zoom * (ev.deltaY < 0 ? 1.08 : .93))); };
   S.mmAnim = requestAnimationFrame(frame);
