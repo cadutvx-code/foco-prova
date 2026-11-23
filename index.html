@@ -371,6 +371,10 @@ h3{font-size:16px;margin:0 0 6px}
 .adm-aba{display:none}.adm-aba.on{display:flex;flex-direction:column;gap:12px}
 .adm-ped-acoes input.admDiasPed{width:56px!important}
 @media(max-width:480px){.adm-abas{gap:0}.adm-abas button{padding:10px 3px;font-size:12px}.adm-abas .badge{margin-left:2px;padding:0 4px;font-size:10px}.adm-ped-acoes .pill{padding:6px 10px!important}.adm-ped{padding:9px 8px}}
+.pron{display:flex;flex-wrap:wrap;gap:6px}
+.pron button.on{border-color:var(--accent);color:var(--accent)}
+.pron input{flex:1 1 100%}
+.guia .pron{justify-content:center;margin:6px 0 14px}
 .adm-aviso{border:1px solid #f5a623;border-radius:12px;padding:10px 12px;font-size:14px;overflow-wrap:anywhere}
 .adm-aviso.erro{border-color:var(--bad)}
 .fb-item.novo{border-color:var(--accent);background:rgba(91,141,255,.07)}
@@ -742,6 +746,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgConfig">
   <h2>Configurações</h2>
   <div class="stack">
+    <div id="cfgPronome"></div>
     <div class="muted" style="font-size:14px">IA: várias IAs trabalhando juntas, escolhidas automaticamente para ser rápido e preciso.</div>
     <select id="cfgProvider" hidden><option value="gemini">Gemini</option></select>
     <div id="cfgWeb" class="stack" style="display:none">
@@ -844,7 +849,7 @@ function toast(msg, err = false) {
 function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
 const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
 const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
-const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana"]);
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome"]);
 const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
 function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
@@ -904,7 +909,7 @@ function idiomaCaderno(c) {
 const linhaIdioma = c => idiomaCaderno(c) === "es"
   ? "\nIDIOMA OBRIGATÓRIO: escreva TODO o conteúdo (perguntas, alternativas, explicações, resumos, flashcards) em ESPANHOL."
   : "\nIDIOMA OBRIGATÓRIO: escreva TODO o conteúdo em PORTUGUÊS do Brasil.";
-const SYS_BASE = `Você é um assistente de estudos que cria materiais de revisão para provas a partir dos documentos do estudante.
+const SYS_BASE = `Você é um assistente de estudos que cria materiais de revisão para provas a partir dos documentos de quem estuda. Nunca suponha o gênero de quem estuda nem de quem ensina.
 Regras:
 - Use SOMENTE o conteúdo dos materiais fornecidos. Não invente fatos que não estejam neles.
 - Escreva de forma clara e didática, no idioma indicado abaixo.
@@ -1991,7 +1996,7 @@ async function completarExplicacao(c, q, escolha) {
     const n1 = q.correta + 1, n2 = marcouErrada ? escolha + 1 : null;
     const r = await chamar({
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + `
-Você é um professor de medicina corrigindo uma questão de prova, falando direto com o aluno.
+Você é um professor de medicina corrigindo uma questão de prova, falando direto com quem estuda.${linhaPronome()}
 - Seja CURTO e fácil de memorizar, como um resumo de revisão: tópicos rápidos, sem enrolação. Explique o conceito de verdade (causa e efeito), nada de frases vagas como "isso é importante para o funcionamento do organismo".
 - NUNCA use expressões como "segundo o material", "o livro diz", "de acordo com o texto", "conforme o material" ou "o material menciona": afirme os fatos diretamente, como um professor.
 - Use **negrito** nos termos-chave. Não repita o enunciado nem as alternativas inteiras.` }, { type: "text", text: blocoMateriais(c, `${q.enunciado} ${q.alternativas.join(" ")} ${q.topico || ""}`, cfg().provider === "webllm" ? 1500 : 5000) }],
@@ -2231,7 +2236,7 @@ function viewCaderno(c, emEstudo) {
   if (emEstudo) return corpo; // modo foco: só a tela de estudo
   return `<div class="kit-head"><button class="kit-icon" data-act="trocarIcone" title="Trocar ícone">${c.icone || "📘"}</button><h1>${esc(c.nome)}${c.materia ? `<div class="muted" style="font-size:13px;font-weight:700;letter-spacing:0">${esc(c.materia)}</div>` : ""}</h1>
       <button class="btn small ghost" data-act="renomear" title="Renomear">✏️</button><button class="btn small ghost danger" data-act="excluirCaderno" title="Excluir caderno">🗑️</button></div>
-    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><div class="kit-acoes"><button class="btn small provas-btn" data-act="provasAbrir" title="Ensine a IA o estilo de cobrança da sua professora">${iconeSVG("arquivo", 'style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}Estilo da prova${(c.provasAntigas || []).length ? ` (${c.provasAntigas.length})` : ""}</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button><button class="btn small duelo-btn" data-act="duelo" title="Desafie um amigo com 10 perguntas deste caderno" ${S.criandoDuelo ? "disabled" : ""}>${S.criandoDuelo ? `<span class="spin"></span> Criando…` : "⚔️ Duelo"}</button></div>${barraNivel(c)}
+    <div class="kit-bar"><button class="pill" data-act="comecar">▶ Começar a estudar</button><div class="kit-acoes"><button class="btn small provas-btn" data-act="provasAbrir" title="Ensine a IA o estilo de cobrança do(a) seu/sua professor(a)">${iconeSVG("arquivo", 'style="width:15px;height:15px;vertical-align:-3px;margin-right:4px"')}Estilo da prova${(c.provasAntigas || []).length ? ` (${c.provasAntigas.length})` : ""}</button><button class="btn small panico-btn" data-act="panico" title="Monte um plano de estudo para a prova">🚨 Prova chegando</button><button class="btn small duelo-btn" data-act="duelo" title="Desafie alguém com 10 perguntas deste caderno" ${S.criandoDuelo ? "disabled" : ""}>${S.criandoDuelo ? `<span class="spin"></span> Criando…` : "⚔️ Duelo"}</button></div>${barraNivel(c)}
       <label class="inline" title="Idioma das perguntas, respostas e explicações">🌐 <select id="idiomaCaderno" style="width:auto;padding:6px 10px;border-radius:999px">
         <option value="pt" ${idiomaCaderno(c) === "pt" ? "selected" : ""}>Português</option><option value="es" ${idiomaCaderno(c) === "es" ? "selected" : ""}>Español</option></select></label></div>
     ${cartaoPanico(c)}${corpo}`;
@@ -2512,7 +2517,8 @@ async function entregar(forcado = false) {
   if (diss.length) {
     try {
       const lista = diss.map(({ q, i }) => `<questao indice="${i}" pontos="${q.pontos}">\n<enunciado>${q.enunciado}</enunciado>\n<resposta_esperada>${q.resposta_esperada}</resposta_esperada>\n<resposta_do_aluno>${p.resp[i]}</resposta_do_aluno>\n</questao>`).join("\n");
-      const r = await gerarJSON(c, `Corrija as respostas dissertativas abaixo como um professor justo, com base nos materiais e na resposta esperada. Para cada questão, dê "nota" entre 0 e 1 (fração da pontuação: 1 = completa e correta, 0.5 = parcial etc.) e um "feedback" curto em Markdown dizendo o que acertou, o que faltou e como melhorar.\n\n${lista}`, SCH.correcao);
+      const r = await gerarJSON(c, `${linhaPronome().trim()}
+Corrija as respostas dissertativas abaixo como um professor justo, com base nos materiais e na resposta esperada. Para cada questão, dê "nota" entre 0 e 1 (fração da pontuação: 1 = completa e correta, 0.5 = parcial etc.) e um "feedback" curto em Markdown dizendo o que acertou, o que faltou e como melhorar.\n\n${lista}`, SCH.correcao);
       r.correcoes.forEach(k => { if (porQuestao[k.indice]) porQuestao[k.indice] = { frac: Math.max(0, Math.min(1, k.nota)), feedback: k.feedback }; });
     } catch (e) {
       toast("Não consegui corrigir as dissertativas: " + erroMsg(e), true);
@@ -2716,7 +2722,7 @@ function viewSmart(c) {
         <div><b style="font-size:22px">${I.respondidas ? Math.round(I.acertos / I.respondidas * 100) : 0}%</b><div class="muted" style="font-size:13px">de acerto</div></div>
         <div><b style="font-size:22px">${I.xp}</b><div class="muted" style="font-size:13px">XP</div></div>
       </div>
-      <label>⚙️ Preferências (direcionam a IA) <textarea id="smartPrefs" rows="2" placeholder="ex.: questões no estilo da minha professora, mais cálculos, foco no capítulo 4, questões mais difíceis…">${esc(I.prefs)}</textarea></label>
+      <label>⚙️ Preferências (direcionam a IA) <textarea id="smartPrefs" rows="2" placeholder="ex.: questões no estilo da meu/minha professor(a), mais cálculos, foco no capítulo 4, questões mais difíceis…">${esc(I.prefs)}</textarea></label>
       <div class="row" style="margin-top:12px"><button class="btn primary" data-act="smartIniciar">▶ ${I.respondidas ? "Continuar estudando" : "Começar estudo inteligente"}</button>
       ${I.topicos.length ? `<button class="btn small ghost" data-act="zerarSmart">Zerar progresso</button>` : ""}</div>
     </div>
@@ -3497,7 +3503,8 @@ async function enviarOral(c) {
   const cap = nomeCap(p.cap) + (p.cap.faltando ? " (este capítulo não está nos materiais: use o conhecimento do livro-texto de referência da matéria, como o Guyton & Hall, e informe isso no comentário)" : ""), es = idiomaCaderno(c) === "es";
   try {
     if (p.etapa === "exposicao") {
-      const r = await gerarJSON(c, `Você é o professor de um ATENEO (exame oral). O estudante tirou o capítulo "${cap}" e fez a exposição abaixo (transcrita da fala; ignore erros de reconhecimento de voz e de gramática).
+      const r = await gerarJSON(c, `${linhaPronome().trim()}
+Você é o professor de um ATENEO (exame oral). O estudante tirou o capítulo "${cap}" e fez a exposição abaixo (transcrita da fala; ignore erros de reconhecimento de voz e de gramática).
 Exposição do estudante: ${resp}
 
 Com base no conteúdo desse capítulo nos materiais:
@@ -3514,7 +3521,8 @@ Com base no conteúdo desse capítulo nos materiais:
       p.etapa = "avaliacao";
     } else if (p.etapa === "pergunta") {
       const perg = p.perguntas[p.k];
-      const r = await gerarJSON(c, `Você é o professor de um ATENEO (exame oral) sobre o capítulo "${cap}".
+      const r = await gerarJSON(c, `${linhaPronome().trim()}
+Você é o professor de um ATENEO (exame oral) sobre o capítulo "${cap}".
 Pergunta do professor: ${perg}
 Resposta do estudante (transcrita da fala; ignore erros de reconhecimento de voz): ${resp}
 
@@ -3628,7 +3636,7 @@ async function perguntar(txt) {
   S.ocupado = "tutor"; render(); window.scrollTo(0, document.body.scrollHeight);
   try {
     const resposta = await chamar({
-      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." + linhaPronome() }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
       messages: c.chat.map(m => ({ role: m.role, content: m.content })),
       maxTokens: 16000
     });
@@ -3974,6 +3982,30 @@ function avatarHTML(tam = 34, p = PERFIL) {
   return `<span style="font-size:${Math.round(tam * .45)}px">${esc(nomeUser()[0].toUpperCase())}</span>`;
 }
 const avatarPreso = a => !ACESSO.admin && nivelDoXp(xpTotal()).nivel < a.nivel;
+/* Como o app trata a pessoa: {k: "ele" | "ela" | "outro" | "nao", t: texto livre}. Sem escolha = linguagem neutra.
+   Vale na conta (conta/perfil) e no aparelho (quem não entrou). Só muda as falas da IA; perguntas e textos fixos são neutros. */
+const pronome = () => PERFIL.pronome || lsGet("fp-pronome", null) || { k: "nao", t: "" };
+const limparPronome = t => String(t || "").replace(/[^\p{L}\p{N} /,.'-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 30);
+function linhaPronome() {
+  const p = pronome(), t = limparPronome(p.t);
+  if (p.k === "ele") return "\nAo falar com quem estuda, trate SEMPRE no masculino (ele).";
+  if (p.k === "ela") return "\nAo falar com quem estuda, trate SEMPRE no feminino (ela).";
+  if (p.k === "outro" && t) return `\nQuem estuda pediu para ser tratado pelos pronomes "${t}". Use-os ao falar com a pessoa; onde ficar estranho, prefira uma frase sem gênero.`;
+  return "\nAo falar com quem estuda, use frases SEM gênero: só \"você\" (ou \"tú\" em espanhol), nunca adjetivos ou apelidos no masculino ou no feminino (nada de \"preparada\", \"burro\", \"sua lesada\", \"amigo\"). Não escreva com x, @ ou \"(a)\".";
+}
+function campoPronome() {
+  const p = pronome(), op = [["ele", TT("Ele / dele", "Él")], ["ela", TT("Ela / dela", "Ella")], ["outro", TT("Outro", "Otro")], ["nao", TT("Prefiro não dizer", "Prefiero no decir")]];
+  return `<div class="pron" data-pron>${op.map(([k, t]) => `<button type="button" class="btn small${p.k === k ? " on" : ""}" aria-pressed="${p.k === k}" data-act="pronome" data-id="${k}">${t}</button>`).join("")}${p.k === "outro" ? `<input type="text" class="pronTexto" maxlength="30" value="${esc(p.t || "")}" placeholder="${TT("ex.: elu/delu", "ej.: elle")}" aria-label="${TT("Seu pronome", "Tu pronombre")}">` : ""}</div>`;
+}
+function salvarPronome(k, t) {
+  const p = { k, t: limparPronome(t) };
+  lsSet("fp-pronome", p); PERFIL = { ...PERFIL, pronome: p }; if (S.perfilEd) S.perfilEd.pronome = p;
+  if (NUVEM.user && NUVEM.F) {
+    lsSet("fp-perfil", { uid: NUVEM.user.uid, ...PERFIL });
+    NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/conta/perfil`), { pronome: p }, { merge: true }).catch(e => console.warn("pronome:", e?.message));
+  }
+}
+document.addEventListener("change", e => { if (e.target.matches?.(".pronTexto")) salvarPronome("outro", e.target.value); });
 function abrirPerfil() {
   if (!NUVEM.user) return toast("Entre com o Google para personalizar o perfil.", true);
   S.perfilEd ||= { ...PERFIL };
@@ -3984,6 +4016,7 @@ function abrirPerfil() {
       ${pro ? `<span class="pro-chip">👑 Você está no Pro</span>` : `<span class="muted" style="font-size:13px">🎁 Plano grátis · <a href="#" data-act="pagar" style="color:var(--accent);font-weight:800">Quero o Pro</a></span>`}
     </div>
     <label>Nome que aparece<input type="text" id="perfilNome" maxlength="40" value="${esc(p.nome || NUVEM.user.displayName || "")}"></label>
+    <div><div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">${TT("Como quer que a gente fale com você?", "¿Cómo quieres que te tratemos?")}</div>${campoPronome()}</div>
     <div><div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">Foto</div>
       <div class="row"><button class="btn small" data-act="perfilUpload">📷 Usar uma foto minha</button>${NUVEM.user.photoURL ? `<button class="btn small ghost" data-act="perfilGoogle">Foto do Google</button>` : ""}</div></div>
     <div><div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">Ou escolha um avatar</div>
@@ -4822,6 +4855,7 @@ function preencherVozes() {
 }
 function abrirConfig() {
   setTimeout(preencherVozes, 0);
+  $("#cfgPronome").innerHTML = `<div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">${TT("Como quer que a gente fale com você?", "¿Cómo quieres que te tratemos?")}</div>${campoPronome()}`;
   const s = cfg();
   $("#cfgKey").value = s.apiKey; $("#cfgModel").value = s.model; $("#cfgEffort").value = s.effort;
   $("#cfgProvider").value = s.provider; $("#cfgOUrl").value = s.ollamaUrl; $("#cfgOCtx").value = String(s.ollamaCtx);
@@ -5000,6 +5034,12 @@ document.addEventListener("click", async e => {
     }
     case "perfilEmoji": S.perfilEd = { ...S.perfilEd, tipo: "emoji", emoji: id, foto: "", cor: S.perfilEd.cor || CORES_AV[0] }; S.perfilEd.nome = $("#perfilNome").value; abrirPerfil(); break;
     case "perfilCor": S.perfilEd = { ...S.perfilEd, cor: id, ...(S.perfilEd.tipo === "emoji" ? {} : { tipo: "emoji", emoji: S.perfilEd.emoji || AVATARES[0], foto: "" }) }; S.perfilEd.nome = $("#perfilNome").value; abrirPerfil(); break;
+    case "pronome": {
+      salvarPronome(id, pronome().t); // guarda na hora
+      document.querySelectorAll("[data-pron]").forEach(x => x.outerHTML = campoPronome());
+      if (id === "outro") document.querySelector("dialog[open] .pronTexto")?.focus();
+      break;
+    }
     case "perfilCancelar": S.perfilEd = null; $("#dlgPerfil").close(); break;
     case "perfilSalvar": salvarPerfil(); break;
     case "admRemover": admRemover(id); break;
@@ -5122,7 +5162,7 @@ document.addEventListener("change", e => {
     return;
   }
   if (e.target.matches?.('#g-tipos input[type="checkbox"]')) { const n = $("#g-n-" + e.target.dataset.tipo); n.disabled = !e.target.checked; if (e.target.checked && !(+n.value > 0)) n.value = 2; e.target.closest(".tipo-qtd").classList.toggle("off", !e.target.checked); atualizarTotalProva(); return; }
-  if (e.target.id === "smartEstilo") { const c = atual(); c.estiloProf = e.target.value.trim().slice(0, 4000); salvar(c); toast(c.estiloProf ? "Perguntas da professora salvas." : "Perguntas da professora removidas."); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); return; }
+  if (e.target.id === "smartEstilo") { const c = atual(); c.estiloProf = e.target.value.trim().slice(0, 4000); salvar(c); toast(c.estiloProf ? "Perguntas do(a) professor(a) salvas." : "Perguntas do(a) professor(a) removidas."); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); return; }
   if (e.target.id === "smartPrefs") { const c = atual(); garantirSmart(c); c.inteligente.prefs = e.target.value.trim(); salvar(c); toast("Preferências salvas."); return; }
   const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
   if (e.target.type === "radio") S.player.resp[q] = +e.target.value;
@@ -5166,7 +5206,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-1859";
+const VERSAO_APP = "2026-11-23-1917";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5584,7 +5624,7 @@ const UI_ES = {
   "Não usar no estudo": "No usar en el estudio",
   "A IA acompanha o que você domina, foca nos seus pontos fracos e aumenta a dificuldade conforme você evolui — com perguntas de múltipla escolha e a explicação de cada resposta.": "La IA sigue lo que dominas, se enfoca en tus puntos débiles y aumenta la dificultad a medida que avanzas — con preguntas de opción múltiple y la explicación de cada respuesta.",
   "Na primeira sessão a IA identifica os tópicos dos seus materiais e faz um diagnóstico.": "En la primera sesión la IA identifica los temas de tus materiales y hace un diagnóstico.",
-  "ex.: questões no estilo da minha professora, mais cálculos, foco no capítulo 4, questões mais difíceis…": "ej.: preguntas al estilo de mi profesora, más cálculos, foco en el capítulo 4, preguntas más difíciles…",
+  "ex.: questões no estilo da meu/minha professor(a), mais cálculos, foco no capítulo 4, questões mais difíceis…": "ej.: preguntas al estilo de mi profesor(a), más cálculos, foco en el capítulo 4, preguntas más difíciles…",
   "média": "media",
   "Faça uma pergunta sobre o conteúdo… (Ctrl+Enter envia)": "Haz una pregunta sobre el contenido… (Ctrl+Enter envía)",
   "Perguntas de múltipla escolha com explicação de cada resposta": "Preguntas de opción múltiple con la explicación de cada respuesta",
@@ -5804,8 +5844,8 @@ const UI_ES = {
   "3 seguidas! Tá voando! 🚀": "¡3 seguidas! ¡Vas volando! 🚀", "5 em sequência! 🔥 Seu cérebro tá on.": "¡5 seguidas! 🔥 Tu cerebro está on.", "10 seguidas?! Você tá imparável! 🏆": "¿¡10 seguidas!? ¡Eres imparable! 🏆", "20 seguidas. Lenda. 👑": "20 seguidas. Leyenda. 👑",
   "🧠 Seu cérebro neste caderno": "🧠 Tu cerebro en este cuaderno", "não praticado": "no practicado", "fraco": "débil", "aprendendo": "aprendiendo", "dominado": "dominado",
   "✨ Hipocampo aceso! Você domina este caderno.": "✨ ¡Hipocampo encendido! Dominas este cuaderno.", "Toque num neurônio para estudar só aquele tópico.": "Toca una neurona para estudiar solo ese tema.",
-  "👩‍🏫 Perguntas da sua professora (opcional)": "👩‍🏫 Preguntas de tu profesora (opcional)", "Cole 2 ou 3 perguntas de provas antigas ou da aula: a IA passa a perguntar no mesmo estilo (Quiz e Teste também).": "Pega 2 o 3 preguntas de exámenes anteriores o de clase: la IA pregunta con el mismo estilo (Quiz y Examen también).",
-  "👩‍🏫 Estilo da professora salvo.": "👩‍🏫 Estilo de la profesora guardado.", "Estilo da professora removido.": "Estilo de la profesora quitado.",
+  "👩‍🏫 Perguntas do(a) seu/sua professor(a) (opcional)": "👩‍🏫 Preguntas de tu profesor(a) (opcional)", "Cole 2 ou 3 perguntas de provas antigas ou da aula: a IA passa a perguntar no mesmo estilo (Quiz e Teste também).": "Pega 2 o 3 preguntas de exámenes anteriores o de clase: la IA pregunta con el mismo estilo (Quiz y Examen también).",
+  "👩‍🏫 Estilo do(a) professor(a) salvo.": "👩‍🏫 Estilo del/de la profesor(a) guardado.", "Estilo do(a) professor(a) removido.": "Estilo del/de la profesor(a) quitado.",
   "🚨 Prova chegando": "🚨 Examen cerca", "Monte um plano de estudo para a prova": "Arma un plan de estudio para el examen", "Quanto tempo falta?": "¿Cuánto tiempo falta?", "3 horas": "3 horas", "6 horas": "6 horas", "12 horas": "12 horas", "1 dia": "1 día", "2 dias": "2 días", "3 dias": "3 días", "1 semana": "1 semana",
   "Diga quanto tempo falta e o que cai. A IA monta um plano de estudo hora a hora, começando pelo que você menos domina.": "Di cuánto tiempo falta y qué entra. La IA arma un plan de estudio hora por hora, empezando por lo que menos dominas.",
   "O que cai? (deixe tudo marcado se não souber)": "¿Qué entra? (deja todo marcado si no sabes)", "O que cai na prova?": "¿Qué entra en el examen?", "🧠 Montar meu plano": "🧠 Armar mi plan", "Apagar plano": "Borrar plan", "Apagar o plano de prova?": "¿Borrar el plan de examen?",
@@ -5813,11 +5853,11 @@ const UI_ES = {
   "Resumo em áudio": "Resumen en audio", "Um resumo de ~5 minutos lido pela voz do professor. Para ouvir no ônibus, na academia ou antes de dormir.": "Un resumen de ~5 minutos leído por la voz del profesor. Para escuchar en el colectivo, en el gimnasio o antes de dormir.",
   "▶ Ouvir": "▶ Escuchar", "↻ Novo": "↻ Nuevo", "✨ Criar e ouvir": "✨ Crear y escuchar", "Escrevendo o roteiro…": "Escribiendo el guion…", "⏸ Pausar": "⏸ Pausar", "▶ Continuar": "▶ Continuar", "preparando a voz…": "preparando la voz…", "Fazer outro resumo": "Hacer otro resumen",
   "Resumo ouvido! Agora fixa com umas perguntas no Estudo inteligente. 🧠": "¡Resumen escuchado! Ahora fíjalo con unas preguntas en el Estudio inteligente. 🧠",
-  "⚔️ Duelo": "⚔️ Duelo", "Criando…": "Creando…", "Desafie um amigo com 10 perguntas deste caderno": "Desafía a un amigo con 10 preguntas de este cuaderno", "Entre com o Google para desafiar um amigo.": "Entra con Google para desafiar a un amigo.",
+  "⚔️ Duelo": "⚔️ Duelo", "Criando…": "Creando…", "Desafie alguém com 10 perguntas deste caderno": "Desafía a alguien con 10 preguntas de este cuaderno", "Entre com o Google para desafiar alguém.": "Entra con Google para desafiar a alguien.",
   "Preparando 10 perguntas para o duelo… ⚔️": "Preparando 10 preguntas para el duelo… ⚔️", "⚔️ Você foi desafiado!": "⚔️ ¡Te desafiaron!", "Entre com o Google para aceitar o duelo e responder às 10 perguntas.": "Entra con Google para aceptar el duelo y responder las 10 preguntas.",
-  "Esse duelo não existe mais.": "Ese duelo ya no existe.", "← Sair": "← Salir", "Agora é a vez do seu amigo!": "¡Ahora le toca a tu amigo!", "Você está ganhando! 🏆": "¡Vas ganando! 🏆", "Quase lá! Pede revanche 😤": "¡Casi! Pide la revancha 😤",
+  "Esse duelo não existe mais.": "Ese duelo ya no existe.", "← Sair": "← Salir", "Agora é a vez da outra pessoa!": "¡Ahora le toca a la otra persona!", "Você está ganhando! 🏆": "¡Vas ganando! 🏆", "Quase lá! Pede revanche 😤": "¡Casi! Pide la revancha 😤",
   "📲 Desafiar mais gente": "📲 Desafiar a más gente", "🔄 Atualizar placar": "🔄 Actualizar marcador", "Próxima →": "Siguiente →", "Ver resultado 🏁": "Ver resultado 🏁",
-  "⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link pro seu amigo.": "⚔️ ¡Duelo creado! Responde tú primero; al final aparece el botón para mandarle el link a tu amigo.",
+  "⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link para a pessoa.": "⚔️ ¡Duelo creado! Responde tú primero; al final aparece el botón para mandarle el link a la persona.",
   "🏆 Ranking da semana": "🏆 Ranking de la semana", "Ver tudo": "Ver todo", "👥 Entrar numa turma": "👥 Unirme a un curso", "Ninguém da sua turma pontuou ainda nesta semana. Seja o primeiro!": "Nadie de tu curso sumó puntos esta semana. ¡Sé el primero!",
   "Responda perguntas para entrar no ranking. Coloque o código da sua turma para competir com os colegas.": "Responde preguntas para entrar al ranking. Pon el código de tu curso para competir con tus compañeros.",
   "Código da sua turma (combine com os colegas, ex.: FISIO1-C)": "Código de tu curso (combínalo con tus compañeros, ej.: FISIO1-C)", "Salvar": "Guardar", "Ninguém pontuou ainda nesta semana.": "Nadie sumó puntos esta semana.", "⚔️ Meus duelos": "⚔️ Mis duelos", "Turma removida.": "Curso quitado.",
@@ -5831,15 +5871,15 @@ const UI_ES = {
   "Excluir este mapa mental?": "¿Eliminar este mapa mental?", "Descreva o estilo que você quer.": "Describe el estilo que quieres.", "Guia do app": "Guía de la app",
   "Minimalista preto e branco": "Minimalista blanco y negro", "Neon no fundo escuro": "Neón con fondo oscuro", "Pastel, fundo claro, árvore": "Pastel, fondo claro, árbol", "Estilo caderno de anatomia (serifado)": "Estilo cuaderno de anatomía (con serifa)",
   "Pular tour": "Omitir", "Próximo": "Siguiente", "Terminar": "Terminar",
-  "Estilo da prova": "Estilo del examen", "Envie exemplos de questões no formato que sua professora cobra (PDF, Word, foto ou .zip). A IA aprende o estilo de cobrança e foca nos assuntos que mais aparecem.": "Sube ejemplos de preguntas con el formato que tu profesora usa (PDF, Word, foto o .zip). La IA aprende su estilo y se enfoca en los temas que más aparecen.",
+  "Estilo da prova": "Estilo del examen", "Envie exemplos de questões no formato que seu/sua professor(a) cobra (PDF, Word, foto ou .zip). A IA aprende o estilo de cobrança e foca nos assuntos que mais aparecem.": "Sube ejemplos de preguntas con el formato que tu profesor(a) usa (PDF, Word, foto o .zip). La IA aprende su estilo y se enfoca en los temas que más aparecen.",
   "Enviar exemplos": "Subir ejemplos", "Lendo…": "Leyendo…", "Tirar": "Quitar", "Tirar este arquivo?": "¿Quitar este archivo?", "Lendo a prova": "Leyendo el examen",
-  "Ou cole perguntas da sua professora (opcional)": "O pega preguntas de tu profesora (opcional)",
+  "Ou cole perguntas do(a) seu/sua professor(a) (opcional)": "O pega preguntas de tu profesor(a) (opcional)",
   "toque num tópico para ver os detalhes · arraste para girar": "toca un tema para ver los detalles · arrastra para girar",
-  "Ensine a IA o estilo de cobrança da sua professora": "Enséñale a la IA el estilo de tu profesora",
-  "Ou cole perguntas da sua professora": "O pega preguntas de tu profesora", "Cole aqui exemplos de questões ou perguntas da aula.": "Pega aquí ejemplos de preguntas o preguntas de clase.", "Estudar no estilo da prova": "Estudiar con el estilo del examen",
-  "Perguntas no formato da prova, focadas no que mais cai.": "Preguntas con el formato del examen, enfocadas en lo que más entra.", "Simulado": "Simulacro", "Uma prova completa no estilo da professora, com nota.": "Un examen completo con el estilo de la profesora, con nota.",
+  "Ensine a IA o estilo de cobrança do(a) seu/sua professor(a)": "Enséñale a la IA el estilo de tu profesor(a)",
+  "Ou cole perguntas do(a) seu/sua professor(a)": "O pega preguntas de tu profesor(a)", "Cole aqui exemplos de questões ou perguntas da aula.": "Pega aquí ejemplos de preguntas o preguntas de clase.", "Estudar no estilo da prova": "Estudiar con el estilo del examen",
+  "Perguntas no formato da prova, focadas no que mais cai.": "Preguntas con el formato del examen, enfocadas en lo que más entra.", "Simulado": "Simulacro", "Uma prova completa no estilo do(a) professor(a), com nota.": "Un examen completo con el estilo del/de la profesor(a), con nota.",
   "Quiz rápido": "Quiz rápido", "10 questões de múltipla escolha no estilo da prova.": "10 preguntas de opción múltiple con el estilo del examen.", "Envie uma prova ou cole perguntas para liberar esses modos.": "Sube un examen o pega preguntas para habilitar estos modos.",
-  "Estilo da prova": "Estilo del examen", "Perguntas da professora salvas.": "Preguntas de la profesora guardadas.", "Perguntas da professora removidas.": "Preguntas de la profesora quitadas.",
+  "Estilo da prova": "Estilo del examen", "Perguntas do(a) professor(a) salvas.": "Preguntas del/de la profesor(a) guardadas.", "Perguntas do(a) professor(a) removidas.": "Preguntas del/de la profesor(a) quitadas.",
   "Material muito grande: desative alguns arquivos para a IA ler melhor.": "Material muy grande: desactiva algunos archivos para que la IA lea mejor.",
   "Tempo da prova": "Tiempo del examen", "Sem limite": "Sin límite", "Ou digite outro tempo (minutos)": "O escribe otro tiempo (minutos)", "Começar a prova": "Empezar el examen",
   "Quantas questões de cada tipo": "Cuántas preguntas de cada tipo", "Verdadeiro ou falso": "Verdadero o falso", "Escolha pelo menos 1 questão de algum tipo.": "Elige al menos 1 pregunta de algún tipo.",
@@ -5871,7 +5911,7 @@ const UI_ES = {
   "Esconder": "Ocultar", "Esconder o Ateneo da tela inicial": "Ocultar el Ateneo de la pantalla de inicio", "Ateneo escondido. Para ver de novo, toque em Sim, mostrar.": "Ateneo oculto. Para verlo de nuevo, toca Sí, mostrar.",
   "Baixando a voz (só na primeira vez)…": "Descargando la voz (solo la primera vez)…", "A voz não carregou agora. Toque em Ouvir de novo.": "La voz no cargó ahora. Toca Escuchar de nuevo.",
   "📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos, fotos o .zip aquí",
-  "Envie exemplos de questões no formato que sua professora cobra (PDF, Word, foto ou .zip). A IA aprende o estilo de cobrança e foca nos assuntos que mais aparecem.": "Sube ejemplos de preguntas con el formato que tu profesora usa (PDF, Word, foto o .zip). La IA aprende su estilo y se enfoca en los temas que más aparecen.",
+  "Envie exemplos de questões no formato que seu/sua professor(a) cobra (PDF, Word, foto ou .zip). A IA aprende o estilo de cobrança e foca nos assuntos que mais aparecem.": "Sube ejemplos de preguntas con el formato que tu profesor(a) usa (PDF, Word, foto o .zip). La IA aprende su estilo y se enfoca en los temas que más aparecen.",
   "Algumas páginas não foram lidas pela IA. Terminando no leitor do celular…": "Algunas páginas no las leyó la IA. Terminando con el lector del celular…", "A leitura rápida falhou; usando o leitor do celular…": "La lectura rápida falló; usando el lector del celular…",
   "IA: várias IAs trabalhando juntas, escolhidas automaticamente para ser rápido e preciso.": "IA: varias IAs trabajando juntas, elegidas automáticamente para ser rápido y preciso.", "IA do Hipocampo": "IA de Hipocampo",
   "IA ligada": "IA encendida", ": várias IAs trabalhando juntas.": ": varias IAs trabajando juntas.",
@@ -6151,18 +6191,18 @@ function mapaCerebro(c) {
     ${geral >= .8 ? `<div class="mapa-ok">✨ Hipocampo aceso! Você domina este caderno.</div>` : `<div class="muted" style="font-size:12.5px;text-align:center">Toque num neurônio para estudar só aquele tópico.</div>`}</div>`;
 }
 
-/* ================= 👩‍🏫 Estilo da professora ================= */
+/* ================= 👩‍🏫 Estilo do(a) professor(a) ================= */
 function estiloProfTxt(c) {
   const provas = (c?.provasAntigas || []).map(x => `--- ${x.nome} ---\n${x.texto}`).join("\n\n").slice(0, 7000);
   const cola = c?.estiloProf ? c.estiloProf.slice(0, 2500) : "";
   if (!provas && !cola) return "";
-  return `\n\nPROVAS ANTIGAS / PERGUNTAS DA PROFESSORA (prioridade): imite o formato, o tamanho, o tipo de cobrança e o nível de detalhe destas questões, e dê mais peso aos ASSUNTOS que mais aparecem nelas — sem copiar nem repetir as mesmas questões:\n${[cola, provas].filter(Boolean).join("\n\n")}`;
+  return `\n\nPROVAS ANTIGAS / PERGUNTAS DE QUEM DÁ A AULA (prioridade): imite o formato, o tamanho, o tipo de cobrança e o nível de detalhe destas questões, e dê mais peso aos ASSUNTOS que mais aparecem nelas — sem copiar nem repetir as mesmas questões:\n${[cola, provas].filter(Boolean).join("\n\n")}`;
 }
 // Provas antigas: PDF, Word ou foto → texto (foto e PDF escaneado são transcritos pela IA)
 function cartaoProvasAntigas(c) {
   const lista = c.provasAntigas || [];
   return `<div class="card provas-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div><h3 style="margin:0">${iconeSVG("arquivo", 'style="width:18px;height:18px;vertical-align:-3px;margin-right:6px"')}Estilo da prova</h3>
-      <div class="muted" style="font-size:13px">Envie exemplos de questões no formato que sua professora cobra (PDF, Word, foto ou .zip). A IA aprende o estilo de cobrança e foca nos assuntos que mais aparecem.</div></div>
+      <div class="muted" style="font-size:13px">Envie exemplos de questões no formato que seu/sua professor(a) cobra (PDF, Word, foto ou .zip). A IA aprende o estilo de cobrança e foca nos assuntos que mais aparecem.</div></div>
       <button class="btn small primary" data-act="provaAntigaEnviar" ${S.lendoProva ? "disabled" : ""}>${S.lendoProva ? `<span class="spin"></span> Lendo…` : "Enviar exemplos"}</button></div>
     ${lista.length ? `<div class="provas-lista">${lista.map(x => `<div class="prova-item">${iconeSVG("nota", 'style="width:18px;height:18px;flex:none"')}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.nome)}</span><small class="muted">${Math.max(1, Math.round(x.texto.length / 1000))} mil letras</small><button class="mini" data-act="provaAntigaApagar" data-id="${x.id}" title="Tirar">${iconeSVG("lixo", 'style="width:16px;height:16px"')}</button></div>`).join("")}</div>` : ""}
   </div>`;
@@ -6173,9 +6213,9 @@ function abrirProvasAntigas() {
   const tem = (c.provasAntigas || []).length || c.estiloProf;
   const modo = (k, ic, t, d) => `<button class="modo-prova" data-act="provaModo" data-id="${k}" ${tem ? "" : "disabled"}>${iconeSVG(ic)}<span><b>${t}</b><small>${d}</small></span></button>`;
   $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:flex-end;margin-bottom:-8px"><button class="icon-btn" data-act="provasFechar" title="Fechar">${iconeSVG("x")}</button></div>${cartaoProvasAntigas(c)}
-    <label style="font-size:13px">Ou cole perguntas da sua professora<textarea id="smartEstilo" rows="2" placeholder="Cole aqui exemplos de questões ou perguntas da aula.">${esc(c.estiloProf || "")}</textarea></label>
+    <label style="font-size:13px">Ou cole perguntas do(a) seu/sua professor(a)<textarea id="smartEstilo" rows="2" placeholder="Cole aqui exemplos de questões ou perguntas da aula.">${esc(c.estiloProf || "")}</textarea></label>
     <div><div style="font-weight:800;margin:4px 0 8px">Estudar no estilo da prova</div>
-      <div class="modos-prova">${modo("smart", "cerebro", "Estudo inteligente", "Perguntas no formato da prova, focadas no que mais cai.")}${modo("prova", "relogio", "Simulado", "Uma prova completa no estilo da professora, com nota.")}${modo("quiz", "check", "Quiz rápido", "10 questões de múltipla escolha no estilo da prova.")}</div>
+      <div class="modos-prova">${modo("smart", "cerebro", "Estudo inteligente", "Perguntas no formato da prova, focadas no que mais cai.")}${modo("prova", "relogio", "Simulado", "Uma prova completa no estilo do(a) professor(a), com nota.")}${modo("quiz", "check", "Quiz rápido", "10 questões de múltipla escolha no estilo da prova.")}</div>
       ${tem ? "" : `<div class="muted" style="font-size:12.5px;margin-top:8px">Envie uma prova ou cole perguntas para liberar esses modos.</div>`}</div>
     <div class="muted" style="font-size:12.5px;line-height:1.5">Fora daqui, o <b>Começar a estudar</b> e as abas continuam usando o <b>conteúdo completo</b> do caderno.</div>`;
   const d = $("#dlgPerfil"); if (!d.open) d.showModal();
@@ -6298,7 +6338,7 @@ async function gerarAudioResumo() {
     const foco = S.form?.foco || "";
     const txt = await chamar({
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco, 30000) }],
-      messages: [{ role: "user", content: `Escreva o ROTEIRO FALADO de um resumo em áudio de uns 5 minutos (650 a 800 palavras) com os pontos mais importantes destes materiais${foco ? `, com foco em: ${foco}` : ""}, como um professor gravando um podcast para revisão antes da prova.\n- Frases curtas e naturais para ouvir; nada de listas, tópicos, markdown, emojis, tabelas ou fórmulas escritas com símbolos (diga por extenso).\n- Comece direto no assunto; organize do geral para o detalhe; repita os valores e conceitos que mais caem.\n- Termine com 3 frases "para lembrar" bem curtas.` }],
+      messages: [{ role: "user", content: `Escreva o ROTEIRO FALADO de um resumo em áudio de uns 5 minutos (650 a 800 palavras) com os pontos mais importantes destes materiais${foco ? `, com foco em: ${foco}` : ""}, como um professor gravando um podcast para revisão antes da prova.${linhaPronome()}\n- Frases curtas e naturais para ouvir; nada de listas, tópicos, markdown, emojis, tabelas ou fórmulas escritas com símbolos (diga por extenso).\n- Comece direto no assunto; organize do geral para o detalhe; repita os valores e conceitos que mais caem.\n- Termine com 3 frases "para lembrar" bem curtas.` }],
       maxTokens: 2600, rotulo: "Escrevendo o roteiro", urgente: true
     });
     c.audioResumo = { texto: String(txt).replace(/[*#_>`]/g, "").trim(), criado: Date.now(), foco };
@@ -6355,7 +6395,7 @@ const avatarDoPerfil = () => PERFIL.tipo === "avatar" ? { tipo: "avatar", av: PE
 const nomeCurto = n => { const p = String(n || "Alguém").trim().split(/\s+/); return (p[0] + (p[1] ? " " + p[1][0] + "." : "")).slice(0, 24); };
 async function criarDuelo() {
   const c = atual(); if (!c) return;
-  if (!NUVEM.user) return toast("Entre com o Google para desafiar um amigo.", true);
+  if (!NUVEM.user) return toast("Entre com o Google para desafiar alguém.", true);
   if (!ativos(c).length) return toast("Adicione materiais primeiro.", true);
   if (!podeUsar()) return; gastar();
   S.criandoDuelo = true; render(); hipoFala("Preparando 10 perguntas para o duelo… ⚔️", "feliz");
@@ -6402,13 +6442,13 @@ function playerDuelo() {
     const eu = NUVEM.user?.uid, pos = res.findIndex(r => r.uid === eu);
     const medalha = i => ["🥇", "🥈", "🥉"][i] || `${i + 1}º`;
     return topo + `<div class="card stack" style="text-align:center">${hipoSVG(pos === 0 ? "festa" : "feliz", 96)}
-      <h2 style="margin:0">${res.length < 2 ? "Agora é a vez do seu amigo!" : pos === 0 ? "Você está ganhando! 🏆" : "Quase lá! Pede revanche 😤"}</h2>
+      <h2 style="margin:0">${res.length < 2 ? "Agora é a vez da outra pessoa!" : pos === 0 ? "Você está ganhando! 🏆" : "Quase lá! Pede revanche 😤"}</h2>
       <div class="duelo-placar">${res.map((r, i) => `<div class="duelo-linha ${r.uid === eu ? "eu" : ""}"><span class="med">${medalha(i)}</span><span class="avatar" style="width:34px;height:34px;cursor:default;flex:none">${r.av ? avatarHTML(34, r.av) : `<span style="font-size:15px">${esc((r.nome || "?")[0])}</span>`}</span><b style="flex:1;text-align:left">${esc(r.nome || "Alguém")}</b><span><b>${r.acertos}</b>/${r.total}</span><small class="muted">${Math.round((r.tempo || 0) / 1000)}s</small></div>`).join("")}</div>
       <div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap"><button class="pill" data-act="dueloCompartilhar">📲 Desafiar mais gente</button><button class="btn" data-act="dueloAtualizar">🔄 Atualizar placar</button><button class="btn" data-act="sair">Voltar</button></div></div>`;
   }
   const respondida = p.escolha !== null;
   return topo + `<div class="prog" style="margin-bottom:16px"><div style="width:${p.i / d.questoes.length * 100}%"></div></div>
-    ${p.i === 0 && !respondida && p.recemCriado ? `<div class="aviso-nuvem" style="margin-bottom:12px">⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link pro seu amigo.</div>` : ""}
+    ${p.i === 0 && !respondida && p.recemCriado ? `<div class="aviso-nuvem" style="margin-bottom:12px">⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link para a pessoa.</div>` : ""}
     <div class="card" style="padding:22px"><div class="q-text md">${md(q.enunciado)}</div>
     <div class="${q.alternativas.some(a => String(a).length > 90) ? "alts-list" : "alts-grid"}">${q.alternativas.map((a, i) => `<button class="alt ${respondida ? (i === q.correta ? "right" : i === p.escolha ? "wrong" : "") : ""}" data-act="dueloAlt" data-id="${i}" ${respondida ? "disabled" : ""}><span class="num">${i + 1}</span><span>${esc(a)}</span></button>`).join("")}</div>
     ${respondida && q.explicacao ? `<div class="expl md">${md(q.explicacao)}</div>` : ""}</div>
@@ -6624,10 +6664,10 @@ const TOUR_PASSOS = {
     { sel: '#rail [data-id="tutor"]', t: TT("Tutor", "Tutor"), d: TT("Converse com a IA sobre o material: peça para explicar de outro jeito, tirar uma dúvida ou dar um exemplo. Ela responde usando os seus arquivos.", "Conversa con la IA sobre el material: pídele que lo explique de otra forma, que resuelva una duda o que dé un ejemplo. Responde usando tus archivos.") },
     { sel: '#rail [data-id="resumo"]', t: TT("Guia de estudo e áudio", "Guía de estudio y audio"), d: TT("Resumo organizado do material para ler, e o Resumo em áudio: um podcast de 5 minutos para ouvir no ônibus.", "Resumen organizado del material para leer, y el Resumen en audio: un podcast de 5 minutos para escuchar en el colectivo.") },
     { sel: '#rail [data-id="mapa"]', t: TT("Mapa mental", "Mapa mental"), d: TT("O capítulo inteiro num mapa, em 3D ou 2D, para enxergar como tudo se liga. Você escolhe o estilo ou descreve o seu e a IA monta.", "El capítulo entero en un mapa, en 3D o 2D, para ver cómo se conecta todo. Eliges el estilo o describes el tuyo y la IA lo arma.") },
-    { sel: '[data-act="provasAbrir"]', t: TT("Estilo da prova", "Estilo del examen"), d: TT("Envie exemplos de questões no formato que sua professora cobra (PDF, Word, foto ou .zip) e a IA aprende o estilo dela. Lá dentro tem Estudo inteligente, Simulado e Quiz nesse ESTILO, focados nos assuntos que mais aparecem. Fora dali, o resto do app usa o conteúdo completo.", "Sube ejemplos de preguntas con el formato que tu profesora usa (PDF, Word, foto o .zip) y la IA aprende su estilo. Adentro hay Estudio inteligente, Simulacro y Quiz con ese ESTILO, enfocados en los temas que más aparecen. Fuera de ahí, el resto de la app usa el contenido completo.") },
+    { sel: '[data-act="provasAbrir"]', t: TT("Estilo da prova", "Estilo del examen"), d: TT("Envie exemplos de questões no formato que seu/sua professor(a) cobra (PDF, Word, foto ou .zip) e a IA aprende esse estilo. Lá dentro tem Estudo inteligente, Simulado e Quiz nesse ESTILO, focados nos assuntos que mais aparecem. Fora dali, o resto do app usa o conteúdo completo.", "Sube ejemplos de preguntas con el formato que tu profesor(a) usa (PDF, Word, foto o .zip) y la IA aprende su estilo. Adentro hay Estudio inteligente, Simulacro y Quiz con ese ESTILO, enfocados en los temas que más aparecen. Fuera de ahí, el resto de la app usa el contenido completo.") },
     { sel: '[data-act="comecar"]', t: TT("Quiz louco do Hipo (novo)", "Quiz loco de Hipo (nuevo)"), d: TT("Fica em Começar a estudar, logo abaixo do Quiz. Perguntas deste caderno, mas com zoeira: quando você erra, o Hipo te zoa e explica FALANDO, com voz de desenho e uma comparação absurda que gruda na cabeça. Escolha o jeito dele: Fofo, Zoeiro ou Sem filtro +18 (com palavrão).", "Está en Empezar a estudiar, justo debajo del Quiz. Preguntas de este cuaderno, pero en broma: cuando fallas, Hipo se burla de ti y te lo explica HABLANDO, con voz de dibujo animado y una comparación absurda que se te queda. Elige su estilo: Tierno, Burlón o Sin filtro +18 (con groserías).") },
     { sel: '[data-act="panico"]', t: TT("Prova chegando", "Examen cerca"), d: TT("Diga quanto tempo falta e o que cai: a IA monta um plano em blocos, começando pelo que você menos domina.", "Di cuánto falta y qué entra: la IA arma un plan por bloques, empezando por lo que menos dominas.") },
-    { sel: '[data-act="duelo"]', t: TT("Duelo", "Duelo"), d: TT("Crie 10 perguntas deste caderno e desafie um amigo pelo WhatsApp. Quem acertar mais, ganha.", "Crea 10 preguntas de este cuaderno y desafía a un amigo por WhatsApp. Gana quien acierte más.") },
+    { sel: '[data-act="duelo"]', t: TT("Duelo", "Duelo"), d: TT("Crie 10 perguntas deste caderno e desafie alguém pelo WhatsApp. Quem acertar mais, ganha.", "Crea 10 preguntas de este cuaderno y desafía a alguien por WhatsApp. Gana quien acierte más.") },
     { sel: "#idiomaCaderno", t: TT("Idioma das perguntas", "Idioma de las preguntas"), d: TT("Escolha se as perguntas e explicações deste caderno saem em português ou em espanhol.", "Elige si las preguntas y explicaciones de este cuaderno salen en portugués o en español.") },
     { sel: null, t: TT("Dica: tradutor na hora", "Tip: traductor al instante"), d: TT("Em qualquer pergunta ou explicação, selecione uma palavra (toque longo no celular) e toque em Traduzir. Ela vai para o seu glossário e para a Revisão do dia.", "En cualquier pregunta o explicación, selecciona una palabra (toque largo en el celular) y toca Traducir. Se guarda en tu glosario y en el Repaso del día.") }
   ]
@@ -6637,6 +6677,7 @@ function abrirGuia() {
   $("#guiaCorpo").innerHTML = `<button class="icon-btn guia-x" data-act="guiaPular" title="${T("Fechar", "Cerrar")}">${iconeSVG("x")}</button>
     <div class="guia-hipo">${hipoSVG("festa", 110)}</div><h2>${T("Oi! Eu sou o Hipo.", "¡Hola! Soy Hipo.")}</h2>
     <p>${T("O Hipocampo Study tem muitos recursos. Quer que eu te mostre, na tela, onde fica cada coisa? Leva 1 minuto.", "Hipocampo Study tiene muchos recursos. ¿Quieres que te muestre, en la pantalla, dónde está cada cosa? Toma 1 minuto.")}</p>
+    <p style="margin-bottom:0"><b>${T("Como quer que a gente fale com você?", "¿Cómo quieres que te tratemos?")}</b></p>${campoPronome()}
     <div class="guia-acoes"><button class="btn ghost" data-act="guiaPular">${T("Pular, já sei usar", "Omitir, ya sé usarlo")}</button><button class="pill" data-act="tourComecar">${T("Quero o tour", "Quiero el recorrido")}</button></div>`;
   const d = $("#dlgGuia"); if (!d.open) d.showModal();
 }
@@ -7038,9 +7079,9 @@ const LAB_EXEMPLOS = {
 const LAB_JEITOS = [["fofo", "Fofo"], ["zoeiro", "Zoeiro"], ["semfiltro", "Sem filtro +18"]];
 const labJeito = () => lsGet("fp-lab-jeito", "zoeiro");
 const LAB_PERSONA = {
-  fofo: `Seu jeito: FOFO. Engraçado e carinhoso, nunca zoa o estudante.`,
-  zoeiro: `Seu jeito: ZOEIRO. Você zoa o estudante de brincadeira quando ele erra, indignado e exagerado, como um amigo debochado: chama de lesado, cabeça de vento, anta, "tá de brincadeira comigo?". SEM palavrões.`,
-  semfiltro: `Seu jeito: SEM FILTRO (o estudante pediu e é adulto). Você é um professor de stand-up debochado que humilha o estudante DE BRINCADEIRA quando ele erra, para ele nunca mais esquecer: indignação exagerada, palavrões (porra, caralho, merda, puta que pariu, cacete) e xingamentos de zoeira (burro, lesado, jumento, anta, toupeira, cabeça de minhoca). Exemplos de tom: "Porra, sério? Como você não sabe disso, sua lesada?", "Puta que pariu, eu vou chorar".
+  fofo: `Seu jeito: FOFO. Engraçado e carinhoso, nunca zoa quem estuda.`,
+  zoeiro: `Seu jeito: ZOEIRO. Você zoa o estudante de brincadeira quando ele erra, indignado e exagerado, como um amigo debochado: solta "cabeça de vento", "criatura", "tá de brincadeira comigo?". SEM palavrões.`,
+  semfiltro: `Seu jeito: SEM FILTRO (o estudante pediu e é adulto). Você é um professor de stand-up debochado que humilha o estudante DE BRINCADEIRA quando ele erra, para ele nunca mais esquecer: indignação exagerada, palavrões (porra, caralho, merda, puta que pariu, cacete) e xingamentos de zoeira ("cabeça de minhoca", "criatura", "que burrice", "que lerdeza"). Exemplos de tom: "Porra, sério? Como você não sabe disso, criatura?", "Puta que pariu, eu vou chorar".
 LIMITES (obrigatório): nunca ofenda aparência, corpo, peso, raça, cor, gênero, orientação sexual, religião, origem, deficiência ou doença; nunca fale de morte, suicídio, violência ou ameaça; nada sexual. A zoeira é só sobre a resposta errada.`
 };
 const labVoz = () => LAB_VOZES.find(v => v[0] === lsGet("fp-lab-voz", "desenho")) || LAB_VOZES[0];
@@ -7048,7 +7089,7 @@ const labIdioma = () => S.lab?.idioma || (lsGet("fp-ui", "pt") === "es" ? "es" :
 const labLang = () => labIdioma() === "es" ? "es-ES" : "pt-BR";
 const labCad = () => S.lab?.fonte && S.lab.fonte !== "exemplos" ? S.cadernos.find(x => x.id === S.lab.fonte) : null;
 const labEl = () => $("#dlgLab").open ? $("#labCorpo") : $("#labPagina");
-const labChave = () => labJeito() + "|" + labIdioma();
+const labChave = () => labJeito() + "|" + labIdioma() + "|" + linhaPronome(); // mudou o pronome: refaz as falas
 function novoLab(fonte, idioma, naPagina) { labParar(); return { fonte, idioma: idioma || lsGet("fp-lab-idioma", "") || (lsGet("fp-ui", "pt") === "es" ? "es" : "pt"), naPagina, i: -1, feitas: [], acertos: 0, erros: 0, seq: 0, melhor: 0 }; }
 function labFrases(t) { return (String(t).replace(/\s+/g, " ").match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [t]).map(x => x.trim()).filter(Boolean); }
 function labAquecerVoz() { audioPiper(labIdioma() === "es" ? "Hola." : "Oi.", labLang()).catch(() => {}); }
@@ -7119,7 +7160,7 @@ function desenharLab() {
 // ---------- a IA: pergunta + falas de cada alternativa ----------
 function labSistema() {
   const es = labIdioma() === "es";
-  return `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina, engraçado e didático, que fala como personagem de desenho animado e trata o estudante como um amigo da mesma idade (nada de "netinho", "querido" ou jeito de avô).\n${LAB_PERSONA[labJeito()]}\nAs falas serão FALADAS em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos. O conteúdo tem que estar CERTO. Escreva TUDO em ${es ? "espanhol (se for zoar com palavrões, use os de espanhol: carajo, mierda, pendejo, boludo etc.)" : "português do Brasil"}.`;
+  return `Você é o Hipo, um cavalo-marinho mascote de um app de estudo de medicina, engraçado e didático, que fala como personagem de desenho animado e trata quem estuda com intimidade, como gente da mesma idade (nada de "netinho", "querido" ou jeito de avô).\n${LAB_PERSONA[labJeito()]}${linhaPronome()}\nAs falas serão FALADAS em voz alta: sem listas, sem emojis, sem markdown, sem asteriscos. O conteúdo tem que estar CERTO. Escreva TUDO em ${es ? "espanhol (se for zoar com palavrões, use os de espanhol: carajo, mierda, pendejo, boludo etc.)" : "português do Brasil"}.`;
 }
 const LAB_REGRA_FALAS = `"falas": uma fala do Hipo para CADA alternativa, na mesma ordem e com o mesmo número de itens de "alternativas":
 - para a alternativa CERTA: 1 frase curta dizendo por que está certo. NÃO comece comemorando (a comemoração já é falada antes, separada).
@@ -7159,20 +7200,20 @@ function labGarantirFalas(q) {
 // ---------- banco de reações prontas (tocam na hora do toque; a voz fica guardada no aparelho) ----------
 const LAB_REACOES = {
   pt: {
-    fofo: { erro: ["Ops, quase!", "Ih, não foi dessa vez.", "Calma, acontece com todo mundo.", "Quase lá, olha só.", "Errou, mas tá aprendendo!", "Hmm, vamos ver isso juntos.", "Opa, deixa eu te explicar.", "Tudo bem, errar faz parte.", "Ah, essa é pegadinha mesmo.", "Não desanima, vem comigo.", "Quase, quase!", "Tranquilo, agora você não esquece mais."],
+    fofo: { erro: ["Ops, quase!", "Ih, não foi dessa vez.", "Calma, acontece com todo mundo.", "Quase lá, olha só.", "Errou, mas tá aprendendo!", "Hmm, vamos ver isso com calma.", "Opa, deixa eu te explicar.", "Tudo bem, errar faz parte.", "Ah, essa é pegadinha mesmo.", "Não desanima, vem comigo.", "Quase, quase!", "De boa, agora você não esquece mais."],
             acerto: ["Isso aí!", "Arrasou!", "Muito bem!", "Perfeito!", "Mandou bem demais!", "É isso!", "Que orgulho!", "Brilhou!", "Acertou em cheio!", "Show de bola!", "Você tá voando!", "Exatamente isso!"] },
-    zoeiro: { erro: ["Tá de brincadeira comigo?", "Ai, ai, ai, cabeça de vento.", "Sério isso? Que vergonha.", "Errou feio, errou rude!", "Meu Deus, que lesado!", "Não acredito no que eu vi.", "Anta, anta, anta!", "Ô loco, meu!", "Volta duas casas, por favor.", "Isso foi um chute ou um tropeço?", "Minha nossa, que vexame!", "Eu vou fingir que não vi isso."],
-              acerto: ["Olha só, acertou! Milagre!", "Até que enfim, hein!", "Uau, alguém estudou hoje!", "Acertou? Tô chocado.", "Nem acredito, mandou bem!", "Opa, tá ficando esperto!", "Quem diria, hein!", "Foi sorte ou foi estudo?", "Olha o gênio aí!", "Agora sim, tá prestando!", "Até que você não é tão lesado!", "Caiu do céu essa, hein!"] },
-    semfiltro: { erro: ["Porra, sério?", "Puta que pariu, eu vou chorar.", "Caralho, que burrice!", "Seu jumento, presta atenção!", "Puta merda, errou feio!", "Cacete, isso não!", "Vai estudar, sua anta!", "Porra, você dormiu na aula?", "Caralho, que vergonha alheia!", "Puta que pariu, de novo não!", "Merda, eu desisto de você.", "Cacete, até minha avó sabia essa!"],
-                 acerto: ["Caralho, acertou!", "Porra, até que enfim!", "Puta merda, você sabe alguma coisa!", "Caramba, acertou essa porra!", "Olha só, o jumento aprendeu!", "Cacete, mandou bem!", "Porra, tô impressionado!", "Caralho, quem é você?", "Puta que pariu, que orgulho!", "Porra, assim que eu gosto!", "Caralho, virou médico agora?", "Merda, acertou mesmo!"] }
+    zoeiro: { erro: ["Tá de brincadeira comigo?", "Ai, ai, ai, cabeça de vento.", "Sério isso? Que vergonha.", "Errou feio, errou rude!", "Meu Deus, que lerdeza!", "Não acredito no que eu vi.", "Ai, minha paciência!", "Ô loco, meu!", "Volta duas casas, por favor.", "Isso foi um chute ou um tropeço?", "Minha nossa, que vexame!", "Eu vou fingir que não vi isso."],
+              acerto: ["Olha só, acertou! Milagre!", "Até que enfim, hein!", "Uau, alguém estudou hoje!", "Acertou? Tô chocado.", "Nem acredito, mandou bem!", "Opa, tá virando fera!", "Quem diria, hein!", "Foi sorte ou foi estudo?", "Olha a genialidade aí!", "Agora sim, tá prestando!", "Até que você não viaja tanto!", "Caiu do céu essa, hein!"] },
+    semfiltro: { erro: ["Porra, sério?", "Puta que pariu, eu vou chorar.", "Caralho, que burrice!", "Presta atenção, cacete!", "Puta merda, errou feio!", "Cacete, isso não!", "Vai estudar, criatura!", "Porra, você dormiu na aula?", "Caralho, que vergonha alheia!", "Puta que pariu, de novo não!", "Merda, eu desisto de você.", "Cacete, até minha avó sabia essa!"],
+                 acerto: ["Caralho, acertou!", "Porra, até que enfim!", "Puta merda, você sabe alguma coisa!", "Caramba, acertou essa porra!", "Olha só, aprendeu, porra!", "Cacete, mandou bem!", "Porra, tô impressionado!", "Caralho, quem é você?", "Puta que pariu, que orgulho!", "Porra, assim que eu gosto!", "Caralho, já pode dar plantão!", "Merda, acertou mesmo!"] }
   },
   es: {
-    fofo: { erro: ["¡Uy, casi!", "No pasa nada, vamos a verlo.", "Casi, casi, mira.", "Tranquilo, a todos nos pasa.", "Ups, no fue esta vez.", "Ven, te lo explico.", "Equivocarse es parte de aprender.", "Esa era trampita, ¿eh?", "No te desanimes.", "¡Casi lo tenías!", "Tranquilo, ahora no lo olvidas.", "Mmm, veamos juntos."],
+    fofo: { erro: ["¡Uy, casi!", "No pasa nada, vamos a verlo.", "Casi, casi, mira.", "Calma, a todo el mundo le pasa.", "Ups, no fue esta vez.", "Ven, te lo explico.", "Equivocarse es parte de aprender.", "Esa era trampita, ¿eh?", "No te desanimes.", "¡Casi lo tenías!", "Calma, ahora no lo olvidas.", "Mmm, vamos a verlo con calma."],
             acerto: ["¡Eso es!", "¡Muy bien!", "¡Perfecto!", "¡Genial!", "¡Lo lograste!", "¡Qué orgullo!", "¡Brillante!", "¡Diste en el clavo!", "¡Excelente!", "¡Vas volando!", "¡Exactamente!", "¡Bravo!"] },
-    zoeiro: { erro: ["¿Me estás tomando el pelo?", "Ay, ay, ay, cabeza hueca.", "¿En serio? Qué vergüenza.", "¡Fallaste feo!", "No lo puedo creer.", "¡Tontito, tontito!", "¡Madre mía!", "Vuelve dos casillas, por favor.", "¿Eso fue un tiro al aire?", "¡Qué papelón!", "Voy a hacer como que no vi eso.", "¿Estudiaste o te lo inventaste?"],
-              acerto: ["¡Mira, acertaste! ¡Milagro!", "¡Por fin, eh!", "¡Alguien estudió hoy!", "¿Acertaste? Estoy en shock.", "¡Te estás poniendo listo!", "¡Quién lo diría!", "¿Suerte o estudio?", "¡Miren al genio!", "¡Ahora sí, presta atención!", "¡No eres tan despistado!", "¡Esa te cayó del cielo!", "¡Bueno, bueno, bueno!"] },
-    semfiltro: { erro: ["¿Carajo, en serio?", "¡Puta madre, voy a llorar!", "¡Mierda, qué burrada!", "¡Pendejo, pon atención!", "¡Carajo, no!", "¡Ve a estudiar, boludo!", "¿Carajo, te dormiste en clase?", "¡Puta madre, otra vez no!", "¡Mierda, me rindo contigo!", "¡Joder, qué vergüenza ajena!", "¡Carajo, hasta mi abuela sabía esa!", "¡Puta madre, qué desastre!"],
-                 acerto: ["¡Carajo, acertaste!", "¡Puta madre, por fin!", "¡Mierda, sí sabes algo!", "¡Joder, bien hecho!", "¡Mira, el burro aprendió!", "¡Carajo, estoy impresionado!", "¡Puta madre, qué orgullo!", "¡Joder, así me gusta!", "¿Carajo, quién eres?", "¡Mierda, acertaste de verdad!", "¡Carajo, ya eres médico!", "¡Joder, qué crack!"] }
+    zoeiro: { erro: ["¿Me estás tomando el pelo?", "Ay, ay, ay, cabeza hueca.", "¿En serio? Qué vergüenza.", "¡Fallaste feo!", "No lo puedo creer.", "¡Ay, qué despiste!", "¡Madre mía!", "Vuelve dos casillas, por favor.", "¿Eso fue un tiro al aire?", "¡Qué papelón!", "Voy a hacer como que no vi eso.", "¿Estudiaste o te lo inventaste?"],
+              acerto: ["¡Mira, acertaste! ¡Milagro!", "¡Por fin, eh!", "¡Alguien estudió hoy!", "¿Acertaste? Estoy en shock.", "¡Vas mejorando, eh!", "¡Quién lo diría!", "¿Suerte o estudio?", "¡Miren qué genialidad!", "¡Ahora sí, presta atención!", "¡Hoy sí andas con todo!", "¡Esa te cayó del cielo!", "¡Bueno, bueno, bueno!"] },
+    semfiltro: { erro: ["¿Carajo, en serio?", "¡Puta madre, voy a llorar!", "¡Mierda, qué burrada!", "¡Pon atención, carajo!", "¡Carajo, no!", "¡Ve a estudiar, carajo!", "¿Carajo, te dormiste en clase?", "¡Puta madre, otra vez no!", "¡Mierda, me rindo contigo!", "¡Joder, qué vergüenza ajena!", "¡Carajo, hasta mi abuela sabía esa!", "¡Puta madre, qué desastre!"],
+                 acerto: ["¡Carajo, acertaste!", "¡Puta madre, por fin!", "¡Mierda, sí sabes algo!", "¡Joder, bien hecho!", "¡Mira, por fin aprendiste!", "¡Carajo, estoy impresionado!", "¡Puta madre, qué orgullo!", "¡Joder, así me gusta!", "¿Carajo, quién eres?", "¡Mierda, acertaste de verdad!", "¡Carajo, ya puedes hacer guardia!", "¡Joder, qué crack!"] }
   }
 };
 const LAB_REAC_URL = new Map();
