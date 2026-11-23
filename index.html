@@ -2959,6 +2959,32 @@ function vozNoWorker(text, voiceId, aoBaixar) {
     VOZ_PEND.set(id, { ok, erro, aoBaixar, t }); VOZ_W.postMessage({ id, text, voiceId });
   });
 }
+// ---------- tocador único ----------
+// No iPhone, play() só é aceito "dentro" de um toque. Um elemento de áudio que já tocou num toque fica liberado
+// para sempre; por isso TODO som do app usa este mesmo tocador, trocando só o arquivo.
+const AUDIO_UNICO = new Audio(); AUDIO_UNICO.preload = "auto";
+let AUDIO_LIBERADO = false;
+const SILENCIO_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+function liberarAudio() {
+  if (AUDIO_LIBERADO || !AUDIO_UNICO.paused) return;
+  try { AUDIO_UNICO.src = SILENCIO_WAV; const p = AUDIO_UNICO.play(); if (p) p.then(() => { AUDIO_LIBERADO = true; }).catch(() => {}); else AUDIO_LIBERADO = true; } catch {}
+}
+for (const ev of ["pointerdown", "touchend", "click", "keydown"]) document.addEventListener(ev, liberarAudio, { capture: true, passive: true });
+// toca um arquivo no tocador único; resolve quando termina
+function tocarNoTocador(url, { taxa = 1, semTom = false, aoComecar } = {}) {
+  const a = AUDIO_UNICO;
+  return new Promise((ok, erro) => {
+    try { a.pause(); } catch {}
+    a.onended = () => ok(); a.onerror = () => erro(new Error("não consegui tocar o áudio"));
+    a.src = url; a.preservesPitch = !semTom; a.mozPreservesPitch = !semTom; a.webkitPreservesPitch = !semTom;
+    const tocar = () => { a.playbackRate = taxa; return a.play(); };
+    tocar().then(() => { AUDIO_LIBERADO = true; aoComecar?.(a); }).catch(e => {
+      // o iPhone ainda não liberou: tenta de novo no próximo toque da pessoa
+      if (e?.name === "NotAllowedError") { const vez = () => { document.removeEventListener("pointerdown", vez, true); tocar().then(() => aoComecar?.(a)).catch(erro); }; document.addEventListener("pointerdown", vez, true); toast("Toque na tela para ouvir o Hipo."); }
+      else erro(e);
+    });
+  });
+}
 function audioPiper(texto, lang) {
   const voz = vozPiper(idiomaVoz(lang)), chave = "piper|" + voz + "|" + texto;
   if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
@@ -3061,7 +3087,7 @@ function falar(texto, lang) {
   lang ||= vozIdioma(atual());
   pararAudio(); const vez = ++S.falaId;
   if (usaPiper(lang)) {
-    audioPiper(texto, lang).then(url => { if (vez !== S.falaId) return; audioAtual = new Audio(url); audioAtual.play().catch(() => {}); })
+    audioPiper(texto, lang).then(url => { if (vez !== S.falaId) return; audioAtual = AUDIO_UNICO; tocarNoTocador(url).catch(() => {}); })
       .catch(e => { console.warn("voz Piper falhou:", e); avisarVozFalhou(e); });
     return;
   }
@@ -4973,7 +4999,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0249";
+const VERSAO_APP = "2026-11-23-1413";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6135,7 +6161,7 @@ async function tocarAudioResumo() {
       if (piper) {
         const url = await prox; if (!vivo()) return;
         t.carregando = false; render();
-        await new Promise((ok, erro) => { audioAtual = new Audio(url); audioAtual.onended = ok; audioAtual.onerror = erro; t.audio = audioAtual; audioAtual.play().catch(erro); });
+        audioAtual = AUDIO_UNICO; t.audio = audioAtual; await tocarNoTocador(url);
       } else {
         t.carregando = false; render();
         await new Promise(ok => { const u = new SpeechSynthesisUtterance(t.partes[t.i]); u.lang = lang; u.onend = ok; u.onerror = ok; speechSynthesis.speak(u); });
@@ -6960,7 +6986,7 @@ function labGarantirFalas(q) {
     q.falasPr = labGerarFalas(q).then(f => { if (f?.length !== q.alternativas.length) return null; gastar(); q.falas = f; q.falasDe = chave; return f; }).catch(() => null);
   }
   const lang = labLang();
-  q.falasPr.then(f => { if (f && S.lab?.q === q) labPrepararVozes(f.map(labLimparFala), lang); });
+  q.falasPr.then(f => { if (f && S.lab?.q === q) labPrepararVozes(f.map(labTextoExplic), lang); });
   return q.falasPr;
 }
 // texto exatamente igual ao que vai ser falado (a voz guardada é achada pelo texto)
@@ -7016,6 +7042,19 @@ function labEscolherReacao(certo) {
   const livres = lista.filter(x => !ultimas.includes(x)), prontas = livres.filter(x => labReacaoPronta(x, lang)), opcoes = prontas.length ? prontas : livres.length ? livres : lista;
   const t = opcoes[Math.floor(Math.random() * opcoes.length)]; ultimas.push(t); if (ultimas.length > 6) ultimas.shift(); return t;
 }
+const PALAVRAO_INICIO = /^\s*[¡¿]?\s*(porra|caralho|cacete|merda|puta que pariu|puta merda|puta madre|carajo|mierda|joder|ops|opa|ih|uau|nossa|caramba|meu deus|madre m[ií]a|uy|ups|ay)\b[\s,!.?…]*/i;
+function labTirarReacaoInicial(t) {
+  let x = String(t || "").trim();
+  for (let k = 0; k < 2; k++) {
+    const antes = x;
+    x = x.replace(PALAVRAO_INICIO, "");
+    const m = x.match(/^[^.!?]{1,40}[!?]+\s+/); // primeira frase curtinha e exclamada ("Sério?", "Tá de brincadeira?!")
+    if (m && m[0].trim().split(/\s+/).length <= 6) x = x.slice(m[0].length);
+    if (x === antes) break;
+  }
+  x = x.trim(); return x ? x[0].toUpperCase() + x.slice(1) : String(t || "").trim();
+}
+const labTextoExplic = t => labTirarReacaoInicial(labLimparFala(t));
 const labLimparFala = t => String(t || "").replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
 const labVozPronta = (t, lang) => AUDIO_CACHE.has("piper|" + vozPiper(idiomaVoz(lang)) + "|" + t);
 // gera as vozes uma por vez; nunca enquanto o Hipo está falando (no celular, gerar e tocar ao mesmo tempo engasga o áudio)
@@ -7080,7 +7119,7 @@ async function labResponder(i) {
   if (S.lab !== L || L.q !== q) return;
   if (!f && podeUsar()) { q.falasPr = null; q.falasKey = null; f = await labGarantirFalas(q); if (S.lab !== L || L.q !== q) return; }
   const es = labIdioma() === "es", certaTxt = q.alternativas[q.correta];
-  L.explic = labLimparFala(f?.[i] || (certo ? (es ? `La respuesta es ${certaTxt}.` : `A resposta é ${certaTxt}.`) : (es ? `La correcta es: ${certaTxt}.` : `A certa é: ${certaTxt}.`)));
+  L.explic = labTextoExplic(f?.[i] || (certo ? (es ? `La respuesta es ${certaTxt}.` : `A resposta é ${certaTxt}.`) : (es ? `La correcta es: ${certaTxt}.` : `A certa é: ${certaTxt}.`)));
   L.explicFim = true; L.fala = L.reacao + " " + L.explic;
   if (CELULAR) setTimeout(() => labPrepararReacoes(S.labReacMais), 4000);
   if (!labVozPronta(L.explic, labLang())) { labFurarFila(L.explic); audioPiper(L.explic, labLang()).catch(() => {}); }
@@ -7088,7 +7127,7 @@ async function labResponder(i) {
 }
 
 // ---------- voz ----------
-let LAB_CTX = null;
+let LAB_CTX = null, LAB_SRC = null, LAB_AN = null;
 function labParar() {
   const L = S.lab; if (!L) return;
   L.falaId = (L.falaId || 0) + 1;
@@ -7103,13 +7142,12 @@ async function labFalar() {
   const boca = () => labEl()?.querySelector(".hipo-boca");
   const fim = () => { if (!vivo()) return; L.falando = false; L.pensando = false; cancelAnimationFrame(L.raf); desenharLab(); };
   const medir = matchMedia("(pointer: fine)").matches && !IOS; // só no computador: no celular o medidor pode picotar o som
-  const tocar = url => new Promise((ok, erro) => {
-    const a = L.audio = new Audio(url);
-    a.preload = "auto"; a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false; a.playbackRate = taxa;
-    let an = null, buf = null;
+  const tocar = url => {
+    const a = L.audio = AUDIO_UNICO; let an = null, buf = null;
     if (medir) try {
       LAB_CTX ||= new (window.AudioContext || window.webkitAudioContext)(); LAB_CTX.resume();
-      const src = LAB_CTX.createMediaElementSource(a); an = LAB_CTX.createAnalyser(); an.fftSize = 512; buf = new Uint8Array(an.fftSize); src.connect(an); an.connect(LAB_CTX.destination);
+      if (!LAB_SRC) { LAB_SRC = LAB_CTX.createMediaElementSource(a); LAB_AN = LAB_CTX.createAnalyser(); LAB_AN.fftSize = 512; LAB_SRC.connect(LAB_AN); LAB_AN.connect(LAB_CTX.destination); }
+      an = LAB_AN; buf = new Uint8Array(an.fftSize);
     } catch { an = null; }
     const animar = () => {
       if (!vivo() || L.audio !== a) return;
@@ -7119,8 +7157,8 @@ async function labFalar() {
       const b = boca(); if (b) b.setAttribute("ry", (0.8 + v * 4.2).toFixed(2));
       L.raf = requestAnimationFrame(animar);
     };
-    a.onended = ok; a.onerror = erro; a.play().then(() => { cancelAnimationFrame(L.raf); animar(); }).catch(erro);
-  });
+    return tocarNoTocador(url, { taxa, semTom: true, aoComecar: () => { cancelAnimationFrame(L.raf); animar(); } });
+  };
   try {
     L.falando = true; L.erroFala = ""; desenharLab();
     // 1) a reação (banco pronto: sai na hora)
