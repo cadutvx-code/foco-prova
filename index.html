@@ -553,6 +553,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .mini{border:none;background:none;cursor:pointer;width:30px;height:30px;border-radius:8px;color:var(--muted);font-size:15px}
 .mini:hover{background:var(--panel);color:var(--text)}
 .mdet{max-width:640px;margin:-2px 0 4px}
+.mais-expl{margin-top:10px}
 .dica-ios{display:none;max-width:640px;font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:8px}
 .ios .dica-ios{display:block}
 .dropzone-hint{max-width:640px;border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
@@ -1825,12 +1826,22 @@ function explicacaoHTML(q, escolha) {
     const certoTxt = q.alternativas[q.correta];
     let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `Es <b>${certoTxt}</b>.` : `É <b>${certoTxt}</b>.`) : (es ? `✘ Incorrecto — es <b>${certoTxt}</b>.` : `✘ Errado — é <b>${certoTxt}</b>.`)}</p>`;
     h += `<p style="margin:12px 0 4px"><b>💡 ${es ? "Para memorizar" : "Para memorizar"}</b></p>${certa ? md(certa) : carregando}`;
+    if (!det.certa && !agora) h += `<button class="btn small ghost mais-expl" data-act="explicarMais">${es ? "Explicar mejor" : "Explicar melhor"}</button>`;
     return `<div class="expl md">${h}</div>`;
   }
   let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `La respuesta correcta es la ${n1}.` : `A resposta certa é a ${n1}.`) : (es ? `✘ Incorrecto — la correcta es la ${n1}.` : `✘ Errado — a certa é a ${n1}.`)}</p>`;
-  if (marcouErrada) h += `<p style="margin-bottom:4px"><b>${es ? `❌ Por qué la ${n2} es incorrecta` : `❌ Por que a ${n2} está errada`}</b></p>${errada ? md(errada) : carregando}`;
+  if (marcouErrada && (errada || agora)) h += `<p style="margin-bottom:4px"><b>${es ? `❌ Por qué la ${n2} es incorrecta` : `❌ Por que a ${n2} está errada`}</b></p>${errada ? md(errada) : carregando}`;
   h += `<p style="margin:12px 0 4px"><b>${es ? `✅ Por qué la ${n1} es correcta` : `✅ Por que a ${n1} está certa`}</b></p>${certa ? md(certa) : carregando}`;
+  if (!det.certa && !agora) h += `<button class="btn small ghost mais-expl" data-act="explicarMais">${es ? "Explicar mejor" : "Explicar melhor"}</button>`;
   return `<div class="expl md">${h}</div>`;
+}
+// A pergunta já vem com a explicação curta; a longa (1 pedido à IA) só quando a pessoa pede em "Explicar melhor"
+const temExplicacao = q => !!String(q?.explicacao || "").trim() || (q?.explicacoes || []).some(x => String(x || "").trim());
+function questaoAberta(c) {
+  const p = S.player; if (!p || !c) return null;
+  if (p.tipo === "smart") return p.fila[p.i];
+  if (p.tipo === "quiz") { const qz = c.quizzes.find(x => x.id === p.id); return qz?.questoes[p.ordem[p.i]]; }
+  return null;
 }
 // Ao responder, o professor escreve na hora a explicação completa (passa na frente da fila)
 const explicandoAgora = q => q._explicando && Date.now() - q._explicando < 90000;
@@ -2265,7 +2276,7 @@ function quizResponder(c, i) {
   p.escolha = i; p.confirmado = true;
   if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
   ganharXP(i === q.correta ? XP_REGRAS.acerto : XP_REGRAS.erro);
-  contarResposta(); render(); completarExplicacao(c, q, i);
+  contarResposta(); render(); if (!temExplicacao(q)) completarExplicacao(c, q, i);
 }
 function iniciarQuiz(id, ordem) {
   const qz = atual().quizzes.find(x => x.id === id);
@@ -2651,7 +2662,7 @@ async function smartCarregar(c) {
     if (S.player !== p) return;
     if (p.i >= p.fila.length) {
       const primeira = !p.fila.length;
-      p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), primeira ? 1 : 3, false, primeira, p.conversa ||= { msgs: [] });
+      p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), primeira ? 1 : 6, false, primeira, p.conversa ||= { msgs: [] });
       await p.proximo;
     }
     p.proximo = null;
@@ -2670,7 +2681,7 @@ function smartPrefetch(c) {
   if (!p || p.tipo !== "smart" || p.fim || p.proximo) return;
   if (p.fila.length - p.i > 4) return; // já há perguntas suficientes prontas
   if ((p.falhas || 0) >= 2) return;    // evita insistir se a IA estiver com problema
-  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), cfg().provider === "webllm" ? 1 : 3, true, false, p.conversa ||= { msgs: [] })
+  p.proximo = gerarLoteSmart(c, p.focoTopico, it => empurrar(c, p, it), cfg().provider === "webllm" ? 1 : 6, true, false, p.conversa ||= { msgs: [] })
     .then(r => { p.falhas = r.length ? 0 : (p.falhas || 0) + 1; })
     .catch(() => { p.falhas = (p.falhas || 0) + 1; })
     .finally(() => { if (S.player === p) { p.proximo = null; salvar(c); smartPrefetch(c); } });
@@ -2693,7 +2704,7 @@ function prepararBanco(c) {
   S.preparando[c.id] = gerarLoteSmart(c, null, it => {
     if (S.player?.tipo === "smart" && S.atual === c.id && !S.player.fim && !S.player.focoTopico && !S.player.modoProva) empurrar(c, S.player, it);
     else { (c.inteligente.banco ||= []).push(it); }
-  }, cfg().provider === "webllm" ? 2 : 3, true, false, (S.conversaBanco ||= {})[c.id] ||= { msgs: [] }).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
+  }, cfg().provider === "webllm" ? 2 : 6, true, false, (S.conversaBanco ||= {})[c.id] ||= { msgs: [] }).then(() => salvar(c)).catch(() => {}).finally(() => { delete S.preparando[c.id]; });
 }
 function smartIniciar(c, focoTopico = null, modoProva = false) {
   garantirSmart(c);
@@ -2738,7 +2749,7 @@ async function smartResponder(c, acertou) {
     deck.cards.push({ frente: it.enunciado, verso: resp, topico: it.topico, caixa: 0, proxima: 0 });
   }
   registrarFato(I, it);
-  p.confirmado = true; render(); completarExplicacao(c, it, p.escolha); smartPrefetch(c); await salvar(c);
+  p.confirmado = true; render(); if (!temExplicacao(it)) completarExplicacao(c, it, p.escolha); smartPrefetch(c); await salvar(c);
 }
 function registrarFato(I, it) {
   if (!it?.enunciado) return;
@@ -4669,6 +4680,7 @@ document.addEventListener("click", async e => {
     case "refazerErros": iniciarQuiz(S.player.id, [...S.player.erros]); break;
     case "escolher-alt": quizResponder(c, +id); break;
     case "confirmar": { const p = S.player, q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]]; p.confirmado = true; if (p.escolha === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]); render(); break; }
+    case "explicarMais": { const q = questaoAberta(c); if (q && podeUsar()) { gastar(); completarExplicacao(c, q, S.player.escolha); } break; }
     case "proxima": { const p = S.player; p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
     case "fazerProva": escolherTempoProva(id); break;
     case "tempoOp": S.tempoEscolhido = +id; document.querySelectorAll(".tempo-ops button").forEach(b => b.classList.toggle("on", b.dataset.id === id)); if ($("#tempoLivre")) $("#tempoLivre").value = ""; break;
@@ -4784,7 +4796,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0005";
+const VERSAO_APP = "2026-11-23-0014";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
