@@ -2872,6 +2872,40 @@ const idiomaVoz = lang => /^es/.test(lang || "") ? "es" : "pt";
 const vozPiper = idioma => lsGet("fp-voz-piper", {})[idioma] || VOZES_PIPER[idioma][0][0];
 let PIPER = null, PIPER_FILA = Promise.resolve();
 const motorPiper = () => PIPER ||= import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm").catch(e => { PIPER = null; throw e; });
+// A voz é gerada num TRABALHADOR separado (Web Worker): gerar voz pesa e, no mesmo fio da tela, travava os botões
+// por até 2,5 s. Se o navegador não aceitar o trabalhador, volta a gerar no fio da tela, como antes.
+const VOZ_WORKER_SRC = `let tts;
+self.onmessage = async e => {
+  const { id, text, voiceId } = e.data;
+  try {
+    tts ||= await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm");
+    let avisou = false;
+    const wav = await tts.predict({ text, voiceId }, p => { if (p && p.total && p.loaded < p.total && !avisou) { avisou = true; self.postMessage({ id, baixando: true }); } });
+    self.postMessage({ id, wav });
+  } catch (err) { self.postMessage({ id, erro: String((err && err.message) || err) }); }
+};`;
+let VOZ_W = null, VOZ_W_FALHOU = false, VOZ_N = 0; const VOZ_PEND = new Map();
+function vozWorker() {
+  if (VOZ_W || VOZ_W_FALHOU || typeof Worker === "undefined") return VOZ_W;
+  try {
+    VOZ_W = new Worker(URL.createObjectURL(new Blob([VOZ_WORKER_SRC], { type: "text/javascript" })), { type: "module" });
+    VOZ_W.onmessage = e => {
+      const d = e.data, p = VOZ_PEND.get(d.id); if (!p) return;
+      if (d.baixando) { p.aoBaixar?.(); return; }
+      VOZ_PEND.delete(d.id); clearTimeout(p.t);
+      if (d.erro && /import|module|dynamically|Worker|not supported/i.test(d.erro)) { VOZ_W_FALHOU = true; try { VOZ_W.terminate(); } catch {} VOZ_W = null; } // o navegador não roda a voz no trabalhador: usa o modo antigo
+      if (d.erro) p.erro(new Error(d.erro)); else p.ok(d.wav);
+    };
+    VOZ_W.onerror = ev => { console.warn("trabalhador da voz falhou; voltando para o modo antigo:", ev?.message); VOZ_W_FALHOU = true; try { VOZ_W.terminate(); } catch {} VOZ_W = null; for (const p of VOZ_PEND.values()) p.erro(new Error("trabalhador da voz indisponível")); VOZ_PEND.clear(); };
+  } catch (e) { VOZ_W_FALHOU = true; VOZ_W = null; }
+  return VOZ_W;
+}
+function vozNoWorker(text, voiceId, aoBaixar) {
+  return new Promise((ok, erro) => {
+    const id = ++VOZ_N, t = setTimeout(() => { VOZ_PEND.delete(id); erro(new Error("a voz demorou demais")); }, 180000);
+    VOZ_PEND.set(id, { ok, erro, aoBaixar, t }); VOZ_W.postMessage({ id, text, voiceId });
+  });
+}
 function audioPiper(texto, lang) {
   const voz = vozPiper(idiomaVoz(lang)), chave = "piper|" + voz + "|" + texto;
   if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
@@ -2881,12 +2915,12 @@ function audioPiper(texto, lang) {
     for (let vez = 0; vez < 3; vez++) {
       try {
         if (vez) await new Promise(r => setTimeout(r, vez * 1500));
-        const tts = await motorPiper();
-        if (vez === 2) { try { await tts.remove?.(voz); } catch {} } // voz guardada estragada: baixa de novo
+        if (vez === 2) { try { await (await motorPiper()).remove?.(voz); } catch {} } // voz guardada estragada: baixa de novo
         let avisou = false;
-        const wav = await tts.predict({ text: texto, voiceId: voz }, p => {
-          if (p?.total && p.loaded < p.total && !avisou && !VOZ_FUNDO.baixando) { avisou = true; toast("Baixando a voz (só na primeira vez)…"); }
-        });
+        const aviso = () => { if (!avisou && !VOZ_FUNDO.baixando) { avisou = true; toast("Baixando a voz (só na primeira vez)…"); } };
+        let wav;
+        if (vez < 2 && vozWorker()) wav = await vozNoWorker(texto, voz, aviso);
+        else { const tts = await motorPiper(); wav = await tts.predict({ text: texto, voiceId: voz }, p => { if (p?.total && p.loaded < p.total) aviso(); }); }
         VOZ_FUNDO.ok = true;
         return URL.createObjectURL(wav);
       } catch (e) { erro = e; console.warn("Piper, tentativa " + (vez + 1) + ":", e); PIPER = null; }
@@ -4874,7 +4908,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0213";
+const VERSAO_APP = "2026-11-23-0230";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
