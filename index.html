@@ -2933,7 +2933,8 @@ self.onmessage = async e => {
     self.postMessage({ id, wav });
   } catch (err) { self.postMessage({ id, erro: String((err && err.message) || err) }); }
 };`;
-let VOZ_W = null, VOZ_W_FALHOU = false, VOZ_N = 0; const VOZ_PEND = new Map();
+let VOZ_W = null, VOZ_W_FALHOU = false, VOZ_N = 0, VOZ_QUEDAS = 0; const VOZ_PEND = new Map();
+const CELULAR = matchMedia("(pointer: coarse)").matches || /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
 function vozWorker() {
   if (VOZ_W || VOZ_W_FALHOU || typeof Worker === "undefined") return VOZ_W;
   try {
@@ -2945,7 +2946,10 @@ function vozWorker() {
       if (d.erro && /import|module|dynamically|Worker|not supported/i.test(d.erro)) { VOZ_W_FALHOU = true; try { VOZ_W.terminate(); } catch {} VOZ_W = null; } // o navegador não roda a voz no trabalhador: usa o modo antigo
       if (d.erro) p.erro(new Error(d.erro)); else p.ok(d.wav);
     };
-    VOZ_W.onerror = ev => { console.warn("trabalhador da voz falhou; voltando para o modo antigo:", ev?.message); VOZ_W_FALHOU = true; try { VOZ_W.terminate(); } catch {} VOZ_W = null; for (const p of VOZ_PEND.values()) p.erro(new Error("trabalhador da voz indisponível")); VOZ_PEND.clear(); };
+    VOZ_W.onerror = ev => { // caiu (no celular costuma ser falta de memória): joga fora e cria outro no próximo pedido
+      console.warn("trabalhador da voz caiu:", ev?.message); VOZ_QUEDAS++; relatarErroVoz(new Error("trabalhador caiu: " + (ev?.message || "sem mensagem")), "trabalhador"); if (VOZ_QUEDAS >= 4) VOZ_W_FALHOU = true;
+      try { VOZ_W.terminate(); } catch {} VOZ_W = null; for (const p of VOZ_PEND.values()) p.erro(new Error("trabalhador da voz caiu")); VOZ_PEND.clear();
+    };
   } catch (e) { VOZ_W_FALHOU = true; VOZ_W = null; }
   return VOZ_W;
 }
@@ -2964,12 +2968,12 @@ function audioPiper(texto, lang) {
     for (let vez = 0; vez < 3; vez++) {
       try {
         if (vez) await new Promise(r => setTimeout(r, vez * 1500));
-        if (vez === 2) { try { await (await motorPiper()).remove?.(voz); } catch {} } // voz guardada estragada: baixa de novo
         let avisou = false;
         const aviso = () => { if (!avisou && !VOZ_FUNDO.baixando) { avisou = true; toast("Baixando a voz (só na primeira vez)…"); } };
         let wav;
-        if (vez < 2 && vozWorker()) wav = await vozNoWorker(texto, voz, aviso);
-        else { const tts = await motorPiper(); wav = await tts.predict({ text: texto, voiceId: voz }, p => { if (p?.total && p.loaded < p.total) aviso(); }); }
+        if (vozWorker()) wav = await vozNoWorker(texto, voz, aviso);
+        else if (!CELULAR) { const tts = await motorPiper(); wav = await tts.predict({ text: texto, voiceId: voz }, p => { if (p?.total && p.loaded < p.total) aviso(); }); }
+        else throw new Error("este celular não conseguiu gerar a voz"); // no celular, gerar na tela trava tudo
         VOZ_FUNDO.ok = true;
         return URL.createObjectURL(wav);
       } catch (e) { erro = e; console.warn("Piper, tentativa " + (vez + 1) + ":", e); PIPER = null; }
@@ -3001,9 +3005,20 @@ async function prepararVozFundo() {
 }
 setTimeout(() => (window.requestIdleCallback || setTimeout)(() => { PIPER_FILA = PIPER_FILA.catch(() => {}).then(prepararVozFundo); }), 5000); // na mesma fila das falas: nunca baixa a mesma voz duas vezes ao mesmo tempo
 // aviso (uma vez) quando a voz não carrega: nunca troca pela voz de robô do navegador
+// só para o administrador: o erro da voz vai sozinho para o Painel (feedback), para descobrir o que acontece no celular
+async function relatarErroVoz(e, onde) {
+  try {
+    if (!ACESSO.admin || !NUVEM.F || !NUVEM.db || Date.now() - (S.ultErroVoz || 0) < 60000) return; S.ultErroVoz = Date.now();
+    const u = NUVEM.user, F = NUVEM.F, mem = navigator.deviceMemory ? ` · memória ${navigator.deviceMemory} GB` : "";
+    const texto = `[automático] Voz falhou (${onde}): ${String(e?.message || e).slice(0, 300)} · trabalhador: ${VOZ_W_FALHOU ? "desligado" : VOZ_W ? "ativo" : "sem"} · quedas ${VOZ_QUEDAS}${mem} · ${navigator.userAgent.slice(0, 160)}`;
+    await F.addDoc(F.collection(NUVEM.db, "feedback"), { tipo: "problema", texto, uid: u?.uid || "", email: (u?.email || "").toLowerCase(), nome: u ? nomeUser().slice(0, 80) : "", contato: "", data: Date.now(), pagina: "voz", idioma: lsGet("fp-ui", "pt"), lido: false });
+  } catch {}
+}
 function avisarVozFalhou(e) {
+  relatarErroVoz(e, "fala");
   if (S.avisouVoz) return; S.avisouVoz = true;
-  toast("A voz não carregou agora (" + String(e?.message || e).slice(0, 60) + "). O texto continua na tela e a voz volta sozinha." + (navigator.brave ? " No Brave, desative os escudos (Shields) para este site." : ""), true);
+  console.warn("voz:", e);
+  toast("A voz está demorando. O texto continua na tela." + (navigator.brave ? " No Brave, desative os escudos (Shields) para este site." : ""));
 }
 // As falas do Gemini ficam guardadas no aparelho: frase repetida nunca gasta a cota grátis de novo
 const CACHE_VOZ = "fp-voz-v1";
@@ -4958,7 +4973,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0243";
+const VERSAO_APP = "2026-11-23-0249";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5677,7 +5692,8 @@ const UI_ES = {
   "Usar Árvore": "Usar Árbol", "Usar Clássico": "Usar Clásico", "Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais.": "Si quieres el 3D de todos modos, saldrá más simple: solo los puntos principales.",
   "Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais. Ou escolha um arquivo só em \"De onde\".": "Si quieres el 3D de todos modos, saldrá más simple: solo los puntos principales. O elige un solo archivo en \"De dónde\".",
   "Ocultar": "Ocultar", "Mostrar plano": "Mostrar plan", "Encolher o plano (não apaga)": "Contraer el plan (no lo borra)",
-  "Inteligente": "Inteligente", "Guia": "Guía", "Mapa": "Mapa"
+  "Inteligente": "Inteligente", "Guia": "Guía", "Mapa": "Mapa",
+  "A voz está demorando. O texto continua na tela.": "La voz está tardando. El texto sigue en pantalla.", "Voz demorando. Toque em Ouvir de novo.": "La voz está tardando. Toca Escuchar de nuevo."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
@@ -6982,8 +6998,9 @@ async function labVozReacao(t, lang) {
   LAB_REAC_URL.set(k, url); return url;
 }
 // prepara as reações do jeito/idioma atuais em segundo plano (primeiro as que já estão no aparelho: instantâneo)
-async function labPrepararReacoes() {
-  const lang = labLang(), lista = labReacoes(), id = (S.labReacId = (S.labReacId || 0) + 1);
+async function labPrepararReacoes(quantas) {
+  const lang = labLang(), id = (S.labReacId = (S.labReacId || 0) + 1);
+  const lista = labReacoes().slice(0, quantas || (CELULAR ? 6 : 99));
   let liberar; S.labReacBase = new Promise(r => liberar = r); setTimeout(liberar, 8000); // nunca segura as falas por mais de 8 s
   for (const [k, t] of lista.entries()) {
     if (k === 6) liberar();
@@ -7056,6 +7073,7 @@ async function labResponder(i) {
   try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro); contarResposta(); } catch {}
   // a reação sai NA HORA (banco pronto); a explicação daquela pergunta vem logo em seguida
   L.reacao = labEscolherReacao(certo); L.explic = null; L.explicFim = false; L.fala = L.reacao;
+  if (CELULAR) S.labReacMais = Math.min(24, (S.labReacMais || 6) + 2); // no celular o banco cresce aos poucos
   desenharLab(); labFalar();
   setTimeout(() => labEl()?.querySelector(".lab-hipo")?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
   let f = await labGarantirFalas(q);
@@ -7064,6 +7082,7 @@ async function labResponder(i) {
   const es = labIdioma() === "es", certaTxt = q.alternativas[q.correta];
   L.explic = labLimparFala(f?.[i] || (certo ? (es ? `La respuesta es ${certaTxt}.` : `A resposta é ${certaTxt}.`) : (es ? `La correcta es: ${certaTxt}.` : `A certa é: ${certaTxt}.`)));
   L.explicFim = true; L.fala = L.reacao + " " + L.explic;
+  if (CELULAR) setTimeout(() => labPrepararReacoes(S.labReacMais), 4000);
   if (!labVozPronta(L.explic, labLang())) { labFurarFila(L.explic); audioPiper(L.explic, labLang()).catch(() => {}); }
   desenharLab();
 }
@@ -7122,7 +7141,7 @@ async function labFalar() {
     fim();
   } catch (e) {
     if (!vivo()) return;
-    L.erroFala = "A voz não carregou agora. Toque em Ouvir de novo."; avisarVozFalhou(e); fim();
+    L.erroFala = "Voz demorando. Toque em Ouvir de novo."; avisarVozFalhou(e); fim();
   }
 }
 document.addEventListener("toggle", e => { if (e.target.classList?.contains("lab-aj")) S.labAj = e.target.open; }, true);
