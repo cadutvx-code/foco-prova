@@ -3497,7 +3497,6 @@ function desenharConta() {
       <button class="cm-item" data-act="temaChave"><span class="cm-chave ${temaEscuro() ? "on" : ""}"></span>Modo escuro</button>
       <button class="cm-item" data-act="idiomaMenu">${icm("idioma")}Mudar idioma</button>
       ${S.idiomaMenu ? `<div class="cm-idiomas"><button data-act="idiomaUi" data-id="pt" class="${lsGet("fp-ui", "pt") === "pt" ? "on" : ""}">Português</button><button data-act="idiomaUi" data-id="es" class="${lsGet("fp-ui", "pt") === "es" ? "on" : ""}">Español</button></div>` : ""}
-      <button class="cm-item" data-act="lab"><span style="width:20px;display:inline-flex">${iconeSVG("brilho")}</span>Laboratório (teste)</button>
       <button class="cm-item" data-act="guia"><span style="width:20px;display:inline-flex">${iconeSVG("bussola")}</span>Guia do app</button>
       <button class="cm-item" data-act="glossario"><span style="width:20px;text-align:center">🔤</span>Meu glossário</button>
       <button class="cm-item" data-act="notificacoes">${icm("sino")}Notificações${avisos.length ? `<span class="badge">${avisos.length}</span>` : ""}</button>
@@ -4785,7 +4784,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0004";
+const VERSAO_APP = "2026-11-23-0005";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6214,7 +6213,7 @@ const TOUR_PASSOS = {
     { sel: ".mais-mat", t: TT("Adicionar na matéria", "Agregar en la materia"), d: TT("Cada matéria tem este botão para colocar material novo direto nela.", "Cada materia tiene este botón para agregar material nuevo directo en ella.") },
     { sel: "#seqChip", t: TT("Sua sequência", "Tu racha"), d: TT("Dias seguidos estudando. Toque para mudar a meta de perguntas por dia.", "Días seguidos estudiando. Toca para cambiar la meta de preguntas por día.") },
     { sel: "#conta", t: TT("Sua conta", "Tu cuenta"), d: TT("Entre com o Google para salvar tudo na nuvem. Aqui ficam seu perfil, avatar, conquistas, glossário, idioma, modo escuro, este guia e o Pro.", "Entra con Google para guardar todo en la nube. Aquí están tu perfil, avatar, logros, glosario, idioma, modo oscuro, esta guía y el Pro.") },
-    { sel: "#conta", t: TT("Quiz louco do Hipo (novo)", "Quiz loco de Hipo (nuevo)"), d: TT("Dentro de cada caderno, em Começar a estudar, logo abaixo do Quiz (ou no menu da conta, em Laboratório). Quando você erra, o Hipo te zoa e explica FALANDO, com voz de desenho e uma comparação absurda para você nunca mais esquecer. Escolha o jeito: Fofo, Zoeiro ou Sem filtro +18 (com palavrão).", "Dentro de cada cuaderno, en Empezar a estudiar, justo debajo del Quiz (o en el menú de la cuenta, en Laboratorio). Cuando fallas, Hipo se burla de ti y te lo explica HABLANDO, con voz de dibujo animado y una comparación absurda para que nunca lo olvides. Elige el estilo: Tierno, Burlón o Sin filtro +18 (con groserías).") },
+    { sel: "#conta", t: TT("Quiz louco do Hipo (novo)", "Quiz loco de Hipo (nuevo)"), d: TT("Dentro de cada caderno, em Começar a estudar, logo abaixo do Quiz. Quando você erra, o Hipo te zoa e explica FALANDO, com voz de desenho e uma comparação absurda para você nunca mais esquecer. Escolha o jeito: Fofo, Zoeiro ou Sem filtro +18 (com palavrão).", "Dentro de cada cuaderno, en Empezar a estudiar, justo debajo del Quiz. Cuando fallas, Hipo se burla de ti y te lo explica HABLANDO, con voz de dibujo animado y una comparación absurda para que nunca lo olvides. Elige el estilo: Tierno, Burlón o Sin filtro +18 (con groserías).") },
     { sel: ".fb-chip", t: TT("Feedback", "Feedback"), d: TT("Achou um problema ou teve uma ideia? Mande por aqui: cada mensagem é lida.", "¿Encontraste un problema o tienes una idea? Mándala por aquí: leemos cada mensaje.") },
     { sel: '#rail [data-act="config"]', t: TT("Ajustes", "Ajustes"), d: TT("Idioma, microfone e voz do professor do Ateneo, e cópia de segurança dos seus cadernos.", "Idioma, micrófono y voz del profesor del Ateneo, y copia de seguridad de tus cuadernos.") }
   ],
@@ -6734,7 +6733,6 @@ render();
 if (!lsGet("fp-idioma-escolhido", false)) setTimeout(() => { const d = $("#dlgIdioma"); if (d && !d.open) d.showModal(); }, 400);
 else if (!lsGet("fp-guia-visto", false)) setTimeout(() => { if (!document.querySelector("dialog[open]")) abrirGuia(0); }, 900);
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
-if (new URLSearchParams(location.search).has("lab")) { history.replaceState(null, "", location.pathname); setTimeout(() => { document.querySelectorAll("dialog[open]").forEach(d => d.close()); abrirLab(); }, 1200); }
 { const pd = new URLSearchParams(location.search).get("duelo"); if (pd) { try { sessionStorage.setItem("fp-duelo-pendente", pd); } catch {} history.replaceState(null, "", location.pathname); } }
 iniciarNuvem();
 // Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)
