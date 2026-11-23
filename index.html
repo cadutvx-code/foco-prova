@@ -53,6 +53,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ia-chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--muted);max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ia-chip i{width:8px;height:8px;border-radius:50%;background:#22c55e;flex:none;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:iaLigada 2s ease-out infinite}
 .ia-chip span{font-weight:800;letter-spacing:.3px;color:var(--text)}
+.ia-chip{flex-shrink:0}
+@media (max-width:520px){.ia-chip{padding:5px 9px;gap:5px;font-size:12px}}
 @keyframes iaLigada{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
 .pill-dark{white-space:nowrap;background:var(--navy);color:#fff;border:none;border-radius:999px;padding:7px 14px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .shell{display:grid;grid-template-columns:96px 1fr;min-height:calc(100vh - 58px)}
@@ -4843,7 +4845,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0023";
+const VERSAO_APP = "2026-11-23-0024";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
