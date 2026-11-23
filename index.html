@@ -1822,6 +1822,7 @@ function explicacaoHTML(q, escolha) {
   const certa = det.certa || (agora ? "" : (q.explicacao || "").trim() || porQue(q.correta));
   const errada = marcouErrada ? (det.erradas?.[escolha] || (agora ? "" : porQue(escolha))) : "";
   const n1 = q.correta + 1, n2 = escolha + 1;
+  if (acertou && !q._verPorque && !det.certa && !agora) return `<div class="expl md"><p class="res-ok">${es ? "✔ ¡Correcto!" : "✔ Correto!"}</p><button class="btn small ghost mais-expl" data-act="verPorque">${es ? "Ver por qué" : "Ver por quê"}</button></div>`;
   if (q.tipo === "vf") {
     const certoTxt = q.alternativas[q.correta];
     let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `Es <b>${certoTxt}</b>.` : `É <b>${certoTxt}</b>.`) : (es ? `✘ Incorrecto — es <b>${certoTxt}</b>.` : `✘ Errado — é <b>${certoTxt}</b>.`)}</p>`;
@@ -4680,6 +4681,7 @@ document.addEventListener("click", async e => {
     case "refazerErros": iniciarQuiz(S.player.id, [...S.player.erros]); break;
     case "escolher-alt": quizResponder(c, +id); break;
     case "confirmar": { const p = S.player, q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]]; p.confirmado = true; if (p.escolha === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]); render(); break; }
+    case "verPorque": { const q = questaoAberta(c); if (q) { q._verPorque = true; render(); } break; }
     case "explicarMais": { const q = questaoAberta(c); if (q && podeUsar()) { gastar(); completarExplicacao(c, q, S.player.escolha); } break; }
     case "proxima": { const p = S.player; p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
     case "fazerProva": escolherTempoProva(id); break;
@@ -4796,7 +4798,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0014";
+const VERSAO_APP = "2026-11-23-0016";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
