@@ -26,6 +26,7 @@ export default {
       if (rota === "/" ) return json(req, { ok: true, servico: "pagamento Hipocampo Study" });
       if (req.method !== "POST") return json(req, { erro: "método não permitido" }, 405);
       if (rota === "/webhook") return await webhook(req, env);
+      if (rota === "/ia-saude") return json(req, await saudeIA(req, env)); // conferência das reservas (protegida por SAUDE_CHAVE)
       const corpo = await req.json().catch(() => ({}));
       const email = await emailDoLogin(env, corpo.idToken);
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
@@ -316,7 +317,7 @@ async function iaReserva(env, { system = "", prompt = "", json: querJSON = false
     if (!r.ok) throw new Error((d.error?.message || "HTTP " + r.status).slice(0, 120));
     return d.choices?.[0]?.message?.content || "";
   };
-  if (env.GROQ_KEY) for (const m of String(env.GROQ_MODELOS || "llama-3.3-70b-versatile").split(",")) {
+  if (env.GROQ_KEY) for (const m of String(env.GROQ_MODELOS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",")) {
     try { const t = await openai("https://api.groq.com/openai/v1/chat/completions", env.GROQ_KEY, m.trim()); if (t) return { texto: t, via: "groq" }; } catch (e) { erros.push("groq " + m + ": " + e.message); }
   }
   if (env.AI) for (const m of MODELOS_CF) {
@@ -327,9 +328,28 @@ async function iaReserva(env, { system = "", prompt = "", json: querJSON = false
       if (t) return { texto: t, via: "cloudflare " + m.split("/").pop() };
     } catch (e) { erros.push(m + ": " + String(e?.message || e).slice(0, 120)); }
   }
-  if (env.OPENROUTER_KEY) for (const m of String(env.OPENROUTER_MODELOS || "deepseek/deepseek-chat:free,openai/gpt-oss-120b:free").split(",")) {
+  if (env.OPENROUTER_KEY) for (const m of String(env.OPENROUTER_MODELOS || "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free").split(",")) {
     try { const t = await openai("https://openrouter.ai/api/v1/chat/completions", env.OPENROUTER_KEY, m.trim()); if (t) return { texto: t, via: "openrouter" }; } catch (e) { erros.push("openrouter " + m + ": " + e.message); }
   }
   console.log("IA reserva falhou:", erros.join(" | "));
   throw new Error("reservas indisponíveis agora");
+}
+
+// testa cada IA reserva com uma pergunta curta (só com o cabeçalho x-saude = SAUDE_CHAVE)
+async function saudeIA(req, env) {
+  const sc = String(env.SAUDE_CHAVE || "").replace(/^﻿/, "").trim();
+  if (!sc || String(req.headers.get("x-saude") || "").trim() !== sc) return { erro: "proibido" };
+  const pergunta = [{ role: "user", content: 'Onde são produzidos os glóbulos vermelhos no adulto? 0) coração 1) fígado 2) medula óssea 3) pulmões. Responda só JSON {"correta": índice}' }];
+  const out = [];
+  const testar = async (nome, url, chave, model) => {
+    const t0 = Date.now();
+    try {
+      const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, messages: pergunta, max_tokens: 300, temperature: 0 }) });
+      const d = await r.json().catch(() => ({}));
+      out.push({ ia: nome + " " + model, ok: r.ok, ms: Date.now() - t0, resposta: r.ok ? String(d.choices?.[0]?.message?.content || "").slice(0, 60) : String(d.error?.message || r.status).slice(0, 120) });
+    } catch (e) { out.push({ ia: nome + " " + model, ok: false, resposta: String(e.message).slice(0, 120) }); }
+  };
+  if (env.GROQ_KEY) for (const m of String(env.GROQ_MODELOS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",")) await testar("groq", "https://api.groq.com/openai/v1/chat/completions", env.GROQ_KEY, m.trim());
+  if (env.OPENROUTER_KEY) for (const m of String(env.OPENROUTER_MODELOS || "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free").split(",")) await testar("openrouter", "https://openrouter.ai/api/v1/chat/completions", env.OPENROUTER_KEY, m.trim());
+  return { resultados: out };
 }
