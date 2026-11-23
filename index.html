@@ -228,6 +228,10 @@ h3{font-size:16px;margin:0 0 6px}
 .mm-estilo{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:10px;border-radius:14px;border:2px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;cursor:pointer}
 .mm-estilo.on{border-color:var(--accent);background:rgba(91,141,255,.12)}
 .mm-estilo b{font-size:14px}.mm-estilo small{color:var(--muted);font-size:12px;line-height:1.35}
+.mm-aviso{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.5);font-size:14px;line-height:1.5}
+.mm-aviso>.icx{width:22px;height:22px;flex:none;color:#f5a623;margin-top:2px}
+.mm-aviso-bts{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 6px}
+.mm-aviso small{color:var(--muted);display:block}
 .mm-mini{width:100%;height:auto;max-height:84px;border-radius:10px}
 .mm-ideias{display:flex;gap:6px;flex-wrap:wrap}
 .mm-thumb{cursor:pointer}.mm-thumb .mm-mini{max-height:120px}
@@ -4870,7 +4874,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-23-0038";
+const VERSAO_APP = "2026-11-23-0043";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -5583,7 +5587,11 @@ const UI_ES = {
   "Editar": "Editar", "Pronto": "Listo", "Editar mapa": "Editar mapa", "Toque numa bolinha do mapa para achar o texto dela. Tudo é salvo sozinho.": "Toca un círculo del mapa para encontrar su texto. Todo se guarda solo.",
   "Título do mapa": "Título del mapa", "Tema central": "Tema central", "Destaque (opcional), ex.: valor normal": "Destacado (opcional), ej.: valor normal", "Nome do ramo": "Nombre de la rama", "Detalhe": "Detalle",
   "+ Detalhe": "+ Detalle", "+ Ramo": "+ Rama", "Apagar ramo": "Borrar rama", "Apagar detalhe": "Borrar detalle", "Cor do ramo": "Color de la rama", "Cor do centro": "Color del centro",
-  "Novo ramo": "Nueva rama", "Novo detalhe": "Nuevo detalle", "O mapa precisa de pelo menos 1 ramo.": "El mapa necesita al menos 1 rama.", "Apagar este ramo e os detalhes dele?": "¿Borrar esta rama y sus detalles?"
+  "Novo ramo": "Nueva rama", "Novo detalhe": "Nuevo detalle", "O mapa precisa de pelo menos 1 ramo.": "El mapa necesita al menos 1 rama.", "Apagar este ramo e os detalhes dele?": "¿Borrar esta rama y sus detalles?",
+  "Esse arquivo tem muito conteúdo.": "Este archivo tiene mucho contenido.", "Esse caderno tem muito conteúdo.": "Este cuaderno tiene mucho contenido.",
+  "Nos estilos 3D, muita informação junta pode ficar confusa. Para entender melhor, recomendamos um estilo mais simples:": "En los estilos 3D, mucha información junta puede quedar confusa. Para entender mejor, recomendamos un estilo más simple:",
+  "Usar Árvore": "Usar Árbol", "Usar Clássico": "Usar Clásico", "Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais.": "Si quieres el 3D de todos modos, saldrá más simple: solo los puntos principales.",
+  "Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais. Ou escolha um arquivo só em \"De onde\".": "Si quieres el 3D de todos modos, saldrá más simple: solo los puntos principales. O elige un solo archivo en \"De dónde\"."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
@@ -6399,17 +6407,23 @@ function viewMapa(c) {
   const sem = semMateriais(c); if (sem) return sem;
   c.mapas ||= []; S.mmEstilo ||= "galaxia";
   const mats = ativos(c);
+  if (S.mmFonte && S.mmFonte !== "todos" && !mats.some(m => m.id === S.mmFonte)) S.mmFonte = "todos";
+  const fonteSel = mats.find(m => m.id === S.mmFonte), tamanho = fonteSel ? fonteSel.texto.length : mats.reduce((n, m) => n + m.texto.length, 0);
+  const denso = ["galaxia", "neural"].includes(S.mmEstilo) && tamanho > MAPA_DENSO;
   return `<div class="stack">
     <div class="card stack">
       <div><h2 style="margin:0">Mapa mental</h2><div class="muted" style="font-size:13px">A IA resume o conteúdo num mapa para você enxergar o capítulo inteiro de uma vez. Gire, aproxime e baixe a imagem.</div></div>
       <div class="row">
-        <label class="grow">De onde<select id="mmFonte"><option value="todos">Todo o caderno</option>${mats.map(m => `<option value="${m.id}">${esc(m.nome.slice(0, 70))}</option>`).join("")}</select></label>
-        <label class="grow">Foco (opcional)<input type="text" id="mmFoco" placeholder="ex.: capítulo 20, só a regulação"></label>
+        <label class="grow">De onde<select id="mmFonte"><option value="todos">Todo o caderno</option>${mats.map(m => `<option value="${m.id}" ${S.mmFonte === m.id ? "selected" : ""}>${esc(m.nome.slice(0, 70))}</option>`).join("")}</select></label>
+        <label class="grow">Foco (opcional)<input type="text" id="mmFoco" placeholder="ex.: capítulo 20, só a regulação" value="${esc(S.mmFoco || "")}"></label>
       </div>
       <div><div class="muted" style="font-size:13px;font-weight:700;margin-bottom:6px">Estilo</div>
         <div class="mm-estilos">${ESTILOS_MAPA.map(([k, n, d]) => `<button class="mm-estilo ${S.mmEstilo === k ? "on" : ""}" data-act="mmEstilo" data-id="${k}">${miniaturaMapa(k)}<b>${n}</b><small>${d}</small></button>`).join("")}</div></div>
       ${S.mmEstilo === "ia" ? `<label>Descreva o estilo que você quer<textarea id="mmDesc" rows="2" placeholder="ex.: fundo branco, cores pastel, em formato de árvore, letras grandes e linhas retas">${esc(S.mmDesc || "")}</textarea></label>
         <div class="mm-ideias">${["Minimalista preto e branco", "Neon no fundo escuro", "Pastel, fundo claro, árvore", "Estilo caderno de anatomia (serifado)"].map(x => `<button class="btn small ghost" data-act="mmIdeia" data-id="${esc(x)}">${esc(x)}</button>`).join("")}</div>` : ""}
+      ${denso ? `<div class="mm-aviso">${iconeSVG("lampada")}<div><b>${fonteSel ? "Esse arquivo" : "Esse caderno"} tem muito conteúdo.</b> Nos estilos 3D, muita informação junta pode ficar confusa. Para entender melhor, recomendamos um estilo mais simples:
+        <div class="mm-aviso-bts"><button class="btn small primary" data-act="mmEstilo" data-id="arvore">Usar Árvore</button><button class="btn small" data-act="mmEstilo" data-id="classico">Usar Clássico</button></div>
+        <small>Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais.${fonteSel ? "" : " Ou escolha um arquivo só em \"De onde\"."}</small></div></div>` : ""}
       <div><button class="btn primary" data-act="mmGerar" ${S.gerandoMapa ? "disabled" : ""}>${S.gerandoMapa ? `<span class="spin"></span> Montando o mapa…` : "Gerar mapa mental"}</button></div>
     </div>
     ${c.mapas.length ? `<div class="grid">${c.mapas.map(m => `<div class="card item mm-salvo"><div class="mm-thumb" data-act="mmAbrir" data-id="${m.id}">${miniaturaMapa(m.estilo, m.estiloIA)}</div><h3 style="margin:8px 0 2px">${esc(m.titulo)}</h3>
@@ -6417,6 +6431,9 @@ function viewMapa(c) {
       <div class="acts"><button class="btn small primary" data-act="mmAbrir" data-id="${m.id}">Abrir</button><button class="btn small danger" data-act="mmApagar" data-id="${m.id}">Excluir</button></div></div>`).join("")}</div>` : `<div class="empty">Nenhum mapa ainda. Escolha um estilo e gere o primeiro!</div>`}
   </div>`;
 }
+const MAPA_DENSO = 15000; // a partir de ~15 mil letras (uns 8 slides cheios), o 3D tende a ficar confuso
+document.addEventListener("change", e => { if (e.target.id === "mmFonte") { S.mmFonte = e.target.value; S.mmFoco = $("#mmFoco")?.value || ""; S.mmDesc = $("#mmDesc")?.value ?? S.mmDesc; render(); } });
+document.addEventListener("input", e => { if (e.target.id === "mmFoco") S.mmFoco = e.target.value; });
 // miniatura desenhada de cada estilo (para os botões e os cartões)
 function miniaturaMapa(k, e) {
   const cs = e?.cores?.length ? e.cores : PALETA_MAPA, fundo = k === "ia" && e ? e.fundo : k === "classico" || k === "arvore" ? "#1a1446" : "#140f38";
@@ -6434,12 +6451,13 @@ async function gerarMapa() {
   if (estilo === "ia" && desc.length < 4) return toast("Descreva o estilo que você quer.", true);
   if (!podeUsar()) return; gastar();
   const matId = $("#mmFonte")?.value || "todos", foco = ($("#mmFoco")?.value || "").trim(), m = c.materiais.find(x => x.id === matId);
+  const tam3D = ["galaxia", "neural"].includes(estilo) && (m ? m.texto.length : ativos(c).reduce((n, x) => n + x.texto.length, 0)) > MAPA_DENSO;
   S.mmDesc = desc; S.gerandoMapa = true; render();
   try {
     const material = m ? `### ${m.nome}\n${m.texto.slice(0, 45000)}` : blocoMateriais(c, foco, 45000);
     const dados = await chamar({
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: material }],
-      messages: [{ role: "user", content: `Crie um MAPA MENTAL de estudo do conteúdo acima${foco ? `, com foco em: ${foco}` : ""}, para revisar antes da prova.\n- "titulo": nome do mapa (até 6 palavras).\n- "centro": o tema central (até 4 palavras).\n- "subtitulo": um dado-chave curtíssimo do tema (ex.: um valor normal), ou "".\n- "ramos": de 4 a 7 ramos principais com "titulo" (até 4 palavras) e "itens": de 2 a 6 fatos curtos (até 9 palavras cada) que caem em prova, com valores e unidades quando houver.\n- Escreva com acentuação e ortografia corretas. Sem emojis, sem markdown. Não repita fatos entre ramos.` }],
+      messages: [{ role: "user", content: `Crie um MAPA MENTAL de estudo do conteúdo acima${foco ? `, com foco em: ${foco}` : ""}, para revisar antes da prova.${tam3D ? "\nIMPORTANTE: este mapa é em 3D e o conteúdo é grande. Seja ENXUTO: no máximo 6 ramos, com no máximo 4 itens cada, e itens curtíssimos (até 5 palavras). Só o essencial." : ""}\n- "titulo": nome do mapa (até 6 palavras).\n- "centro": o tema central (até 4 palavras).\n- "subtitulo": um dado-chave curtíssimo do tema (ex.: um valor normal), ou "".\n- "ramos": de 4 a 7 ramos principais com "titulo" (até 4 palavras) e "itens": de 2 a 6 fatos curtos (até 9 palavras cada) que caem em prova, com valores e unidades quando houver.\n- Escreva com acentuação e ortografia corretas. Sem emojis, sem markdown. Não repita fatos entre ramos.` }],
       schema: obj({ titulo: str, centro: str, subtitulo: str, ramos: arr(obj({ titulo: str, itens: arr(str) })) }), maxTokens: 3000, urgente: true
     });
     let estiloIA = null;
@@ -6610,12 +6628,20 @@ function mapa3D(cv, dados, o) {
       for (const k of [1.6, 2.3]) for (const [cx, cy] of lugares) tentativas.push([p0.X + (cx - p0.X) * k, p0.Y + (cy - p0.Y) * k]);
       for (const [dx, dy] of [[1, -1], [-1, -1], [1, 1], [-1, 1]]) tentativas.push([p0.X + dx * (p0.r + larg / 2 + 6), p0.Y + dy * (p0.r + alt / 2 + 4)]);
       const sobra = t => ocupado.reduce((n, o2) => o2.dono === i ? n : n + Math.max(0, Math.min(t.x1, o2.x1) - Math.max(t.x0, o2.x0)) * Math.max(0, Math.min(t.y1, o2.y1) - Math.max(t.y0, o2.y0)), 0);
-      let q = null, menor = null, menorA = Infinity;
-      for (const [cx, cy] of tentativas) {
-        const t = { x0: cx - larg / 2, y0: cy - alt / 2, x1: cx + larg / 2, y1: cy + alt / 2 }; if (t.x0 < 2 || t.x1 > W - 2 || t.y0 < 2 || t.y1 > H - 2) continue;
-        const a2 = sobra(t); if (!a2) { q = t; break; } if (a2 < menorA) { menorA = a2; menor = t; }
+      // tenta primeiro o lugar onde a palavra já estava (assim ela não fica pulando enquanto o mapa gira)
+      const no = nos[i], idxs = tentativas.map((_, k) => k), pref = no._lug;
+      if (pref != null && pref < tentativas.length) { idxs.splice(pref, 1); idxs.unshift(pref); }
+      let q = null, menor = null, menorA = Infinity, menorK = null;
+      for (const k of idxs) {
+        const [cx, cy] = tentativas[k], t = { x0: cx - larg / 2, y0: cy - alt / 2, x1: cx + larg / 2, y1: cy + alt / 2 }; if (t.x0 < 2 || t.x1 > W - 2 || t.y0 < 2 || t.y1 > H - 2) continue;
+        const a2 = sobra(t); if (!a2 || (k === pref && a2 < larg * alt * .12)) { q = t; no._lug = k; break; } if (a2 < menorA) { menorA = a2; menor = t; menorK = k; }
       }
-      if (!q) { if (!obrigatoria) return; q = menor || { x0: ax - larg / 2, y0: ay - alt / 2, x1: ax + larg / 2, y1: ay + alt / 2 }; }
+      if (!q) {
+        const tolera = no._vis && menor && menorA < larg * alt * .3; // já estava na tela: tolera um pouco antes de sumir (sem piscar)
+        if (!obrigatoria && !tolera) { no._vis = false; return; }
+        q = menor || { x0: ax - larg / 2, y0: ay - alt / 2, x1: ax + larg / 2, y1: ay + alt / 2 }; no._lug = menorK ?? 0;
+      }
+      no._vis = true;
       ocupado.push({ ...q, dono: -1 });
       ctx.globalAlpha = alfa(i);
       ctx.fillStyle = "rgba(10,8,32,.72)"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0, 7) : ctx.rect(q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0); ctx.fill();
