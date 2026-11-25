@@ -339,12 +339,13 @@ h3{font-size:16px;margin:0 0 6px}
 #admCustos h4{margin:8px 0 0}
 label.comp-linha{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;gap:10px;align-items:center;cursor:pointer;flex-wrap:nowrap}.comp-linha input{width:auto;flex:none}.comp-linha span{flex:1;text-align:left}.comp-linha small{display:block;color:var(--muted)}
 .importar-mat{margin:0 0 14px}
-.mkit.claro,.mkit.claro .tres,.mkit.claro .mao,.cor-amostra.claro{color:#16213a}.mkit.claro b{text-shadow:none}.mkit.claro .mao{background:rgba(0,0,0,.1)}.mkit.claro .barra>div{background:rgba(22,33,58,.6)}
-.cor-amostra{border-radius:16px;padding:18px;color:#fff;min-height:64px;display:flex;align-items:center;overflow-wrap:anywhere}
-.cor-prontas{display:flex;flex-wrap:wrap;gap:8px}.cor-prontas button{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer}.cor-prontas button.on{border-color:var(--text);box-shadow:0 0 0 2px var(--panel) inset}
+.mkit.claro,.mkit.claro .tres,.mkit.claro .mao{color:#16213a}.mkit.claro b{text-shadow:none}.mkit.claro .mao{background:rgba(0,0,0,.1)}.mkit.claro .barra>div{background:rgba(22,33,58,.6)}
+#corPop{position:absolute;z-index:40;width:250px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}#corPop[hidden]{display:none}
+.cor-bt i{display:block;width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--muted)}
+#corHex{flex:1;min-width:0}
 .cor-linha{display:flex;align-items:center;gap:10px}.cor-linha .cor-l{width:16px}.cor-linha input[type=color]{width:52px;height:40px;padding:2px;border-radius:10px;cursor:pointer;flex:none}
 .cor-linha input[type=range]{flex:1;min-width:0;width:auto;height:12px;padding:0;border:none;border-radius:99px;appearance:none;-webkit-appearance:none}.cor-linha input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid #4b5875;box-shadow:0 1px 4px rgba(0,0,0,.4)}.cor-linha input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #4b5875}
-.cor-linha input[type=number]{width:76px;flex:none}
+.cor-linha input[type=number]{width:62px;flex:none;padding:6px 8px}
 .grupos-card{margin-bottom:16px}
 .grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
 .grupo-linha:hover{border-color:var(--accent)}
@@ -773,7 +774,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   </div>
 </dialog>
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
-<dialog id="dlgCor" style="width:min(400px,calc(100vw - 24px))"><div id="corCorpo" class="stack"></div></dialog>
+<div id="corPop" role="dialog" hidden></div>
 <dialog id="dlgMateria" style="width:min(540px,calc(100vw - 24px))"><div id="materiaCorpo" class="stack"></div></dialog>
 <dialog id="dlgGrupos" style="width:min(520px,calc(100vw - 24px))"><div id="gruposCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
@@ -2328,31 +2329,35 @@ const rgbDe = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const hexDe = v => "#" + v.map(n => Math.max(0, Math.min(255, Math.round(n) || 0)).toString(16).padStart(2, "0")).join("");
 // cor clara pede letra escura (contraste)
 const corClara = h => { const x = hexOk(h); if (!x || CORES_MATERIA.includes(x)) return false; const [r, g, b] = rgbDe(x).map(v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126 * r + .7152 * g + .0722 * b > .36; };
-function abrirCor(nome) {
-  const hex = hexOk(corMateria(nome)) || "#3b82f6"; S.corMat = { nome, hex };
-  $("#corCorpo").innerHTML = `<h2 style="margin:0">${TT("Cor da matéria", "Color de la materia")}</h2>
-    <div id="corAmostra" class="cor-amostra"><b>${esc(nome)}</b></div>
-    <div class="cor-prontas">${CORES_MATERIA.map(x => `<button data-act="corPronta" data-id="${x}" style="background:${x}" aria-label="${x}"></button>`).join("")}</div>
-    <div class="cor-linha"><input type="color" id="corSel" value="${hex}" aria-label="${TT("Escolher cor", "Elegir color")}"><span>${TT("Toque para escolher qualquer cor", "Toca para elegir cualquier color")}</span></div>
-    ${["R", "G", "B"].map((l, k) => `<div class="cor-linha"><b class="cor-l">${l}</b><input type="range" class="corR" data-k="${k}" min="0" max="255" aria-label="${l}"><input type="number" class="corN" data-k="${k}" min="0" max="255" inputmode="numeric" aria-label="${l}"></div>`).join("")}
-    <div class="cor-linha"><span>${TT("Código", "Código")}</span><input type="text" id="corHex" maxlength="7" spellcheck="false" style="flex:1"></div>
-    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="corFechar">${TT("Cancelar", "Cancelar")}</button><button class="pill" data-act="corSalvar">${TT("Salvar cor", "Guardar color")}</button></div>`;
-  corMudar(hex); if (!$("#dlgCor").open) $("#dlgCor").showModal();
+// caixinha ao lado do botão: muda na hora e salva sozinha; toque fora fecha
+function abrirCor(nome, bt) {
+  const hex = hexOk(corMateria(nome)) || "#3b82f6", p = $("#corPop"); S.corMat = { nome, hex };
+  p.innerHTML = `<div class="cor-linha"><input type="color" id="corSel" value="${hex}" aria-label="${TT("Escolher cor", "Elegir color")}"><input type="text" id="corHex" maxlength="7" spellcheck="false" aria-label="${TT("Código da cor", "Código del color")}"></div>
+    ${["R", "G", "B"].map((l, k) => `<div class="cor-linha"><b class="cor-l">${l}</b><input type="range" class="corR" data-k="${k}" min="0" max="255" aria-label="${l}"><input type="number" class="corN" data-k="${k}" min="0" max="255" inputmode="numeric" aria-label="${l}"></div>`).join("")}`;
+  p.hidden = false; const r = bt.getBoundingClientRect(), w = p.offsetWidth, x = Math.max(12, Math.min(r.left, document.documentElement.clientWidth - w - 12));
+  p.style.left = x + scrollX + "px"; p.style.top = r.bottom + scrollY + 6 + "px"; corMudar(hex, null, false);
 }
-function corMudar(h, de = null) {
-  const hex = hexOk(h); if (!hex || !S.corMat) return; S.corMat.hex = hex; const v = rgbDe(hex), am = $("#corAmostra");
-  am.style.background = hex; am.classList.toggle("claro", corClara(hex));
-  document.querySelectorAll("#corCorpo .corR,#corCorpo .corN").forEach(e => { if (e !== de) e.value = v[+e.dataset.k]; });
-  document.querySelectorAll("#corCorpo .corR").forEach(e => { const a = [...v], b = [...v]; a[+e.dataset.k] = 0; b[+e.dataset.k] = 255; e.style.background = `linear-gradient(90deg,${hexDe(a)},${hexDe(b)})`; });
-  if (de !== $("#corSel")) $("#corSel").value = hex; if (de !== $("#corHex")) $("#corHex").value = hex;
-  document.querySelectorAll("#corCorpo [data-act=corPronta]").forEach(e => e.classList.toggle("on", hexOk(e.dataset.id) === hex));
+function fecharCor() { const p = $("#corPop"); if (p.hidden) return; p.hidden = true; p.innerHTML = ""; S.corMat = null; }
+function corMudar(h, de = null, gravar = true) {
+  const hex = hexOk(h), c = S.corMat; if (!hex || !c) return; c.hex = hex; const v = rgbDe(hex), p = $("#corPop");
+  p.querySelectorAll(".corR,.corN").forEach(e => { if (e !== de) e.value = v[+e.dataset.k]; });
+  p.querySelectorAll(".corR").forEach(e => { const a = [...v], b = [...v]; a[+e.dataset.k] = 0; b[+e.dataset.k] = 255; e.style.background = `linear-gradient(90deg,${hexDe(a)},${hexDe(b)})`; });
+  for (const id of ["corSel", "corHex"]) { const e = $("#" + id); if (e && e !== de) e.value = hex; }
+  if (!gravar) return;
+  const m = materiasCfg(); m[c.nome] = { ...(m[c.nome] || {}), cor: hex }; lsSet("fp-materias", m);
+  const bl = [...document.querySelectorAll("#main .mkits")].find(x => x.dataset.materia === c.nome); // pinta os cartões sem redesenhar a tela
+  bl?.querySelectorAll(".mkit").forEach(e => { e.style.background = hex; e.classList.toggle("claro", corClara(hex)); });
+  const i = bl?.closest(".materia")?.querySelector(".cor-bt i"); if (i) i.style.background = hex;
 }
-$("#dlgCor").addEventListener("input", e => {
+$("#corPop").addEventListener("input", e => {
   const t = e.target; if (!S.corMat) return;
   if (t.id === "corSel" || t.id === "corHex") return corMudar(t.value, t);
   if (t.dataset.k !== undefined) { const v = rgbDe(S.corMat.hex); v[+t.dataset.k] = t.value; corMudar(hexDe(v), t); }
 });
-$("#dlgCor").addEventListener("change", e => { if (S.corMat && (e.target.classList.contains("corN") || e.target.id === "corHex")) corMudar(S.corMat.hex); }); // arruma número fora de 0 a 255 ou código incompleto
+$("#corPop").addEventListener("change", e => { if (S.corMat && (e.target.classList.contains("corN") || e.target.id === "corHex")) corMudar(S.corMat.hex); }); // arruma número fora de 0 a 255 ou código incompleto
+document.addEventListener("pointerdown", e => { if (!e.target.closest?.('#corPop,[data-act="corLivre"],[data-act="corMateria"]')) fecharCor(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") fecharCor(); });
+{ let larg = innerWidth; addEventListener("resize", () => { if (innerWidth !== larg) { larg = innerWidth; fecharCor(); } }); } // o teclado do celular muda só a altura: não fecha
 function corMateria(nome) {
   const m = materiasCfg();
   if (m[nome]?.cor) return m[nome].cor;
@@ -2428,7 +2433,7 @@ function viewHome() {
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
-        ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}<button class="mini" data-act="compartilharMateria" data-id="${esc(m)}" title="${TT("Compartilhar matéria", "Compartir materia")}" aria-label="${TT("Compartilhar matéria", "Compartir materia")}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/></svg></button><button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
+        ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button><button class="mini cor-bt" data-act="corLivre" data-id="${esc(m)}" title="${TT("Escolher outra cor", "Elegir otro color")}" aria-label="${TT("Escolher outra cor", "Elegir otro color")}"><i style="background:${esc(corMateria(m))}"></i></button>` : ""}<button class="mini" data-act="compartilharMateria" data-id="${esc(m)}" title="${TT("Compartilhar matéria", "Compartir materia")}" aria-label="${TT("Compartilhar matéria", "Compartir materia")}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/></svg></button><button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
       </div>
       <div class="mkits" data-materia="${esc(m)}">${grupos[m].sort(compararKits).map(cartao).join("")}<button class="mkit-novo" data-act="novoNaMateria" data-id="${esc(m)}"><span>+</span>Adicionar material</button></div>
     </section>`).join("")}
@@ -5467,10 +5472,8 @@ document.addEventListener("click", async e => {
       toast(`🗑 Matéria "${id}" apagada (${lista.length} caderno(s)).`); render(); break;
     }
     case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo)) { k.materia = v; await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; lsSet("fp-materias", m); } render(); }); break; }
-    case "corMateria": abrirCor(id); break;
-    case "corPronta": corMudar(id); break;
-    case "corSalvar": { const m = materiasCfg(), k = S.corMat?.nome; if (k) { m[k] = { ...(m[k] || {}), cor: S.corMat.hex }; lsSet("fp-materias", m); } $("#dlgCor").close(); render(); break; }
-    case "corFechar": $("#dlgCor").close(); break;
+    case "corMateria": { const m = materiasCfg(), atualCor = corMateria(id); m[id] = { ...(m[id] || {}), cor: CORES_MATERIA[(CORES_MATERIA.indexOf(atualCor) + 1) % CORES_MATERIA.length] }; lsSet("fp-materias", m); render(); if (S.corMat?.nome === id) corMudar(corMateria(id)); break; }
+    case "corLivre": if (S.corMat?.nome === id) fecharCor(); else abrirCor(id, el); break;
     case "txtCancelar": $("#dlgTexto").close(); break;
     case "txtOk": { const v = $("#txtValor").value.trim(); $("#dlgTexto").close(); S.aoSalvarTexto?.(v); break; }
     case "novoArquivos": $("#novoArquivo").click(); break;
