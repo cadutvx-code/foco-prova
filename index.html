@@ -264,7 +264,7 @@ h3{font-size:16px;margin:0 0 6px}
 .mme-ponto{width:7px;height:7px;border-radius:50%;background:var(--c,#7b6bff);flex:none}
 .mme-sub{font-size:13px!important}
 .mme-add{align-self:flex-start}
-@media (max-width:760px){.mm-corpo.editando{flex-direction:column}.mm-corpo.editando .mm-palco{flex:0 0 46%}#mmEditor{width:auto;border-left:0;border-top:1px solid rgba(255,255,255,.12);flex:1}}
+@media (max-width:760px){#mapaTela #mmBarra{left:8px;right:8px;bottom:8px;max-height:42%}#mmBarra .mml-dica{display:none}.mm-palco:has(#mmBarra) .mm-zoom{bottom:auto;top:10px}.mm-corpo.editando{flex-direction:column}.mm-corpo.editando .mm-palco{flex:0 0 46%}#mmEditor{width:auto;border-left:0;border-top:1px solid rgba(255,255,255,.12);flex:1}}
 .mm-topo{display:flex;align-items:center;gap:10px;padding:10px 14px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08)}
 .mm-topo>b{font-size:16px;flex:1;min-width:140px}
 .mm-chips{display:flex;gap:6px;flex-wrap:wrap}
@@ -272,12 +272,12 @@ h3{font-size:16px;margin:0 0 6px}
 .mm-chips button.on{background:linear-gradient(90deg,#7b55ff,#2f6bff);border-color:transparent}
 .mm-btns{display:flex;gap:6px;align-items:center}
 .mm-btns .icx{width:16px;height:16px;vertical-align:-3px}
-.mm-btns .icon-btn{color:#fff}
+.mm-btns .icon-btn{color:#fff}.mm-btns .btn:not(.primary),.mm-btns .icon-btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff}
 .mm-palco{position:relative;flex:1;overflow:hidden}
 .mm-zoom{position:absolute;right:12px;bottom:38px;z-index:2;display:flex;flex-direction:column;gap:6px}
 .mm-zoom button{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(10,8,32,.75);color:#fff;font:800 20px/1 system-ui;cursor:pointer;display:grid;place-items:center}
 .mm-zoom .icx{width:19px;height:19px}
-.mm-palco canvas,.mm-palco svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.mm-palco>canvas,.mm-palco>svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
 .mm-dica{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:12.5px;color:rgba(255,255,255,.6);pointer-events:none}
 .ice{display:inline-flex;width:1.12em;height:1.12em;vertical-align:-.18em;flex:none;line-height:0}
 .ice .icx{width:100%;height:100%}
@@ -346,6 +346,12 @@ label.comp-linha{display:flex!important;flex-direction:row!important;justify-con
 .cor-linha{display:flex;align-items:center;gap:10px}.cor-linha .cor-l{width:16px}.cor-linha input[type=color]{width:52px;height:40px;padding:2px;border-radius:10px;cursor:pointer;flex:none}
 .cor-linha input[type=range]{flex:1;min-width:0;width:auto;height:12px;padding:0;border:none;border-radius:99px;appearance:none;-webkit-appearance:none}.cor-linha input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid #4b5875;box-shadow:0 1px 4px rgba(0,0,0,.4)}.cor-linha input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #4b5875}
 .cor-linha input[type=number]{width:62px;flex:none;padding:6px 8px}
+#mmBarra{position:absolute;left:12px;right:64px;bottom:12px;z-index:3;display:flex;flex-wrap:wrap;gap:7px;align-items:center;background:rgba(16,12,44,.94);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:9px 11px;color:#fff;max-width:900px;max-height:45%;overflow-y:auto}
+#mmBarra input:not([type=checkbox]):not([type=color]),#mmBarra select{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:10px;padding:8px 10px;font:inherit;font-size:16px;width:auto;flex:1 1 160px;min-width:120px}#mmBarra select option{color:#111}
+#mmBarra input[type=color]{width:40px;height:38px;padding:2px;border-radius:10px;flex:none;cursor:pointer}#mmBarra input[type=checkbox]{width:auto}
+#mmBarra .btn{color:#fff;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}#mmBarra .btn.primary{background:#2f6bff}#mmBarra .btn.danger{color:#ff9aa8}
+.mml-tit{font-size:14px;flex-basis:100%}.mml-dica{font-size:12.5px;color:rgba(255,255,255,.65)}.mml-chk{display:flex!important;flex-direction:row!important;gap:6px;align-items:center;font-size:12.5px;color:rgba(255,255,255,.8)}
+#mmSvg [data-n]{cursor:grab}#mmSvg [data-l]{cursor:pointer}#mmSvg text{user-select:none;-webkit-user-select:none;pointer-events:none}#mmSvg{-webkit-touch-callout:none}
 .grupos-card{margin-bottom:16px}
 .grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
 .grupo-linha:hover{border-color:var(--accent)}
@@ -5383,9 +5389,14 @@ document.addEventListener("click", async e => {
     case "mmZoom": $("#mmSvg")?._zoom?.(+id); break;
     case "mmAbrir": abrirMapa(id); break;
     case "mmApagar": if (confirm("Excluir este mapa mental?")) { c.mapas = c.mapas.filter(x => x.id !== id); await salvar(c); render(); } break;
-    case "mmTrocar": if (S.mapaAberto) { S.mapaAberto.estilo = id; desenharTelaMapa(); } break;
+    case "mmTrocar": if (S.mapaAberto) { const { c: cm, m } = mapaAtual(); if (id === "livre" && m) { const e = S.mapaAberto.estilo === "ia" ? m.estiloIA : null; if (!m.livre) { garantirLivre(m, (e ? e.layout : S.mapaAberto.estilo) === "arvore" ? "arvore" : "radial", e); await salvar(cm); } S.mmEditando = true; } else if (S.mapaAberto.estilo === "livre") S.mmEditando = false; S.mmL = null; S.mapaAberto.estilo = id; desenharTelaMapa(); } break;
+    case "mmlNovo": case "mmlSub": case "mmlConectar": case "mmlLigarSobre": case "mmlCancelar": case "mmlApagar": case "mmlApagarTudo": case "mmlApagarLig": case "mmlMaior": case "mmlMenor": case "mmlDesfazer": case "mmlReorg": case "mmlTitulo": case "mmlOriginal": livreAcao(el.dataset.act); break;
     case "mmFechar": fecharMapa(); break;
-    case "mmEditar": S.mmEditando = !S.mmEditando; S.mmSel = null; if (!S.mmEditando) { const { c: cm, m } = mapaAtual(); if (m) { m.dados.ramos = m.dados.ramos.filter(r => r.t.trim() || r.itens.length); m.dados.ramos.forEach(r => r.itens = podarMapa(r.itens)); await salvar(cm); } } desenharTelaMapa(); break;
+    case "mmEditar": { const { c: cm, m } = mapaAtual(), st = S.mapaAberto, e = st?.estilo === "ia" ? m?.estiloIA : null, lay = e ? e.layout : st?.estilo;
+      if (m && (st.estilo === "livre" || m.livre || ["classico", "arvore", "radial"].includes(lay))) { // 2D e mapas já personalizados: edita direto no mapa
+        if (st.estilo === "livre") S.mmEditando = !S.mmEditando; else { if (!m.livre) { garantirLivre(m, lay === "arvore" ? "arvore" : "radial", e); await salvar(cm); } if (S.mmVista2D) S.mmVista2D = { ...S.mmVista2D, chave: "livre|" + S.mmVista2D.chave.split("|")[1] }; st.estilo = "livre"; S.mmEditando = true; }
+        S.mmL = { sel: null, lig: null, modo: "", hist: S.mmL?.hist || [] }; desenharTelaMapa(); break; } }
+      S.mmEditando = !S.mmEditando; S.mmSel = null; if (!S.mmEditando) { const { c: cm, m } = mapaAtual(); if (m) { m.dados.ramos = m.dados.ramos.filter(r => r.t.trim() || r.itens.length); m.dados.ramos.forEach(r => r.itens = podarMapa(r.itens)); await salvar(cm); } } desenharTelaMapa(); break;
     case "mmAddRamo": { const { m } = mapaAtual(); if (!m || m.dados.ramos.length >= 12) break; m.dados.ramos.push({ t: "Novo ramo", itens: [] }); mmMudou(true); mmSelecionar({ r: m.dados.ramos.length - 1 }); break; }
     case "mmTirarRamo": { const { m } = mapaAtual(); if (!m) break; if (m.dados.ramos.length <= 1) { toast("O mapa precisa de pelo menos 1 ramo."); break; } if (!confirm("Apagar este ramo e os detalhes dele?")) break; m.dados.ramos.splice(+id, 1); S.mmSel = null; mmMudou(true); break; }
     case "mmAddItem": { const { m } = mapaAtual(); const r = m?.dados.ramos[+id]; if (!r || r.itens.length >= 10) break; r.itens.push("Novo detalhe"); mmMudou(true); mmSelecionar({ r: +id, k: r.itens.length - 1 }); break; }
@@ -7619,20 +7630,196 @@ async function gerarMapa() {
 // ---------- visualizador em tela cheia ----------
 function abrirMapa(id) {
   const c = atual(), m = c?.mapas?.find(x => x.id === id); if (!m) return;
-  S.mapaAberto = { cid: c.id, id, estilo: m.estilo };
+  S.mapaAberto = { cid: c.id, id, estilo: m.livre?.nos?.length ? "livre" : m.estilo }; S.mmL = null;
   let el = $("#mapaTela"); if (!el) el = document.body.appendChild(Object.assign(document.createElement("div"), { id: "mapaTela" }));
   desenharTelaMapa();
 }
 function desenharTelaMapa() {
   const st = S.mapaAberto, c = S.cadernos.find(x => x.id === st?.cid), m = c?.mapas?.find(x => x.id === st.id), el = $("#mapaTela"); if (!m || !el) return;
-  const estilos = ESTILOS_MAPA.filter(([k]) => k !== "ia" || m.estiloIA);
+  const estilos = [...ESTILOS_MAPA.filter(([k]) => k !== "ia" || m.estiloIA), ["livre", TT("Meu mapa", "Mi mapa")]], livre = st.estilo === "livre";
   el.innerHTML = `<div class="mm-topo"><b>${esc(m.titulo)}</b><div class="mm-chips">${estilos.map(([k, n]) => `<button class="${st.estilo === k ? "on" : ""}" data-act="mmTrocar" data-id="${k}">${n}</button>`).join("")}</div>
     <div class="mm-btns"><button class="btn small ${S.mmEditando ? "primary" : ""}" data-act="mmEditar">${iconeSVG("lapis")} ${S.mmEditando ? "Pronto" : "Editar"}</button><button class="btn small" data-act="mmBaixar">${iconeSVG("baixar")} Baixar imagem</button><button class="icon-btn" data-act="mmFechar" title="Fechar">${iconeSVG("x")}</button></div></div>
-    <div class="mm-corpo ${S.mmEditando ? "editando" : ""}"><div class="mm-palco" id="mmPalco"><div class="mm-zoom" id="mmZoom"><button data-act="mmZoom" data-id="1.25" title="Aproximar">+</button><button data-act="mmZoom" data-id="0.8" title="Afastar">−</button><button data-act="mmZoom" data-id="0" title="Ver o mapa inteiro">${iconeSVG("lupa")}</button></div><canvas id="mmCanvas"></canvas><svg id="mmSvg" style="display:none"></svg><div class="mm-dica">${["classico", "arvore"].includes(st.estilo) || (st.estilo === "ia" && ["radial", "arvore"].includes(m.estiloIA?.layout)) ? "" : innerWidth < 560 ? "toque num tópico para ver os detalhes · arraste para girar" : "arraste para girar · role ou pinça para aproximar · toque num tópico para destacar"}</div></div>${S.mmEditando ? `<aside id="mmEditor">${mmEditorHTML(m)}</aside>` : ""}</div>`;
+    <div class="mm-corpo ${S.mmEditando && !livre ? "editando" : ""}"><div class="mm-palco" id="mmPalco"><div class="mm-zoom" id="mmZoom"><button data-act="mmZoom" data-id="1.25" title="Aproximar">+</button><button data-act="mmZoom" data-id="0.8" title="Afastar">−</button><button data-act="mmZoom" data-id="0" title="Ver o mapa inteiro">${iconeSVG("lupa")}</button></div><canvas id="mmCanvas"></canvas><svg id="mmSvg" style="display:none"></svg><div class="mm-dica">${["livre", "classico", "arvore"].includes(st.estilo) || (st.estilo === "ia" && ["radial", "arvore"].includes(m.estiloIA?.layout)) ? "" : innerWidth < 560 ? "toque num tópico para ver os detalhes · arraste para girar" : "arraste para girar · role ou pinça para aproximar · toque num tópico para destacar"}</div></div>${S.mmEditando && !livre ? `<aside id="mmEditor">${mmEditorHTML(m)}</aside>` : ""}</div>`;
   iniciarRenderMapa(m, st.estilo);
 }
 function fecharMapa() { cancelAnimationFrame(S.mmAnim); S.mmAnim = null; S.mapaAberto = null; S.mmEditando = false; S.mmSel = null; S.mmVista = null; S.mmVista2D = null; $("#mapaTela")?.remove(); }
 /* ---------- edição do mapa (textos, ramos, detalhes e cores) ---------- */
+/* ---------- "Meu mapa": mapa livre (arrastar, conectar, criar, renomear, colorir) ----------
+   m.livre = { base, cores, centro, nos: [{ id, t, s?, n, cor, x, y }], lig: [{ a, b, t?, cor? }] }. Nasce do Clássico/Árvore com as mesmas posições.
+   A cada mudança m.dados (a árvore usada pelos outros estilos) é refeita a partir dele; o original da IA fica em m.dadosOriginal. */
+const LIVRE_MAX = 250;
+function livreDe(m, layout = "radial", e = null) {
+  const o = { layout, cores: e?.cores?.length ? e.cores : PALETA_MAPA, fonte: FONTES_MAPA[e?.fonte] || FONTES_MAPA.sans }, L = layoutMapa(m.dados, o), nos = [], lig = [], ids = new Map();
+  const c0 = { id: uid(), t: m.dados.centro || m.titulo, s: m.dados.sub || "", n: 0, cor: hex6(m.dados.corCentro || e?.centro || "#7b6bff"), x: 0, y: 0 }; nos.push(c0);
+  for (const n of L.todos) { const k = { id: uid(), t: n.t, n: n.nivel, cor: hex6(n.cor), x: Math.round(n.x), y: Math.round(n.y) }; ids.set(n, k.id); nos.push(k); lig.push({ a: n.pai ? ids.get(n.pai) : c0.id, b: k.id }); }
+  return { base: e ? "ia" : "", centro: c0.id, nos, lig };
+}
+function garantirLivre(m, layout, e) { if (m.livre?.nos?.length) return m.livre; m.dadosOriginal ||= structuredClone(m.dados); return m.livre = livreDe(m, layout, e); }
+// árvore do mapa livre: pai de cada tópico (a partir do centro; grupos soltos têm a própria raiz)
+function arvoreLivre(L) {
+  const viz = new Map(L.nos.map(n => [n.id, []])); for (const l of L.lig) { viz.get(l.a)?.push(l.b); viz.get(l.b)?.push(l.a); }
+  const pai = new Map(), raizes = [], ordem = [], andar = r => { if (pai.has(r)) return; pai.set(r, null); raizes.push(r); const fila = [r]; while (fila.length) { const x = fila.shift(); ordem.push(x); for (const y of viz.get(x) || []) if (!pai.has(y)) { pai.set(y, x); fila.push(y); } } };
+  andar(L.centro); for (const n of [...L.nos].sort((a, b) => a.n - b.n)) andar(n.id);
+  return { pai, raizes, ordem };
+}
+const filhosLivre = (L, A, id) => { const out = []; const f = x => { for (const [k, p] of A.pai) if (p === x) { out.push(k); f(k); } }; f(id); return out; };
+function dadosDoLivre(m) {
+  const L = m.livre, A = arvoreLivre(L), por = new Map(L.nos.map(n => [n.id, n])), fs = id => [...A.pai].filter(([, p]) => p === id).map(([k]) => k);
+  const item = id => { const n = por.get(id), sub = fs(id).map(item).filter(Boolean), t = String(n.t || "").trim(); return !t ? null : sub.length ? { t, sub } : t; };
+  const c = por.get(L.centro), ramos = [...fs(L.centro), ...A.raizes.filter(r => r !== L.centro)].map(id => ({ t: por.get(id).t, cor: por.get(id).cor, itens: fs(id).map(item).filter(Boolean) })).filter(r => String(r.t || "").trim());
+  m.dados = { ...m.dados, centro: c.t, sub: c.s || "", corCentro: c.cor, ramos: ramos.length ? ramos : [{ t: TT("Novo tópico", "Nuevo tema"), itens: [] }] };
+}
+const livreEstado = () => S.mmL ||= { sel: null, lig: null, modo: "", hist: [] };
+function livreAntes() { const { m } = mapaAtual(); if (!m?.livre) return; const h = livreEstado().hist; h.push(JSON.stringify(m.livre)); if (h.length > 40) h.shift(); }
+function livreMudou(desenhar = true) {
+  const { c, m } = mapaAtual(); if (!m?.livre) return; dadosDoLivre(m); m.mexido = Date.now();
+  clearTimeout(S.mmT2); S.mmT2 = setTimeout(() => salvar(c), 700); if (desenhar) desenharLivre();
+}
+function medirNo(n, fonte) {
+  const px = n.n === 0 ? 17 : n.n === 1 ? 14 : n.n === 2 ? 12.5 : 11.5, peso = n.n === 0 ? 900 : n.n === 1 ? 800 : 600, q = quebrarMedido(n.t, `${peso} ${px}px ${fonte}`, n.n < 2 ? 180 : 210), lh = px * 1.28, qs = n.n === 0 && n.s ? quebrarMedido(n.s, `700 12px ${fonte}`, 190) : null;
+  return { px, peso, lh, linhas: q.linhas, sub: qs?.linhas || [], w: Math.max(q.w, qs?.w || 0) + (n.n === 0 ? 46 : n.n === 1 ? 32 : 18), h: q.linhas.length * lh + (qs ? qs.linhas.length * 16 + 4 : 0) + (n.n === 0 ? 30 : n.n === 1 ? 14 : 9) };
+}
+// linha entre as bordas das duas caixas
+function caminhoLivre(a, b, reta) {
+  const dx = b.x - a.x, dy = b.y - a.y, borda = (n, sx, sy) => { const w = n.m.w / 2, h = n.m.h / 2, k = Math.min(Math.abs(sx) > .01 ? w / Math.abs(sx) : 1e9, Math.abs(sy) > .01 ? h / Math.abs(sy) : 1e9); return [n.x + sx * Math.min(k, 1), n.y + sy * Math.min(k, 1)]; };
+  const hor = Math.abs(dx) > (a.m.w + b.m.w) / 2; let p, q, c1, c2;
+  if (reta) { p = borda(a, dx, dy); q = borda(b, -dx, -dy); return { d: `M${p[0].toFixed(1)} ${p[1].toFixed(1)} L ${q[0].toFixed(1)} ${q[1].toFixed(1)}`, x: (p[0] + q[0]) / 2, y: (p[1] + q[1]) / 2 }; }
+  if (hor) { const s = Math.sign(dx); p = [a.x + s * a.m.w / 2, a.y]; q = [b.x - s * b.m.w / 2, b.y]; const mx = (p[0] + q[0]) / 2; c1 = [mx, p[1]]; c2 = [mx, q[1]]; }
+  else { const s = Math.sign(dy) || 1; p = [a.x, a.y + s * a.m.h / 2]; q = [b.x, b.y - s * b.m.h / 2]; const my = (p[1] + q[1]) / 2; c1 = [p[0], my]; c2 = [q[0], my]; }
+  const f = v => v.map(x => x.toFixed(1)).join(" "); return { d: `M${f(p)} C ${f(c1)}, ${f(c2)}, ${f(q)}`, x: (p[0] + q[0]) / 2, y: (p[1] + q[1]) / 2 };
+}
+const contraste = hex => corClara(hex) ? "#1b1d3a" : "#ffffff";
+function desenharLivre() {
+  const { m } = mapaAtual(), svgEl = $("#mmSvg"); if (!m?.livre || !svgEl || S.mapaAberto.estilo !== "livre") return;
+  const L = m.livre, st = livreEstado(), e = L.base === "ia" ? m.estiloIA : null, fonte = FONTES_MAPA[e?.fonte] || FONTES_MAPA.sans, txt = e?.texto || "#ffffff", fam = `font-family='${fonte}'`, f1 = v => v.toFixed(1), reta = e?.linha === "reta", traco = e?.linha === "tracejada" ? 'stroke-dasharray="6 5"' : "";
+  const por = new Map(); for (const n of L.nos) por.set(n.id, { ...n, m: medirNo(n, fonte) });
+  const ls = (x, l, y, lh, px, peso, cor) => l.map((t, i) => `<text x="${f1(x)}" y="${f1(y + (i - (l.length - 1) / 2) * lh + px * .35)}" text-anchor="middle" font-size="${px}" font-weight="${peso}" fill="${cor}" ${fam}>${esc(t)}</text>`).join("");
+  let s = "", t = "";
+  L.lig.forEach((l, i) => { const a = por.get(l.a), b = por.get(l.b); if (!a || !b) return; const k = caminhoLivre(a, b, reta), cor = hex6(l.cor || (a.n > b.n ? a.cor : b.cor)), lw = Math.max(a.n, b.n) <= 1 ? 4 : Math.max(a.n, b.n) === 2 ? 2.2 : 1.6, sel = st.lig === i;
+    s += `<g data-l="${i}"><path class="mml-toque" d="${k.d}" stroke="transparent" stroke-width="18" fill="none"/><path class="mml-l" d="${k.d}" stroke="${sel ? "#fff" : cor}" stroke-width="${sel ? lw + 2 : lw}" fill="none" stroke-linecap="round" ${traco}/>${l.t ? `<text class="mml-t" x="${f1(k.x)}" y="${f1(k.y - 4)}" text-anchor="middle" font-size="11" font-weight="700" fill="${txt}" stroke="rgba(0,0,0,.55)" stroke-width="3" paint-order="stroke" ${fam}>${esc(l.t)}</text>` : ""}</g>`; });
+  for (const n of [...por.values()].sort((a, b) => b.n - a.n)) { const q = n.m, cor = hex6(n.cor), sel = st.sel === n.id, de = st.modo === "conectar" && st.de === n.id, cheio = n.n < 2, rx = n.n === 0 ? Math.min(q.h / 2, 40) : cheio ? 16 : 9, ya = -(q.sub.length ? q.sub.length * 16 + 4 : 0) / 2;
+    t += `<g data-n="${n.id}" transform="translate(${f1(n.x)} ${f1(n.y)})"><rect x="${f1(-q.w / 2)}" y="${f1(-q.h / 2)}" width="${f1(q.w)}" height="${f1(q.h)}" rx="${rx}" fill="${cor}" fill-opacity="${cheio ? 1 : .18}" stroke="${sel || de ? (e ? "#2f7bff" : "#ffffff") : cor}" stroke-width="${sel || de ? 3 : cheio ? 0 : 1}" ${de ? 'stroke-dasharray="6 4"' : ""}/>${ls(0, q.linhas, ya, q.lh, q.px, q.peso, cheio ? contraste(cor) : txt)}${q.sub.length ? ls(0, q.sub, ya + q.linhas.length * q.lh / 2 + 4 + q.sub.length * 8, 16, 12, 700, contraste(cor) === "#ffffff" ? "#ffd76a" : "#1b1d3a") : ""}</g>`; }
+  svgEl.innerHTML = `<g id="mmlL">${s}</g><g id="mmlN">${t}</g>`; svgEl._por = por;
+  const v = [...por.values()], M = 60, x0 = Math.min(...v.map(n => n.x - n.m.w / 2)) - M, y0 = Math.min(...v.map(n => n.y - n.m.h / 2)) - M, M0 = { x: x0, y: y0, w: Math.max(...v.map(n => n.x + n.m.w / 2)) + M - x0, h: Math.max(...v.map(n => n.y + n.m.h / 2)) + M - y0 };
+  svgEl._mapa = M0; navegar2D(svgEl, "livre"); ligarLivre(svgEl); const ed = livreEstado(); if (!(ed.campo && ed.campoDe === ed.sel + "|" + ed.lig && $("#" + ed.campo))) livreBarra();
+}
+// ponto da tela → ponto do mapa
+function pontoLivre(svgEl, ev) { const r = svgEl.getBoundingClientRect(), v = S.mmVista2D; return { x: v.x + (ev.clientX - r.left) / v.e, y: v.y + (ev.clientY - r.top) / v.e }; }
+function moverLivre(svgEl, L, ids, dx, dy, ini, reta) {
+  for (const id of ids) { const n = L.nos.find(x => x.id === id), p = svgEl._por.get(id), i = ini.get(id); n.x = p.x = Math.round(i.x + dx); n.y = p.y = Math.round(i.y + dy); svgEl.querySelector(`[data-n="${id}"]`)?.setAttribute("transform", `translate(${n.x} ${n.y})`); }
+  L.lig.forEach((l, i) => { if (!ids.has(l.a) && !ids.has(l.b)) return; const a = svgEl._por.get(l.a), b = svgEl._por.get(l.b), g = svgEl.querySelector(`[data-l="${i}"]`); if (!a || !b || !g) return; const k = caminhoLivre(a, b, reta); g.querySelectorAll("path").forEach(x => x.setAttribute("d", k.d)); const t = g.querySelector("text"); if (t) { t.setAttribute("x", k.x.toFixed(1)); t.setAttribute("y", (k.y - 4).toFixed(1)); } });
+}
+function ligarLivre(svgEl) {
+  const base = { d: svgEl.onpointerdown, m: svgEl.onpointermove, u: svgEl.onpointerup }; let g = null, dedos = 0;
+  const comecar = () => { const { m } = mapaAtual(); livreAntes(); const A = arvoreLivre(m.livre), ids = new Set([g.id, ...(S.mmJunto === false ? [] : filhosLivre(m.livre, A, g.id))]); Object.assign(g, { pronto: true, ids, ini: new Map([...ids].map(i => { const n = m.livre.nos.find(x => x.id === i); return [i, { x: n.x, y: n.y }]; })), reta: m.livre.base === "ia" && m.estiloIA?.linha === "reta" }); };
+  svgEl._pegar = (id, ev) => { g = { id, pid: ev.pointerId, x: ev.clientX, y: ev.clientY, u: ev, moveu: false }; dedos = 1; comecar(); }; // vem do Clássico/Árvore (segurou o tópico)
+  const limpar = () => { clearTimeout(g?.t); g = null; };
+  svgEl.onpointerdown = ev => {
+    dedos++; const el = ev.target.closest?.("[data-n]"), lin = ev.target.closest?.("[data-l]");
+    if (dedos > 1 && g) { if (g.pronto && g.moveu) { livreMudou(); } limpar(); }
+    if (dedos === 1) { g = { id: el?.dataset.n || null, l: lin ? +lin.dataset.l : null, pid: ev.pointerId, x: ev.clientX, y: ev.clientY, u: ev, moveu: false };
+      if (g.id && livreEstado().modo !== "conectar") { if (S.mmEditando) comecar(); else { const meu = g; g.t = setTimeout(() => { if (g === meu && !g.moveu) { navigator.vibrate?.(15); S.mmEditando = true; livreEstado().sel = g.id; comecar(); svgEl.querySelector(`[data-n="${g.id}"] rect`)?.setAttribute("stroke-width", "3"); livreBarra(); } }, 350); } } }
+    base.d(ev);
+  };
+  svgEl.onpointermove = ev => {
+    if (!g || ev.pointerId !== g.pid) return base.m(ev);
+    if (!g.moveu && Math.hypot(ev.clientX - g.x, ev.clientY - g.y) > 6) { g.moveu = true; if (!g.pronto) clearTimeout(g.t); }
+    if (!g.pronto) return base.m(ev);
+    if (!g.moveu) return; g.u = ev;
+    const { m } = mapaAtual(), v = S.mmVista2D, r = svgEl.getBoundingClientRect(), B = 40; // perto da borda, a tela anda junto
+    const ax = ev.clientX < r.left + B ? -1 : ev.clientX > r.right - B ? 1 : 0, ay = ev.clientY < r.top + B ? -1 : ev.clientY > r.bottom - B ? 1 : 0;
+    if (ax || ay) { v.x += ax * 10 / v.e; v.y += ay * 10 / v.e; g.x -= ax * 10; g.y -= ay * 10; svgEl.setAttribute("viewBox", `${v.x} ${v.y} ${r.width / v.e} ${r.height / v.e}`); }
+    moverLivre(svgEl, m.livre, g.ids, (ev.clientX - g.x) / v.e, (ev.clientY - g.y) / v.e, g.ini, g.reta);
+  };
+  svgEl.onpointerup = svgEl.onpointercancel = ev => {
+    dedos = Math.max(0, dedos - 1); base.u(ev); if (!g || ev.pointerId !== g.pid) return; const a = g, st = livreEstado(); limpar();
+    if (a.pronto && a.moveu) { // soltou: pergunta se quer conectar
+      const { m } = mapaAtual(), n = svgEl._por.get(a.id), sobre = [...svgEl._por.values()].find(k => !a.ids.has(k.id) && Math.abs(k.x - n.x) < (k.m.w + n.m.w) / 2 - 4 && Math.abs(k.y - n.y) < (k.m.h + n.m.h) / 2 - 4);
+      Object.assign(st, { sel: a.id, lig: null, modo: "soltou", de: a.id, sobre: sobre?.id || null }); S.mmEditando = true; livreMudou(); if (!document.querySelector('#mapaTela [data-act="mmEditar"].primary')) desenharTelaMapa(); return; }
+    if (a.pronto) { st.hist.pop(); if (!document.querySelector('#mapaTela [data-act="mmEditar"].primary')) { Object.assign(st, { sel: a.id, lig: null, modo: "" }); desenharTelaMapa(); return; } } // só tocou: nada mudou
+    if (a.moveu || ev.type === "pointercancel") { if (a.pronto) livreBarra(); return; }
+    if (st.modo === "conectar") { if (a.id && a.id !== st.de) conectarLivre(st.de, a.id); return; }
+    if (!S.mmEditando) return;
+    if (a.id) Object.assign(st, { sel: a.id, lig: null, modo: "" }); else if (a.l !== null) Object.assign(st, { sel: null, lig: a.l, modo: "" });
+    else { if (Date.now() - (svgEl._ult || 0) < 350) { svgEl._ult = 0; return novoTopicoLivre(pontoLivre(svgEl, ev)); } svgEl._ult = Date.now(); Object.assign(st, { sel: null, lig: null, modo: "" }); }
+    desenharLivre();
+  };
+}
+// segurar um tópico no Clássico/Árvore: vira "Meu mapa" com as mesmas posições e já sai arrastando
+function segurar2D(svgEl, m, layout, e, L0) {
+  const b = { d: svgEl.onpointerdown, m: svgEl.onpointermove, u: svgEl.onpointerup }; let t = 0, p0 = null, n = 0; const larga = () => { clearTimeout(t); t = 0; };
+  svgEl.onpointerdown = ev => { n++; b.d(ev); larga(); const el = ev.target.closest?.("[data-i]"); if (n > 1 || !el) return; p0 = ev;
+    t = setTimeout(() => { if (m.livre?.nos?.length) { if (!confirm(TT("Você já tem um mapa seu. Abrir o seu?", "Ya tienes un mapa tuyo. ¿Abrirlo?"))) return; S.mapaAberto.estilo = "livre"; return desenharTelaMapa(); }
+      navigator.vibrate?.(15); const v = S.mmVista2D, L = garantirLivre(m, layout, e), id = L.nos[+el.dataset.i].id; S.mmVista2D = { ...v, chave: "livre|" + v.chave.split("|")[1] }; S.mapaAberto.estilo = "livre"; S.mmEditando = true; S.mmL = null; livreEstado().sel = id; desenharLivre(); svgEl._pegar(id, p0); }, 380); };
+  svgEl.onpointermove = ev => { if (p0 && Math.hypot(ev.clientX - p0.clientX, ev.clientY - p0.clientY) > 6) larga(); b.m(ev); };
+  svgEl.onpointerup = svgEl.onpointercancel = ev => { n = Math.max(0, n - 1); larga(); b.u(ev); };
+}
+const noLivre = id => mapaAtual().m?.livre?.nos.find(n => n.id === id);
+function conectarLivre(de, para) {
+  const { m } = mapaAtual(), L = m.livre, st = livreEstado(); livreAntes();
+  if (st.trocar) { const p = arvoreLivre(L).pai.get(de); if (p) L.lig = L.lig.filter(l => !((l.a === p && l.b === de) || (l.b === p && l.a === de))); }
+  if (L.lig.some(l => (l.a === de && l.b === para) || (l.a === para && l.b === de))) toast(TT("Eles já estão conectados.", "Ya están conectados.")); else L.lig.push({ a: para, b: de });
+  Object.assign(st, { sel: de, lig: null, modo: "", de: null, sobre: null }); livreMudou();
+}
+function novoTopicoLivre(p, paiId) {
+  const { m } = mapaAtual(), L = m.livre, st = livreEstado(); if (L.nos.length >= LIVRE_MAX) return toast(TT(`O mapa já tem ${LIVRE_MAX} tópicos.`, `El mapa ya tiene ${LIVRE_MAX} temas.`));
+  livreAntes(); const pai = paiId ? noLivre(paiId) : null; let x = p?.x, y = p?.y;
+  if (pai) { const c = L.nos.find(n => n.id === L.centro), s = pai.id === L.centro ? 1 : Math.sign(pai.x - c.x) || 1; x = pai.x + s * 190; y = pai.y; for (let k = 0; k < 30 && L.nos.some(n => Math.abs(n.x - x) < 130 && Math.abs(n.y - y) < 34); k++) y = pai.y + Math.ceil((k + 1) / 2) * 40 * (k % 2 ? -1 : 1); }
+  const n = { id: uid(), t: TT("Novo tópico", "Nuevo tema"), n: pai ? Math.min(3, pai.n + 1) : 1, cor: pai && pai.id !== L.centro ? pai.cor : PALETA_MAPA[L.nos.length % PALETA_MAPA.length], x: Math.round(x), y: Math.round(y) };
+  L.nos.push(n); if (pai) L.lig.push({ a: pai.id, b: n.id }); Object.assign(st, { sel: n.id, lig: null, modo: "" }); livreMudou();
+  const i = $("#mmlNome"); if (i) { i.focus(); i.select(); }
+}
+function livreBarra() {
+  const { m } = mapaAtual(), palco = $("#mmPalco"); if (!palco || !m?.livre) return; let el = $("#mmBarra"); if (!el) { el = document.createElement("div"); el.id = "mmBarra"; palco.append(el); }
+  const L = m.livre, st = livreEstado(), q = t => esc(String(t || "").slice(0, 40)), n = st.sel && L.nos.find(x => x.id === st.sel), l = st.lig !== null ? L.lig[st.lig] : null, bt = (a, t, x = "") => `<button class="btn small ${x}" data-act="${a}">${t}</button>`;
+  const desfazer = st.hist.length ? bt("mmlDesfazer", TT("Desfazer", "Deshacer")) : "";
+  if (!S.mmEditando) { el.innerHTML = `<span class="mml-dica">${TT("Segure um tópico para mover, ou toque em Editar.", "Mantén presionado un tema para moverlo, o toca Editar.")}</span>`; return; }
+  if (st.modo === "conectar" && noLivre(st.de)) {
+    const outros = L.nos.filter(x => x.id !== st.de).sort((a, b) => a.n - b.n || a.t.localeCompare(b.t)), tem = arvoreLivre(L).pai.get(st.de);
+    el.innerHTML = `<b class="mml-tit">${TT("Conectar", "Conectar")} “${q(noLivre(st.de).t)}” ${TT("com qual tópico? Toque nele no mapa ou escolha:", "¿con qué tema? Tócalo en el mapa o elígelo:")}</b><select id="mmlAlvo"><option value="">${TT("Escolher tópico…", "Elegir tema…")}</option>${outros.map(x => `<option value="${esc(x.id)}">${q(x.t)}</option>`).join("")}</select>${tem ? `<label class="mml-chk"><input type="checkbox" id="mmlTrocar" ${st.trocar ? "checked" : ""}> ${TT("tirar a ligação de agora", "quitar la conexión de ahora")} (${q(noLivre(tem)?.t)})</label>` : ""}${bt("mmlCancelar", TT("Cancelar", "Cancelar"))}`;
+  } else if (st.modo === "soltou" && n) {
+    const s = st.sobre && noLivre(st.sobre);
+    el.innerHTML = `<b class="mml-tit">${TT("Quer conectar", "¿Quieres conectar")} “${q(n.t)}” ${TT("a algum tópico?", "a algún tema?")}</b>${s ? bt("mmlLigarSobre", `${TT("Ligar a", "Unir a")} “${q(s.t)}”`, "primary") : ""}${bt("mmlConectar", TT("Escolher tópico", "Elegir tema"), s ? "" : "primary")}${bt("mmlCancelar", TT("Deixar assim", "Dejar así"))}${desfazer}`;
+  } else if (n) {
+    el.innerHTML = `<input id="mmlNome" maxlength="90" value="${esc(n.t)}" aria-label="${TT("Nome do tópico", "Nombre del tema")}"><input type="color" id="mmlCor" value="${hex6(n.cor)}" title="${TT("Cor", "Color")}">${bt("mmlConectar", TT("Conectar", "Conectar"))}${bt("mmlSub", "+ " + TT("Subtópico", "Subtema"))}${n.id === L.centro ? "" : `${bt("mmlMaior", "A+")}${bt("mmlMenor", "A−")}${bt("mmlApagar", TT("Apagar", "Borrar"), "danger")}${filhosLivre(L, arvoreLivre(L), n.id).length ? bt("mmlApagarTudo", TT("Apagar com subtópicos", "Borrar con subtemas"), "danger") : ""}`}${desfazer}`;
+  } else if (l) {
+    el.innerHTML = `<b class="mml-tit">${TT("Linha", "Línea")}: “${q(noLivre(l.a)?.t)}” ↔ “${q(noLivre(l.b)?.t)}”</b><input id="mmlLigT" maxlength="40" value="${esc(l.t || "")}" placeholder="${TT("Escrever na linha (opcional)", "Escribir en la línea (opcional)")}"><input type="color" id="mmlLigCor" value="${hex6(l.cor || "#8fa3ff")}" title="${TT("Cor da linha", "Color de la línea")}">${bt("mmlApagarLig", TT("Apagar linha", "Borrar línea"), "danger")}${desfazer}`;
+  } else el.innerHTML = `${bt("mmlNovo", "+ " + TT("Tópico", "Tema"), "primary")}${desfazer}${bt("mmlReorg", TT("Reorganizar", "Reorganizar"))}${bt("mmlTitulo", TT("Nome do mapa", "Nombre del mapa"))}${bt("mmlOriginal", TT("Voltar ao original", "Volver al original"))}<label class="mml-chk"><input type="checkbox" id="mmlJunto" ${S.mmJunto === false ? "" : "checked"}> ${TT("mover os subtópicos junto", "mover los subtemas juntos")}</label><span class="mml-dica">${TT("Arraste um tópico, toque nele ou numa linha para editar. Dois toques no vazio criam um tópico.", "Arrastra un tema, tócalo o toca una línea para editar. Dos toques en el vacío crean un tema.")}</span>`;
+}
+async function livreAcao(a) {
+  const { m, c } = mapaAtual(), L = m?.livre, st = livreEstado(); if (!L) return; const n = noLivre(st.sel);
+  const tirar = ids => { livreAntes(); L.nos = L.nos.filter(x => !ids.has(x.id)); L.lig = L.lig.filter(l => !ids.has(l.a) && !ids.has(l.b)); Object.assign(st, { sel: null, lig: null, modo: "" }); livreMudou(); };
+  if (a === "mmlNovo") { const r = $("#mmSvg").getBoundingClientRect(), v = S.mmVista2D; let p = { x: v.x + r.width / v.e / 2, y: v.y + r.height / v.e / 2 }; for (let k = 0; k < 20 && L.nos.some(x => Math.abs(x.x - p.x) < 130 && Math.abs(x.y - p.y) < 40); k++) p.y += 46; novoTopicoLivre(p); }
+  else if (a === "mmlSub" && n) novoTopicoLivre(null, n.id);
+  else if (a === "mmlConectar" && n) { Object.assign(st, { modo: "conectar", de: n.id, trocar: false }); desenharLivre(); }
+  else if (a === "mmlLigarSobre" && st.sobre) { st.trocar = false; conectarLivre(st.de, st.sobre); }
+  else if (a === "mmlCancelar") { Object.assign(st, { modo: "", de: null, sobre: null }); desenharLivre(); }
+  else if (a === "mmlApagar" && n && n.id !== L.centro) tirar(new Set([n.id]));
+  else if (a === "mmlApagarTudo" && n && n.id !== L.centro) tirar(new Set([n.id, ...filhosLivre(L, arvoreLivre(L), n.id)]));
+  else if (a === "mmlApagarLig" && L.lig[st.lig]) { livreAntes(); L.lig.splice(st.lig, 1); st.lig = null; livreMudou(); }
+  else if ((a === "mmlMaior" || a === "mmlMenor") && n && n.id !== L.centro) { livreAntes(); n.n = Math.max(1, Math.min(3, n.n + (a === "mmlMaior" ? -1 : 1))); livreMudou(); }
+  else if (a === "mmlDesfazer" && st.hist.length) { m.livre = JSON.parse(st.hist.pop()); Object.assign(st, { sel: null, lig: null, modo: "" }); livreMudou(); }
+  else if (a === "mmlReorg") { livreAntes(); const A = arvoreLivre(L), soltos = L.lig; dadosDoLivre(m); // mesma estrutura, posições novas; as linhas extras continuam
+    const fs = id => [...A.pai].filter(([, p]) => p === id).map(([k]) => k), o = { layout: "radial", cores: PALETA_MAPA, fonte: FONTES_MAPA.sans }, lay = layoutMapa(m.dados, o), fila = [...fs(L.centro), ...A.raizes.filter(r => r !== L.centro)], por = new Map();
+    const raiz = lay.todos.filter(x => !x.pai), casar = (id, x) => { if (!x) return; por.set(id, x); const k = fs(id).filter(i => String(noLivre(i).t || "").trim()); k.forEach((i, j) => casar(i, x.filhos[j])); };
+    const ordem = m.dados.ramos.map((r, i) => i); const achados = raiz.slice().sort((p, q2) => ordem.indexOf(m.dados.ramos.findIndex(r => r.t === p.t)) - ordem.indexOf(m.dados.ramos.findIndex(r => r.t === q2.t)));
+    fila.filter(i => String(noLivre(i).t || "").trim()).forEach(i => { const k = achados.findIndex(x => x.t === noLivre(i).t); if (k >= 0) casar(i, achados.splice(k, 1)[0]); });
+    const ce = noLivre(L.centro); ce.x = 0; ce.y = 0; for (const x of L.nos) { const p = por.get(x.id); if (p) { x.x = Math.round(p.x); x.y = Math.round(p.y); } } L.lig = soltos; S.mmVista2D = null; livreMudou(); }
+  else if (a === "mmlTitulo") pedirTexto(TT("Nome do mapa", "Nombre del mapa"), m.titulo, v => { if (!v) return; m.titulo = v.slice(0, 60); const b = $("#mapaTela .mm-topo > b"); if (b) b.textContent = m.titulo; livreMudou(false); });
+  else if (a === "mmlOriginal") { if (!confirm(TT("Voltar ao mapa que a IA fez? As suas mudanças neste mapa serão perdidas.", "¿Volver al mapa que hizo la IA? Se perderán tus cambios en este mapa."))) return; m.dados = m.dadosOriginal || m.dados; delete m.livre; delete m.dadosOriginal; S.mmL = null; S.mmEditando = false; S.mmVista2D = null; clearTimeout(S.mmT2); await salvar(c); S.mapaAberto.estilo = m.estilo; desenharTelaMapa(); }
+}
+document.addEventListener("input", e => {
+  const id = e.target.id; if (!/^mml(Nome|Cor|LigT|LigCor)$/.test(id)) return; const { m } = mapaAtual(), st = livreEstado(), n = noLivre(st.sel), l = m?.livre?.lig[st.lig]; if (!m?.livre) return;
+  if (st.campo !== id || st.campoDe !== st.sel + "|" + st.lig) { livreAntes(); st.campo = id; st.campoDe = st.sel + "|" + st.lig; } // um "desfazer" por campo editado
+  const v = semEmojiTexto(e.target.value).replace(/[*_#`]/g, "");
+  if (id === "mmlNome" && n) n.t = v; else if (id === "mmlCor" && n) { const antes = n.cor; n.cor = e.target.value; for (const k of filhosLivre(m.livre, arvoreLivre(m.livre), n.id)) { const f = noLivre(k); if (n.id !== m.livre.centro && f.cor === antes) f.cor = n.cor; } } else if (id === "mmlLigT" && l) l.t = v; else if (id === "mmlLigCor" && l) l.cor = e.target.value; else return;
+  desenharLivre(); livreMudou(false);
+});
+document.addEventListener("change", e => { const st = S.mmL; if (!st) return;
+  if (e.target.id === "mmlAlvo" && e.target.value) conectarLivre(st.de, e.target.value); else if (e.target.id === "mmlTrocar") st.trocar = e.target.checked; else if (e.target.id === "mmlJunto") S.mmJunto = e.target.checked;
+  else if (e.target.id === "mmlNome") { const n = noLivre(st.sel); st.campo = ""; if (n && !n.t.trim()) { n.t = TT("Sem nome", "Sin nombre"); livreMudou(); } } else if (/^mml(Cor|LigT|LigCor)$/.test(e.target.id)) st.campo = ""; });
+document.addEventListener("keydown", e => { if (S.mapaAberto?.estilo !== "livre" || !S.mmEditando || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || document.querySelector("dialog[open]")) return;
+  if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey)) { e.preventDefault(); livreAcao("mmlDesfazer"); } else if (e.key === "Delete") livreAcao(S.mmL?.lig !== null && S.mmL?.lig !== undefined ? "mmlApagarLig" : "mmlApagar"); });
 function mapaAtual() { const st = S.mapaAberto, c = S.cadernos.find(x => x.id === st?.cid); return { c, m: c?.mapas?.find(x => x.id === st?.id) }; }
 function corPadraoMapa(m, i) { const cs = m.estilo === "ia" && m.estiloIA?.cores?.length ? m.estiloIA.cores : PALETA_MAPA; return cs[i % cs.length]; }
 const hex6 = v => /^#[0-9a-f]{6}$/i.test(v || "") ? v : /^#[0-9a-f]{3}$/i.test(v || "") ? "#" + v.slice(1).split("").map(x => x + x).join("") : "#7b6bff";
@@ -7702,13 +7889,15 @@ document.addEventListener("focusout", e => {
 });
 function iniciarRenderMapa(m, estilo) {
   cancelAnimationFrame(S.mmAnim);
-  const e = estilo === "ia" && m.estiloIA ? m.estiloIA : null;
+  const livre = estilo === "livre" && m.livre, e = (livre ? m.livre.base === "ia" : estilo === "ia") && m.estiloIA ? m.estiloIA : null;
   const layout = e ? e.layout : estilo === "classico" ? "radial" : estilo;
   const cv = $("#mmCanvas"), svgEl = $("#mmSvg"), palco = $("#mmPalco");
   palco.style.background = e ? `radial-gradient(120% 120% at 50% 40%, ${e.fundo2}, ${e.fundo} 70%)` : "radial-gradient(120% 120% at 50% 40%,#21195a,#0b0820 70%)";
   const cores = e?.cores?.length ? e.cores : PALETA_MAPA, fonte = FONTES_MAPA[e?.fonte] || FONTES_MAPA.sans, corTexto = e?.texto || "#ffffff", corCentro = e?.centro || "#7b6bff";
-  if ($("#mmZoom")) $("#mmZoom").style.display = layout === "radial" || layout === "arvore" ? "" : "none";
-  if (layout === "radial" || layout === "arvore") { cv.style.display = "none"; svgEl.style.display = ""; mapa2D(svgEl, m.dados, { layout, cores, fonte, corTexto, corCentro, forma: e?.forma || "pilula", linha: e?.linha || "curva" }); return; }
+  if ($("#mmZoom")) $("#mmZoom").style.display = livre || layout === "radial" || layout === "arvore" ? "" : "none";
+  if (!livre) $("#mmBarra")?.remove();
+  if (livre) { cv.style.display = "none"; svgEl.style.display = ""; desenharLivre(); return; }
+  if (layout === "radial" || layout === "arvore") { cv.style.display = "none"; svgEl.style.display = ""; mapa2D(svgEl, m.dados, { layout, cores, fonte, corTexto, corCentro, forma: e?.forma || "pilula", linha: e?.linha || "curva" }); segurar2D(svgEl, m, layout, e); return; }
   cv.style.display = ""; svgEl.style.display = "none";
   mapa3D(cv, m.dados, { neural: layout === "neural", cores, fonte, corTexto, corCentro, estrelas: !e && layout === "galaxia" });
 }
@@ -7867,11 +8056,11 @@ function mapa2D(svgEl, dados, o) {
   const textos = (ls, x, y, lh, px, peso, cor) => ls.map((l, i) => `<text x="${f1(x)}" y="${f1(y + (i - (ls.length - 1) / 2) * lh + px * .35)}" text-anchor="middle" font-size="${px}" font-weight="${peso}" fill="${cor}" ${fam}>${esc2(l)}</text>`).join("");
   const linha = (x1, y1, x2, y2, cor, lw) => o.linha === "reta" ? `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${cor}" stroke-width="${lw}" stroke-linecap="round" ${traco}/>` : `<path d="M${f1(x1)} ${f1(y1)} C ${f1((x1 + x2) / 2)} ${f1(y1)}, ${f1((x1 + x2) / 2)} ${f1(y2)}, ${f1(x2)} ${f1(y2)}" stroke="${cor}" stroke-width="${lw}" fill="none" stroke-linecap="round" ${traco}/>`;
   let s = "", t = "";
-  for (const n of L.todos) {
-    const x2 = n.x - n.dir * n.w / 2, p = n.pai;
+  for (const [ni, n] of L.todos.entries()) {
+    const x2 = n.x - n.dir * n.w / 2, p = n.pai, pegar = `<rect data-i="${ni + 1}" x="${f1(n.x - n.w / 2)}" y="${f1(n.y - n.h / 2)}" width="${f1(n.w)}" height="${f1(n.h)}" fill="transparent"/>`;
     s += linha(p ? p.x + p.dir * p.w / 2 : n.dir * L.centro.w / 2, p ? p.y : 0, x2, n.y, n.cor, n.nivel === 1 ? 4.5 : n.nivel === 2 ? 2 : 1.4);
-    if (n.nivel === 1) t += `<g><rect x="${f1(n.x - n.w / 2)}" y="${f1(n.y - n.h / 2)}" width="${f1(n.w)}" height="${f1(n.h)}" rx="${raio}" fill="${n.cor}"/>${textos(n.linhas, n.x, n.y, n.lh, n.px, n.peso, "#1b1d3a")}</g>`;
-    else t += textos(n.linhas, n.x, n.y, n.lh, n.px, n.peso, o.corTexto) + (n.filhos.length ? `<line x1="${f1(n.x - n.w / 2 + 4)}" y1="${f1(n.y + n.h / 2)}" x2="${f1(n.x + n.w / 2 - 4)}" y2="${f1(n.y + n.h / 2)}" stroke="${n.cor}" stroke-width="1.2" opacity=".7"/>` : "");
+    if (n.nivel === 1) t += `<g><rect x="${f1(n.x - n.w / 2)}" y="${f1(n.y - n.h / 2)}" width="${f1(n.w)}" height="${f1(n.h)}" rx="${raio}" fill="${n.cor}"/>${textos(n.linhas, n.x, n.y, n.lh, n.px, n.peso, "#1b1d3a")}</g>` + pegar;
+    else t += textos(n.linhas, n.x, n.y, n.lh, n.px, n.peso, o.corTexto) + (n.filhos.length ? `<line x1="${f1(n.x - n.w / 2 + 4)}" y1="${f1(n.y + n.h / 2)}" x2="${f1(n.x + n.w / 2 - 4)}" y2="${f1(n.y + n.h / 2)}" stroke="${n.cor}" stroke-width="1.2" opacity=".7"/>` : "") + pegar;
   }
   const c = L.centro, yc = -(c.sub.length ? c.sub.length * 16 + 4 : 0) / 2;
   t += `<g><rect x="${f1(-c.w / 2)}" y="${f1(-c.h / 2)}" width="${f1(c.w)}" height="${f1(c.h)}" rx="${o.layout === "arvore" ? raio + 6 : c.h / 2}" fill="${dados.corCentro || o.corCentro}"/>${textos(c.linhas, 0, yc, 22, 17, 900, "#fff")}${c.sub.length ? textos(c.sub, 0, yc + c.linhas.length * 11 + 4 + c.sub.length * 8, 16, 12, 700, "#ffd76a") : ""}</g>`;
@@ -7896,16 +8085,17 @@ function navegar2D(svgEl, layout) {
   svgEl.onwheel = ev => { ev.preventDefault(); const r = svgEl.getBoundingClientRect(); zoom(ev.deltaY < 0 ? 1.12 : .89, ev.clientX - r.left, ev.clientY - r.top); };
 }
 async function baixarMapa() {
+  if (S.mapaAberto?.estilo === "livre") { Object.assign(livreEstado(), { sel: null, lig: null, modo: "" }); desenharLivre(); }
   const st = S.mapaAberto, c = S.cadernos.find(x => x.id === st?.cid), m = c?.mapas?.find(x => x.id === st.id); if (!m) return;
   const nome = (m.titulo || "mapa-mental").replace(/[^\p{L}\p{N} _-]/gu, "").trim() || "mapa-mental", cv = $("#mmCanvas"), svgEl = $("#mmSvg"), palco = $("#mmPalco");
   const salvarPNG = url => { const a = Object.assign(document.createElement("a"), { href: url, download: nome + ".png" }); document.body.appendChild(a); a.click(); a.remove(); };
   if (cv.style.display !== "none") {
     const out = document.createElement("canvas"); out.width = cv.width; out.height = cv.height; const g = out.getContext("2d");
-    const e = st.estilo === "ia" ? m.estiloIA : null; g.fillStyle = e?.fundo || "#100c2c"; g.fillRect(0, 0, out.width, out.height); g.drawImage(cv, 0, 0); salvarPNG(out.toDataURL("image/png")); return;
+    const e = st.estilo === "ia" || (st.estilo === "livre" && m.livre?.base === "ia") ? m.estiloIA : null; g.fillStyle = e?.fundo || "#100c2c"; g.fillRect(0, 0, out.width, out.height); g.drawImage(cv, 0, 0); salvarPNG(out.toDataURL("image/png")); return;
   }
   const M = svgEl._mapa, k = Math.min(2, 8000 / Math.max(M.w, M.h)), copia = svgEl.cloneNode(true), img = new Image();
-  copia.setAttribute("xmlns", "http://www.w3.org/2000/svg"); copia.setAttribute("viewBox", `${M.x} ${M.y} ${M.w} ${M.h}`); copia.setAttribute("width", M.w * k); copia.setAttribute("height", M.h * k); copia.removeAttribute("style");
-  img.onload = () => { const out = document.createElement("canvas"); out.width = M.w * k; out.height = M.h * k; const g = out.getContext("2d"), e = st.estilo === "ia" ? m.estiloIA : null; g.fillStyle = e?.fundo || "#140f38"; g.fillRect(0, 0, out.width, out.height); g.drawImage(img, 0, 0, out.width, out.height); salvarPNG(out.toDataURL("image/png")); };
+  copia.setAttribute("xmlns", "http://www.w3.org/2000/svg"); copia.setAttribute("viewBox", `${M.x} ${M.y} ${M.w} ${M.h}`); copia.setAttribute("width", M.w * k); copia.setAttribute("height", M.h * k); copia.removeAttribute("style"); copia.querySelectorAll(".mml-toque,[data-i]").forEach(x => x.remove());
+  img.onload = () => { const out = document.createElement("canvas"); out.width = M.w * k; out.height = M.h * k; const g = out.getContext("2d"), e = st.estilo === "ia" || (st.estilo === "livre" && m.livre?.base === "ia") ? m.estiloIA : null; g.fillStyle = e?.fundo || "#140f38"; g.fillRect(0, 0, out.width, out.height); g.drawImage(img, 0, 0, out.width, out.height); salvarPNG(out.toDataURL("image/png")); };
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(copia));
 }
 
