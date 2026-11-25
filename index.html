@@ -1798,7 +1798,21 @@ function mesmoFato(a, b) {
 function repetida(it, anteriores) { const f = fatoDe(it); return anteriores.some(a => mesmoFato(f, a)); }
 const ROTULO_RESPOSTA = /^\s*(correta|correto|certa|errada|errado|incorreta|correcta|correcto|incorrecta|incorrecto|correct|incorrect|verdadeir[oa]|fals[oa])\s*[:\-–.]\s*/i;
 // Descarta questões com alternativas vazias, repetidas ou sem gabarito (comum em IAs pequenas)
+// a IA às vezes manda lista ou objeto onde devia vir texto (travava a tela ao responder: só "Pular" funcionava)
+function textoIA(v) {
+  if (typeof v === "string") return v;
+  if (v == null) return "";
+  if (Array.isArray(v)) return v.map(textoIA).filter(Boolean).map(t => /^\s*[-•]/.test(t) || v.length < 2 ? t : "- " + t).join("\n");
+  if (typeof v === "object") return textoIA(v.texto ?? v.text ?? v.alternativa ?? v.explicacao ?? Object.values(v).filter(x => typeof x === "string").join(" "));
+  return String(v);
+}
+function arrumarTextos(x) {
+  for (const k of ["enunciado", "explicacao", "topico", "frente", "verso"]) if (k in x && typeof x[k] !== "string") x[k] = textoIA(x[k]);
+  for (const k of ["alternativas", "explicacoes"]) if (Array.isArray(x[k])) x[k] = x[k].map(textoIA); else if (k === "explicacoes" && x[k] != null) delete x[k];
+  if (typeof x.correta === "string" && /^\s*\d+\s*$/.test(x.correta)) x.correta = parseInt(x.correta, 10);
+}
 function altsValidas(x) {
+  arrumarTextos(x);
   if (!Array.isArray(x.alternativas) || x.tipo === "dissertativa" || x.tipo === "flashcard" || x.tipo === "licao" || x.frente) return true;
   if (x.tipo === "vf") return true;
   // tira "A)", "1." e rótulos que entregam a resposta ("Errada:", "Correcta:"…)
@@ -1963,11 +1977,11 @@ function explicacaoHTML(q, escolha) {
   const es = idiomaCaderno(atual()) === "es";
   const acertou = escolha === q.correta;
   const marcouErrada = escolha !== null && escolha >= 0 && !acertou;
-  const porQue = i => (q.explicacoes?.[i] || "").trim().replace(ROTULO_RESPOSTA, "");
-  const det = q.det || {}, agora = explicandoAgora(q);
+  const porQue = i => textoIA(q.explicacoes?.[i]).trim().replace(ROTULO_RESPOSTA, "");
+  const det0 = q.det || {}, det = { ...det0, certa: textoIA(det0.certa), erradas: Object.fromEntries(Object.entries(det0.erradas || {}).map(([k, v]) => [k, textoIA(v)])) }, agora = explicandoAgora(q);
   const carregando = `<p class="muted"><span class="spin"></span> ${es ? "el profesor está escribiendo la explicación…" : "o professor está escrevendo a explicação…"}</p>`;
   // a explicação curta só aparece se a detalhada não puder ser feita
-  const certa = det.certa || (agora ? "" : (q.explicacao || "").trim() || porQue(q.correta));
+  const certa = det.certa || (agora ? "" : textoIA(q.explicacao).trim() || porQue(q.correta));
   const errada = marcouErrada ? (det.erradas?.[escolha] || (agora ? "" : porQue(escolha))) : "";
   const n1 = q.correta + 1, n2 = escolha + 1;
   if (acertou && !q._verPorque && !det.certa && !agora) return `<div class="expl md"><p class="res-ok">${es ? "✔ ¡Correcto!" : "✔ Correto!"}</p><button class="btn small ghost mais-expl" data-act="verPorque">${es ? "Ver por qué" : "Ver por quê"}</button></div>`;
@@ -1986,7 +2000,7 @@ function explicacaoHTML(q, escolha) {
 }
 const NOME_CURTO = { "Estudo inteligente": "Inteligente", "Guia de estudo": "Guia", "Mapa mental": "Mapa", "Ateneo oral": "Ateneo" };
 // A pergunta já vem com a explicação curta; a longa (1 pedido à IA) só quando a pessoa pede em "Explicar melhor"
-const temExplicacao = q => !!String(q?.explicacao || "").trim() || (q?.explicacoes || []).some(x => String(x || "").trim());
+const temExplicacao = q => !!textoIA(q?.explicacao).trim() || (Array.isArray(q?.explicacoes) && q.explicacoes.some(x => textoIA(x).trim()));
 function questaoAberta(c) {
   const p = S.player; if (!p || !c) return null;
   if (p.tipo === "smart") return p.fila[p.i];
@@ -2630,7 +2644,9 @@ async function escolherFatos(c, n) {
   const I = c.inteligente;
   let F = await garantirFatos(c); if (!F) return null;
   const agora = Date.now(), reservado = f => f.reserva && agora - f.reserva < 10 * 60000;
-  const revisao = F.lista.map((f, i) => ({ f, i })).filter(x => x.f.erros > 0 && !reservado(x.f) && (I.respondidas || 0) - (x.f.errouEm || 0) >= REVISAR_DEPOIS);
+  // fato que já tem pergunta esperando (na fila ou guardada) não entra de novo: era isso que repetia a mesma pergunta reformulada
+  const esperando = new Set([...(S.player?.tipo === "smart" && S.atual === c.id ? S.player.fila.slice(Math.max(0, S.player.i - 10)) : []), ...(I.banco || [])].map(x => x.fatoTxt).filter(Boolean));
+  const revisao = F.lista.map((f, i) => ({ f, i })).filter(x => x.f.erros > 0 && !esperando.has(x.f.t) && !reservado(x.f) && (I.respondidas || 0) - (x.f.errouEm || 0) >= REVISAR_DEPOIS);
   let novos = F.lista.map((f, i) => ({ f, i })).filter(x => !x.f.usos && !reservado(x.f));
   if (novos.length < n && (F.rodadas || 0) < 4) { try { F = await garantirFatos(c, true); novos = F.lista.map((f, i) => ({ f, i })).filter(x => !x.f.usos && !reservado(x.f)); } catch (e) { console.warn("mapa extra:", e.message); } }
   const esc = [...revisao.slice(0, 1).map(x => ({ ...x, rev: true })), ...embaralhar(novos)].slice(0, n);
@@ -2671,15 +2687,20 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
   const instrFinal = !cpu ? (leve ? instr.replace(/^- "explicacoes".*$/m, "- As alternativas são só o texto da opção, sem rótulos como \"Correta\" ou \"Errada\".") : instr) : `Crie ${n} perguntas de múltipla escolha sobre o material, em ${idiomaCaderno(c) === "es" ? "espanhol" : "português"}. Cada uma com 4 alternativas e só uma correta ("correta" = índice 0 a 3). "explicacao": por que a correta está certa (1 frase). "topico": assunto curto (ex.: "Edema").${focoTopico ? ` Só sobre: ${focoTopico}.` : foco ? ` Priorize: ${foco.slice(0, 120)}.` : ""}${I.historico.length ? ` Não repita: ${I.historico.slice(-5).map(h => h.slice(0, 50)).join("; ")}.` : ""}${I.prefs ? ` Preferência: ${I.prefs.slice(0, 150)}.` : ""}`;
   // fatos já cobrados (respondidas, guardadas e na fila): a IA às vezes repete com outras palavras, então confere aqui também
   const anteriores = [...historicoAmplo(c).slice(-300), ...(I.banco || []), ...naFila].map(fatoDe);
+  const fatosDoLote = new Set(), naEspera = [...(I.banco || []), ...naFila].map(fatoDe);
   const preparar = bruto => {
     const vf = bruto.tipo === "vf" || (Array.isArray(bruto.alternativas) && bruto.alternativas.length === 2 && /^verdade/i.test(String(bruto.alternativas[0])));
     const it = { ...bruto, tipo: vf ? "vf" : "multipla" };
     if (vf) { it.alternativas = idiomaCaderno(c) === "es" ? ["Verdadero", "Falso"] : ["Verdadeiro", "Falso"]; it.correta = it.correta === 1 ? 1 : 0; delete it.explicacoes; it.enunciado = String(it.enunciado || "").replace(/^\s*¿?(verdadeiro ou falso|verdadero o falso)\s*[?:.\-–]*\s*/i, ""); }
     if (!it.enunciado || !altsValidas(it)) return null;
     // liga a pergunta ao fato do mapa (revisão de fato errado pode parecer com a anterior: é de propósito)
-    const ef = escolhidos?.[(Number.isInteger(bruto.fato) ? bruto.fato : 0) - 1];
+    // uma pergunta por fato em cada lote (a IA às vezes põe o mesmo número em todas) e só é revisão se falar mesmo daquele fato
+    let ef = escolhidos?.[(Number.isInteger(bruto.fato) ? bruto.fato : 0) - 1];
+    if (ef && fatosDoLote.has(ef)) ef = null;
+    if (ef?.rev) { const tf = termosDe(ef.f.t), f = fatoDe(it); if (tf.size && sobreposicao(tf, new Set([...f.q, ...f.r]), true) < 0.25) ef = null; }
     if (ef) { it.fatoTxt = ef.f.t; if (ef.rev) it.revisao = true; }
-    if (!it.revisao && repetida(it, anteriores)) return null;
+    if (repetida(it, it.revisao ? [...naEspera, ...prontos.map(fatoDe)] : anteriores)) return null;
+    if (ef) fatosDoLote.add(ef);
     if (ef) { ef.f.usos = (ef.f.usos || 0) + 1; delete ef.f.reserva; }
     anteriores.push(fatoDe(it));
     if (!topicoValido(it.topico)) it.topico = "Geral";
@@ -2750,7 +2771,7 @@ function altsHTML(it, p, act) {
   const lista = it.alternativas.map((a, i) => {
     let cls = "";
     if (p.confirmado) cls = i === it.correta ? "right" : i === p.escolha ? "wrong" : "";
-    return `<button class="alt ${cls}" data-act="${act}" data-id="${i}" ${p.confirmado ? "disabled" : ""}><span class="num">${i + 1}</span><span>${esc(a)}</span></button>`;
+    return `<button class="alt ${cls}" data-act="${act}" data-id="${i}" ${p.confirmado ? "disabled" : ""}><span class="num">${i + 1}</span><span>${esc(textoIA(a))}</span></button>`;
   }).join("");
   const longas = it.alternativas.some(a => String(a).length > 90);
   return `<div class="${longas ? "alts-list" : "alts-grid"}">${lista}</div>`;
@@ -2800,6 +2821,8 @@ function jaTem(c, it, p) {
 }
 function empurrar(c, p, it) {
   if (it.tipo !== "licao" && !it.revisao && jaTem(c, it, S.player === p ? p : null)) return; // repetida: descarta
+  // revisão pode parecer com uma pergunta antiga, mas nunca com as últimas 10 nem com as que ainda estão na fila
+  if (it.revisao && S.player === p && repetida(it, p.fila.slice(Math.max(0, p.i - 10)).filter(x => x !== it).map(fatoDe))) return;
   if (S.player === p && !p.fim) {
     const esperando = p.i >= p.fila.length;
     p.fila.push(it);
@@ -2910,6 +2933,7 @@ function registrarFato(I, it) {
 function smartProx(c) {
   const p = S.player, it = p.fila[p.i];
   if (it && !p.confirmado && it.tipo !== "licao") registrarFato(c.inteligente, it); // pulada também não volta
+  if (it?.revisao && !p.confirmado) { const f = c.inteligente.fatos?.lista?.find(x => x.t === it.fatoTxt); if (f) f.errouEm = c.inteligente.respondidas || 0; } // revisão pulada espera mais algumas respostas
   if (it?.tipo === "licao") { c.inteligente.historico.push("[lição] " + it.enunciado.slice(0, 80)); }
   p.i++; p.escolha = null; p.confirmado = false; p.virado = false;
   if (p.i >= p.fila.length) { render(); smartCarregar(c); return; }
@@ -6463,7 +6487,7 @@ function playerDuelo() {
   return topo + `<div class="prog" style="margin-bottom:16px"><div style="width:${p.i / d.questoes.length * 100}%"></div></div>
     ${p.i === 0 && !respondida && p.recemCriado ? `<div class="aviso-nuvem" style="margin-bottom:12px">⚔️ Duelo criado! Responda você primeiro; no fim aparece o botão para mandar o link para a pessoa.</div>` : ""}
     <div class="card" style="padding:22px"><div class="q-text md">${md(q.enunciado)}</div>
-    <div class="${q.alternativas.some(a => String(a).length > 90) ? "alts-list" : "alts-grid"}">${q.alternativas.map((a, i) => `<button class="alt ${respondida ? (i === q.correta ? "right" : i === p.escolha ? "wrong" : "") : ""}" data-act="dueloAlt" data-id="${i}" ${respondida ? "disabled" : ""}><span class="num">${i + 1}</span><span>${esc(a)}</span></button>`).join("")}</div>
+    <div class="${q.alternativas.some(a => String(a).length > 90) ? "alts-list" : "alts-grid"}">${q.alternativas.map((a, i) => `<button class="alt ${respondida ? (i === q.correta ? "right" : i === p.escolha ? "wrong" : "") : ""}" data-act="dueloAlt" data-id="${i}" ${respondida ? "disabled" : ""}><span class="num">${i + 1}</span><span>${esc(textoIA(a))}</span></button>`).join("")}</div>
     ${respondida && q.explicacao ? `<div class="expl md">${md(q.explicacao)}</div>` : ""}</div>
     ${respondida ? `<div class="study-foot"><span class="l"></span><button class="pill" data-act="dueloProx">${p.i + 1 < d.questoes.length ? "Próxima →" : "Ver resultado 🏁"}</button><span class="r"></span></div>` : ""}`;
 }
@@ -7365,13 +7389,17 @@ async function labGerarFalas(q) {
   });
   return r.falas;
 }
-async function labGerarPergunta(c, L) {
+async function labGerarPergunta(c, L, segunda = false) {
   const r = await chamar({
     system: [{ type: "text", text: labSistema() }, { type: "text", text: blocoMateriais(c, ""), cache_control: { type: "ephemeral" } }],
     schema: obj({ topico: str, enunciado: str, alternativas: arr(str), correta: int, falas: arr(str) }), maxTokens: 2000, rotulo: "Criando a pergunta", fundo: true, zoeira: labJeito() !== "fofo",
-    messages: [{ role: "user", content: `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas sobre um ponto importante do material acima ("correta" = índice da certa, "topico" = assunto em 2-4 palavras).\n${REGRAS_PERGUNTA}\nA pergunta e as alternativas também em ${labIdioma() === "es" ? "espanhol" : "português do Brasil"}.${L.feitas.length ? `\nNão repita estas:\n${L.feitas.slice(-15).map(x => "- " + x).join("\n")}` : ""}\n\n${LAB_REGRA_FALAS}` }]
+    messages: [{ role: "user", content: `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas sobre um ponto importante do material acima ("correta" = índice da certa, "topico" = assunto em 2-4 palavras).\n${REGRAS_PERGUNTA}\nA pergunta e as alternativas também em ${labIdioma() === "es" ? "espanhol" : "português do Brasil"}.${L.feitas.length ? `\nNão repita estas:\n${L.feitas.slice(-40).map(x => "- " + x).join("\n")}` : ""}\n\n${LAB_REGRA_FALAS}` }]
   });
+  arrumarTextos(r); if (Array.isArray(r.falas)) r.falas = r.falas.map(textoIA);
   if (!(r.alternativas?.length >= 2 && r.correta >= 0 && r.correta < r.alternativas.length)) throw new Error("a IA não devolveu uma pergunta válida");
+  // mesma pergunta com outras palavras: pede outra uma única vez (para não gastar cota à toa)
+  if (!segunda && repetida(r, (S.labVistas?.[c.id] || []).map(fatoDe))) return labGerarPergunta(c, { ...L, feitas: [...L.feitas, String(r.enunciado).slice(0, 100)] }, true);
+  const vistas = ((S.labVistas ||= {})[c.id] ||= []); vistas.push({ enunciado: r.enunciado, alternativas: [...r.alternativas], correta: r.correta }); if (vistas.length > 120) vistas.shift();
   return { ...r, falasDe: labChave() };
 }
 // garante as falas da pergunta e já prepara a 1ª frase de cada uma na voz
