@@ -337,6 +337,9 @@ h3{font-size:16px;margin:0 0 6px}
 .cst{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}.cst b{font-size:18px}.cst small{color:var(--muted)}
 .cst-tab{overflow-x:auto}.cst-tab table{width:100%;border-collapse:collapse;font-size:13px}.cst-tab td,.cst-tab th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}.cst-tab td:first-child,.cst-tab th:first-child{text-align:left}
 #admCustos h4{margin:8px 0 0}
+.comp-linha{gap:10px;align-items:center;cursor:pointer;flex-wrap:nowrap}.comp-linha small{display:block;color:var(--muted)}
+.linha-ou{display:flex;align-items:center;gap:10px;color:var(--muted)}.linha-ou:before,.linha-ou:after{content:"";flex:1;height:1px;background:var(--line)}
+.importar-mat{margin:0 0 14px}
 .grupos-card{margin-bottom:16px}
 .grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
 .grupo-linha:hover{border-color:var(--accent)}
@@ -765,6 +768,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   </div>
 </dialog>
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
+<dialog id="dlgMateria" style="width:min(540px,calc(100vw - 24px))"><div id="materiaCorpo" class="stack"></div></dialog>
 <dialog id="dlgGrupos" style="width:min(520px,calc(100vw - 24px))"><div id="gruposCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
@@ -2107,7 +2111,7 @@ function explicacaoHTML(q, escolha) {
   if (acertou && !q._verPorque && !det.certa && !agora) return `<div class="expl md"><p class="res-ok">${es ? "✔ ¡Correcto!" : "✔ Correto!"}</p><button class="btn small ghost mais-expl" data-act="verPorque">${es ? "Ver por qué" : "Ver por quê"}</button></div>`;
   if (q.tipo === "vf") {
     const certoTxt = q.alternativas[q.correta];
-    let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `Es <b>${certoTxt}</b>.` : `É <b>${certoTxt}</b>.`) : (es ? `✘ Incorrecto — es <b>${certoTxt}</b>.` : `✘ Errado — é <b>${certoTxt}</b>.`)}</p>`;
+    let h = `<p class="${acertou ? "res-ok" : "res-bad"}">${acertou ? (es ? "✔ ¡Correcto!" : "✔ Correto!") : escolha === null ? (es ? `Es <b>${esc(certoTxt)}</b>.` : `É <b>${esc(certoTxt)}</b>.`) : (es ? `✘ Incorrecto — es <b>${esc(certoTxt)}</b>.` : `✘ Errado — é <b>${esc(certoTxt)}</b>.`)}</p>`;
     h += `<p style="margin:12px 0 4px"><b>💡 ${es ? "Para memorizar" : "Para memorizar"}</b></p>${certa ? md(certa) : carregando}`;
     if (!det.certa && !agora) h += `<button class="btn small ghost mais-expl" data-act="explicarMais">${es ? "Explicar mejor" : "Explicar melhor"}</button>`;
     return `<div class="expl md">${h}</div>`;
@@ -2381,10 +2385,11 @@ function viewHome() {
   };
   const avisoEndereco = (location.hostname.endsWith("github.io") || location.hostname.startsWith("focoprova")) ? `<div class="aviso-nuvem">🐴 O Foco Prova agora se chama <b>Hipocampo Study</b> e mudou de endereço: <a href="https://hipocampo.web.app" style="color:var(--accent);font-weight:800">hipocampo.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
   return `${avisoEndereco}${cartaoPlano()}${cartaoEntrada() || cartaoHipo() + cartaoRevisaoDia()}${cartaoMeta()}${cartaoRanking()}${cartaoGrupos()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  <button class="btn small ghost importar-mat" data-act="importarMateria">${TT("Importar matéria", "Importar materia")}</button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
-        ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}<button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
+        ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button>` : ""}<button class="mini" data-act="compartilharMateria" data-id="${esc(m)}" title="${TT("Compartilhar matéria", "Compartir materia")}" aria-label="${TT("Compartilhar matéria", "Compartir materia")}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/></svg></button><button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
       </div>
       <div class="mkits" data-materia="${esc(m)}">${grupos[m].sort(compararKits).map(cartao).join("")}<button class="mkit-novo" data-act="novoNaMateria" data-id="${esc(m)}"><span>+</span>Adicionar material</button></div>
     </section>`).join("")}
@@ -4054,6 +4059,7 @@ async function iniciarNuvem() {
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
       await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosRank(); }).catch(() => {}); lerOcultos(); lerOrdemKits(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
+      { let pm = ""; try { pm = sessionStorage.getItem("fp-materia-pendente") || ""; if (pm && u) sessionStorage.removeItem("fp-materia-pendente"); } catch {} if (pm) { telaImportar(linkMateria(pm)); if (u) verMateriaLink(); } }
       { let pd = ""; try { pd = sessionStorage.getItem("fp-duelo-pendente") || ""; } catch {}
         if (pd) { if (u) { try { sessionStorage.removeItem("fp-duelo-pendente"); } catch {} abrirDuelo(pd); } else abrirDuelo(pd); } }
       if (u) await sincronizarTudo();
@@ -5346,6 +5352,16 @@ document.addEventListener("click", async e => {
     case "dueloAbrir": $("#dlgPerfil").close(); abrirDuelo(id); break;
     case "rankAbrir": abrirRanking(); break;
     case "rankVer": verRanking(id); break;
+    case "compartilharMateria": telaCompartilhar(id); break;
+    case "importarMateria": telaImportar(); break;
+    case "fecharMateria": $("#dlgMateria").close(); break;
+    case "compCriar": criarLinkMateria(); break;
+    case "compApagar": apagarLink(id); break;
+    case "compCopiar": navigator.clipboard?.writeText(linkMateria(id)).then(() => toast(TT("Link copiado.", "Enlace copiado.")), () => toast(TT("Copie o link manualmente.", "Copia el enlace manualmente."))); break;
+    case "impVer": verMateriaLink(); break;
+    case "impFazer": importarMateriaAgora(); break;
+    case "impColar": importarColado(); break;
+    case "impArquivos": $("#dlgMateria").close(); abrirNovo(); break;
     case "maoKit": if (Date.now() - (S.soltouKit || 0) > 400) toast(TT("Segure a mãozinha e arraste o caderno para onde quiser.", "Mantén la manita y arrastra el cuaderno a donde quieras.")); break;
     case "gruposAbrir": case "grupoVer": case "gruposFechar": case "grupoTela": case "grupoTelaEntrar": case "grupoBuscar": case "grupoCriar": case "grupoEntrar": case "grupoPedir": case "grupoAceitar": case "grupoRecusar": case "grupoRemover": case "grupoPassar": case "grupoSenha": case "grupoSair": case "grupoApagar": cliqueGrupo(act, id); break;
     case "rankSalvarTurma": salvarTurma(); break;
@@ -6994,6 +7010,122 @@ async function rankingGrupo(id) {
   return g.membros.map(uid => ({ uid, nome: pts.get(uid)?.nome || g.pessoas?.[uid]?.nome || TT("Alguém", "Alguien"), av: pts.get(uid)?.av || null, xp: pts.get(uid)?.xp || 0, resp: pts.get(uid)?.resp || 0 })).filter(x => !(x.uid === NUVEM.user.uid && RANK_OCULTO()["g:" + id])).sort((a, b) => b.xp - a.xp || a.nome.localeCompare(b.nome));
 }
 // ---------- telas ----------
+/* ---------- compartilhar / importar matéria (link do próprio Hipocampo; só quem está logado abre) ---------- */
+const COMP_PARTE = 700000, COMP_MAX = 12; // Firestore: até 12 pedaços
+const linkMateria = id => `${location.origin}${location.pathname}?materia=${id}`;
+const b64De = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 32768) s += String.fromCharCode(...u8.subarray(i, i + 32768)); return btoa(s); };
+async function empacotar(o) {
+  const u8 = new TextEncoder().encode(JSON.stringify(o));
+  if (typeof CompressionStream === "undefined") return { z: 0, t: b64De(u8) };
+  return { z: 1, t: b64De(new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer())) };
+}
+async function desempacotar(z, t) {
+  const u8 = Uint8Array.from(atob(t), ch => ch.charCodeAt(0));
+  if (!z) return JSON.parse(new TextDecoder().decode(u8));
+  if (typeof DecompressionStream === "undefined") throw new Error(TT("Este navegador é antigo. Atualize para importar.", "Este navegador es antiguo. Actualízalo para importar."));
+  return JSON.parse(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
+}
+// só o conteúdo de estudo: nada de progresso, respostas, conversas com o Tutor ou provas antigas.
+// A mesma função limpa o que chega de outra pessoa (aceita só campos conhecidos, com o tipo certo).
+function limparCompartilhado(k) {
+  const tx = (v, n = 4000) => typeof v === "string" ? v.slice(0, n) : "", li = (v, n) => Array.isArray(v) ? v.slice(0, n) : [];
+  return {
+    nome: tx(k?.nome, 80) || TT("Caderno", "Cuaderno"), icone: ICONES_KIT.includes(k?.icone) ? k.icone : ICONES_KIT[0], idioma: ["pt", "es"].includes(k?.idioma) ? k.idioma : undefined,
+    materiais: li(k?.materiais, 200).filter(m => m && !m.oficial && typeof m.texto === "string" && m.texto.trim()).map(m => ({ nome: tx(m.nome, 160) || "Material", tipo: /^[a-z]{1,10}$/.test(m.tipo) ? m.tipo : "texto", texto: tx(m.texto, 3e6), ativo: m.ativo !== false })),
+    resumos: li(k?.resumos, 20).map(r => ({ titulo: tx(r?.titulo, 200), foco: tx(r?.foco, 200), secoes: li(r?.secoes, 60).map(s => ({ titulo: tx(s?.titulo, 200), conteudo: tx(s?.conteudo, 40000) })), conceitos: li(r?.conceitos, 80).map(s => ({ termo: tx(s?.termo, 200), definicao: tx(s?.definicao) })), perguntas_revisao: li(r?.perguntas_revisao, 40).map(s => tx(s)) })).filter(r => r.secoes.length),
+    decks: li(k?.decks, 60).filter(x => !x?.erros).map(x => ({ titulo: tx(x?.titulo, 200), cards: li(x?.cards, 300).map(f => ({ frente: tx(f?.frente), verso: tx(f?.verso), topico: tx(f?.topico, 200) })).filter(f => f.frente && f.verso) })).filter(x => x.cards.length),
+    quizzes: li(k?.quizzes, 60).map(x => ({ titulo: tx(x?.titulo, 200), questoes: li(x?.questoes, 100).map(q => ({ enunciado: tx(q?.enunciado), alternativas: li(q?.alternativas, 8).map(a => tx(a, 1000)), correta: q?.correta, explicacao: tx(q?.explicacao), explicacoes: li(q?.explicacoes, 8).map(a => tx(a)), termos: li(q?.termos, 4).map(a => tx(a, 60)), topico: tx(q?.topico, 200) })).filter(q => q.enunciado && q.alternativas.length > 1 && q.alternativas.every(Boolean) && Number.isInteger(q.correta) && q.correta >= 0 && q.correta < q.alternativas.length) })).filter(x => x.questoes.length)
+  };
+}
+const kitsDaMateria = m => S.cadernos.filter(c => !c.oficial && (c.materia || SEM_MATERIA) === m);
+const contaKit = k => [[k.materiais.length, TT("materiais", "materiales")], [k.resumos.length, TT("guias", "guías")], [k.decks.length, "flashcards"], [k.quizzes.length, "quizzes"]].filter(x => x[0]).map(x => x.join(" ")).join(" · ") || TT("vazio", "vacío");
+const msgComp = (t, tipo = "") => { const e = $("#materiaMsg"); if (e) e.innerHTML = t ? `<div class="adm-aviso${tipo}">${t}</div>` : ""; };
+const pedirLoginMateria = () => `<p>${TT("Entre com o Google para usar os links de matéria.", "Entra con Google para usar los enlaces de materia.")}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharMateria">${TT("Fechar", "Cerrar")}</button><button class="pill" data-act="entrar">${TT("Entrar com o Google", "Entrar con Google")}</button></div>`;
+const abrirDlgMateria = () => { const d = $("#dlgMateria"); if (!d.open) d.showModal(); d.scrollTop = 0; };
+function telaCompartilhar(m) {
+  const l = kitsDaMateria(m).map(c => ({ c, k: limparCompartilhado(c) })); S.compMat = m;
+  $("#materiaCorpo").innerHTML = `<h2 style="margin:0">${TT("Compartilhar matéria", "Compartir materia")}</h2>${!NUVEM.user ? pedirLoginMateria() : `
+    <p class="muted" style="margin:0">${TT("Quem tiver o link e uma conta recebe uma cópia. Seu progresso, suas respostas e suas conversas com o Tutor não vão junto. Compartilhe só material que você tem direito de compartilhar.", "Quien tenga el enlace y una cuenta recibe una copia. Tu progreso, tus respuestas y tus charlas con el Tutor no se comparten. Comparte solo material que tengas derecho a compartir.")}</p>
+    <label>${TT("Nome da matéria", "Nombre de la materia")}<input type="text" id="compNome" maxlength="60" value="${esc(m === SEM_MATERIA ? "" : m)}"></label>
+    ${l.map(x => `<label class="row comp-linha"><input type="checkbox" class="compK" value="${esc(x.c.id)}" ${x.k.materiais.length + x.k.resumos.length + x.k.decks.length + x.k.quizzes.length ? "checked" : "disabled"}><span><b>${esc(x.c.nome)}</b><small>${contaKit(x.k)}</small></span></label>`).join("") || `<p>${TT("Não há cadernos seus nesta matéria (o material oficial do Ateneo não é compartilhado).", "No hay cuadernos tuyos en esta materia (el material oficial del Ateneo no se comparte).")}</p>`}
+    <div id="materiaMsg"></div><div id="compLinks"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharMateria">${TT("Fechar", "Cerrar")}</button>${l.length ? `<button class="pill" data-act="compCriar">${TT("Criar link", "Crear enlace")}</button>` : ""}</div>`}`;
+  abrirDlgMateria(); if (NUVEM.user) listarLinks();
+}
+async function listarLinks() {
+  const el = $("#compLinks"), F = NUVEM.F; if (!el) return;
+  try {
+    const q = await F.getDocs(F.query(F.collection(NUVEM.db, "compartilhados"), F.where("dono", "==", NUVEM.user.uid), F.limit(30)));
+    const l = q.docs.map(x => ({ ...x.data(), id: x.id })).sort((a, b) => b.criado - a.criado); S.compTotal = l.length;
+    el.innerHTML = l.length ? `<h4 style="margin:6px 0">${TT("Seus links", "Tus enlaces")}</h4>${l.map(x => `<div class="mrow" style="margin:0 0 6px"><span class="nm">${esc(x.nome)}<small>${fmtData(x.criado)} · ${x.n} ${TT("caderno(s)", "cuaderno(s)")}</small></span><button class="btn small" data-act="compCopiar" data-id="${esc(x.id)}">${TT("Copiar link", "Copiar enlace")}</button><button class="btn small ghost" data-act="compApagar" data-id="${esc(x.id)}" style="color:var(--bad)">${TT("Desativar", "Desactivar")}</button></div>`).join("")}` : "";
+  } catch (e) { console.warn("links:", e?.message); }
+}
+async function criarLinkMateria() {
+  if (S.compIndo) return; const F = NUVEM.F, u = NUVEM.user, ids = [...document.querySelectorAll(".compK:checked")].map(x => x.value), nome = $("#compNome").value.trim();
+  if (!nome) return msgComp(TT("Escreva o nome da matéria.", "Escribe el nombre de la materia.")); if (!ids.length) return msgComp(TT("Escolha pelo menos um caderno.", "Elige al menos un cuaderno."));
+  if (ids.length > 40) return msgComp(TT("Escolha até 40 cadernos por link.", "Elige hasta 40 cuadernos por enlace.")); if ((S.compTotal || 0) >= 20) return msgComp(TT("Você já tem 20 links. Desative um para criar outro.", "Ya tienes 20 enlaces. Desactiva uno para crear otro."));
+  S.compIndo = true; msgComp(`<span class="spin"></span> ${TT("Preparando o link…", "Preparando el enlace…")}`);
+  const id = [...crypto.getRandomValues(new Uint8Array(15))].map(x => x.toString(16).padStart(2, "0")).join(""), feitas = [];
+  try {
+    const p = await empacotar({ v: 1, kits: S.cadernos.filter(c => ids.includes(c.id)).map(limparCompartilhado) }), partes = Math.ceil(p.t.length / COMP_PARTE);
+    if (partes > COMP_MAX) throw new Error(TT("Muito conteúdo para um link só. Compartilhe menos cadernos por vez.", "Demasiado contenido para un enlace. Comparte menos cuadernos por vez."));
+    for (let i = 0; i < partes; i++) { const r = F.doc(NUVEM.db, `compartilhados/${id}/partes/${u.uid}_${i}`); await F.setDoc(r, { t: p.t.slice(i * COMP_PARTE, (i + 1) * COMP_PARTE) }); feitas.push(r); }
+    await F.setDoc(F.doc(NUVEM.db, "compartilhados/" + id), { dono: u.uid, autor: (PERFIL.nome || u.displayName || "").slice(0, 60), nome: nome.slice(0, 60), criado: Date.now(), n: ids.length, partes, z: p.z });
+    msgComp(`<b>${TT("Link pronto", "Enlace listo")}</b><div class="row" style="gap:6px;margin-top:6px"><input type="text" readonly value="${esc(linkMateria(id))}" style="flex:1;min-width:160px" onfocus="this.select()"><button class="pill" data-act="compCopiar" data-id="${id}">${TT("Copiar link", "Copiar enlace")}</button></div>`); listarLinks();
+  } catch (e) { for (const r of feitas) F.deleteDoc(r).catch(() => {}); msgComp(esc(msgErro(e)), " erro"); }
+  finally { S.compIndo = false; }
+}
+async function apagarLink(id) {
+  if (!confirm(TT("Desativar este link? Quem já importou continua com a cópia.", "¿Desactivar este enlace? Quien ya importó conserva la copia."))) return;
+  const F = NUVEM.F, r = F.doc(NUVEM.db, "compartilhados/" + id);
+  try { const s = await F.getDoc(r), n = s.exists() ? s.data().partes : 0; await F.deleteDoc(r); for (let i = 0; i < n; i++) await F.deleteDoc(F.doc(NUVEM.db, `compartilhados/${id}/partes/${NUVEM.user.uid}_${i}`)).catch(() => {}); toast(TT("Link desativado.", "Enlace desactivado.")); listarLinks(); }
+  catch (e) { msgComp(esc(msgErro(e)), " erro"); }
+}
+function telaImportar(valor = "") {
+  S.impPronta = null;
+  $("#materiaCorpo").innerHTML = `<h2 style="margin:0">${TT("Importar matéria", "Importar materia")}</h2>${!NUVEM.user ? pedirLoginMateria() : `
+    <label>${TT("Link da matéria", "Enlace de la materia")}<input type="url" id="impLink" value="${esc(valor)}" placeholder="${esc(linkMateria("…"))}"></label>
+    <div id="materiaMsg"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharMateria">${TT("Fechar", "Cerrar")}</button><button class="pill" data-act="impVer">${TT("Ver matéria", "Ver materia")}</button></div>
+    <div class="linha-ou"><span>${TT("ou", "o")}</span></div>
+    <b>${TT("Vem do Thea ou de outro site?", "¿Viene de Thea o de otro sitio?")}</b>
+    <p class="muted" style="margin:0">${TT("O link de outro site só abre dentro dele. Envie os mesmos arquivos que você colocou lá (PDF, slides) ou copie o texto do Guia de Estudo e cole aqui.", "El enlace de otro sitio solo se abre allí. Sube los mismos archivos que pusiste allá (PDF, diapositivas) o copia el texto de la Guía de estudio y pégalo aquí.")}</p>
+    <label>${TT("Nome do caderno", "Nombre del cuaderno")}<input type="text" id="impNome" maxlength="80"></label>
+    <textarea id="impTexto" rows="5" placeholder="${TT("Cole o texto da matéria aqui", "Pega aquí el texto de la materia")}"></textarea>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="impArquivos">${TT("Enviar arquivos", "Subir archivos")}</button><button class="btn" data-act="impColar">${TT("Criar caderno com o texto", "Crear cuaderno con el texto")}</button></div>`}`;
+  abrirDlgMateria();
+}
+async function verMateriaLink() {
+  const v = $("#impLink")?.value.trim() || ""; let id = "";
+  if (/^https?:\/\/([\w-]+\.)*thea\.study\//i.test(v)) return msgComp(TT("Esse link é do Thea: ele pede o login do Thea e copia a matéria só para dentro de lá, então o nosso site não consegue abrir. Use o campo de texto ou os arquivos logo abaixo.", "Ese enlace es de Thea: pide iniciar sesión en Thea y copia la materia solo allí, así que nuestro sitio no puede abrirlo. Usa el campo de texto o los archivos de abajo."));
+  try { id = new URL(v).searchParams.get("materia") || ""; } catch { id = v; }
+  if (!/^[a-f0-9]{30}$/.test(id)) return msgComp(TT("Esse não é um link de matéria do Hipocampo Study.", "Ese no es un enlace de materia de Hipocampo Study."));
+  msgComp(`<span class="spin"></span> ${TT("Abrindo…", "Abriendo…")}`);
+  try {
+    const F = NUVEM.F, s = await prazo(F.getDoc(F.doc(NUVEM.db, "compartilhados/" + id)), 15000); if (!s.exists()) return msgComp(TT("Esse link foi desativado ou não existe.", "Ese enlace fue desactivado o no existe."));
+    const m = s.data(), n = Math.min(COMP_MAX, m.partes | 0); let t = "";
+    const ps = await Promise.all(Array.from({ length: n }, (_, i) => F.getDoc(F.doc(NUVEM.db, `compartilhados/${id}/partes/${m.dono}_${i}`))));
+    for (const x of ps) { if (!x.exists()) throw new Error(TT("O link está incompleto.", "El enlace está incompleto.")); t += x.data().t; }
+    const o = await desempacotar(m.z, t), kits = (Array.isArray(o?.kits) ? o.kits : []).slice(0, 40).map(limparCompartilhado); if (!kits.length) throw new Error(TT("Não há cadernos nesse link.", "No hay cuadernos en ese enlace."));
+    S.impPronta = { id, nome: String(m.nome || "").slice(0, 60), kits }; const ja = S.cadernos.some(c => c.veioDe === id);
+    msgComp(`<b>${esc(S.impPronta.nome)}</b>${m.autor ? ` · ${TT("de", "de")} ${esc(m.autor)}` : ""}<ul style="margin:6px 0;padding-left:18px">${kits.map(k => `<li>${esc(k.nome)} <small class="muted">${contaKit(k)}</small></li>`).join("")}</ul>${ja ? `<p class="muted" style="margin:0 0 6px">${TT("Você já importou este link. Importar de novo cria outra cópia.", "Ya importaste este enlace. Importar de nuevo crea otra copia.")}</p>` : ""}<button class="pill" data-act="impFazer">${TT("Importar para minha conta", "Importar a mi cuenta")}</button>`);
+  } catch (e) { msgComp(esc(msgErro(e)), " erro"); }
+}
+async function importarMateriaAgora() {
+  const p = S.impPronta; if (!p) return; S.impPronta = null; const agora = Date.now();
+  for (const [i, k] of p.kits.entries()) {
+    const c = { ...novoCaderno(k.nome), icone: k.icone, idioma: k.idioma, materia: p.nome, materiaAuto: false, materiaTentada: true, veioDe: p.id };
+    c.materiais = k.materiais.map(m => ({ id: uid(), criado: agora, ...m })); c.resumos = k.resumos.map(r => ({ id: uid(), criado: agora, ...r }));
+    c.decks = k.decks.map(x => ({ id: uid(), criado: agora, ...x, cards: x.cards.map(f => ({ id: uid(), ...f })) })); c.quizzes = k.quizzes.map(x => ({ id: uid(), criado: agora, tentativas: [], ...x }));
+    S.cadernos.push(c); await salvar(c);
+  }
+  $("#dlgMateria").close(); S.atual = null; S.player = null; render(); toast(TT(`Matéria ${p.nome} importada: ${p.kits.length} caderno(s).`, `Materia ${p.nome} importada: ${p.kits.length} cuaderno(s).`));
+}
+async function importarColado() {
+  const t = $("#impTexto").value.trim(); if (t.length < 40) return msgComp(TT("Cole um pouco mais de texto.", "Pega un poco más de texto."));
+  const c = novoCaderno($("#impNome").value.trim() || TT("Matéria importada", "Materia importada")); c.icone = ICONES_KIT[0]; c.materiais.push({ id: uid(), nome: TT("Texto importado", "Texto importado"), tipo: "texto", texto: t.slice(0, 3e6), ativo: true, criado: Date.now() });
+  S.cadernos.push(c); await salvar(c); $("#dlgMateria").close(); S.atual = c.id; S.player = null; S.aba = "materiais"; render(); detectarMateria(c).catch?.(() => {});
+}
 function cartaoGrupos() {
   if (!NUVEM.user) return "";
   const l = meusGrupos(), uid = NUVEM.user.uid;
@@ -8206,6 +8338,7 @@ render();
 if (!lsGet("fp-idioma-escolhido", false)) setTimeout(() => { const d = $("#dlgIdioma"); if (d && !d.open) d.showModal(); }, 400);
 else if (!lsGet("fp-guia-visto", false)) setTimeout(() => { if (!document.querySelector("dialog[open]")) abrirGuia(0); }, 900);
 if (!lsGet("fp-materias-v2", false)) { for (const k of S.cadernos) if (k.materiaAuto !== false && ativos(k).length) { k.materia = ""; k.materiaTentada = false; } lsSet("fp-materias-v2", true); }
+{ const pm = new URLSearchParams(location.search).get("materia"); if (pm && /^[a-f0-9]{30}$/.test(pm)) { try { sessionStorage.setItem("fp-materia-pendente", pm); } catch {} history.replaceState(null, "", location.pathname); } }
 { const pd = new URLSearchParams(location.search).get("duelo"); if (pd) { try { sessionStorage.setItem("fp-duelo-pendente", pd); } catch {} history.replaceState(null, "", location.pathname); } }
 iniciarNuvem();
 // Remove o "isolamento" instalado por uma versão anterior (ele bloqueava a janela de login do Google)

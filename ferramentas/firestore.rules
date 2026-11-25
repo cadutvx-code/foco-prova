@@ -137,6 +137,26 @@ service cloud.firestore {
     match /custosIA/{doc} {
       allow read, write: if admin();
     }
+    // matéria compartilhada por link: o código tem 30 letras e só quem tem o link (e está logado) abre
+    match /compartilhados/{id} {
+      allow create: if logado() && id.matches('[a-f0-9]{30}')
+        && request.resource.data.keys().hasOnly(['dono', 'autor', 'nome', 'criado', 'n', 'partes', 'z'])
+        && request.resource.data.dono == request.auth.uid
+        && request.resource.data.nome is string && request.resource.data.nome.size() <= 60
+        && request.resource.data.autor is string && request.resource.data.autor.size() <= 60
+        && request.resource.data.criado is int && request.resource.data.n is int
+        && request.resource.data.partes is int && request.resource.data.partes >= 1 && request.resource.data.partes <= 12
+        && request.resource.data.z is int;
+      allow get: if logado();
+      allow list: if logado() && resource.data.dono == request.auth.uid;
+      allow delete: if logado() && (resource.data.dono == request.auth.uid || admin());
+      match /partes/{p} {
+        allow create: if logado() && id.matches('[a-f0-9]{30}') && p.matches(request.auth.uid + '_([0-9]|1[01])')
+          && request.resource.data.keys().hasOnly(['t']) && request.resource.data.t is string && request.resource.data.t.size() <= 700000;
+        allow get: if logado();
+        allow delete: if logado() && (p.matches(request.auth.uid + '_([0-9]|1[01])') || admin());
+      }
+    }
     match /config/{doc} {
       allow read: if true;
       allow write: if admin();
