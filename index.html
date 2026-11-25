@@ -879,7 +879,7 @@ function toast(msg, err = false) {
 function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
 const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
 const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
-const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome", "fp-grupos", "fp-grupos-mat", "fp-rank-pts", "fp-rank-oculto"]);
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome", "fp-grupos", "fp-grupos-mat", "fp-rank-pts", "fp-rank-oculto", "fp-xp-base", "fp-ordem-kits"]);
 const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
 function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
@@ -1871,6 +1871,14 @@ function numerosDe(t) {
 }
 // 9: pergunta sobre professor, agradecimento, avaliação ou outro dado administrativo não tem valor acadêmico (a regra também vai no pedido à IA)
 const ADMINISTRATIVO = /\b(nome|nombre|quem (é|foi|s[ãa]o|escreveu|ministra|organizou|elaborou)|qui[eé]n(es)? (es|son|fue|escribi[oó]|dicta|elabor[oó])|e-?mail|correo)\b.{0,50}\b(professor(a|es|as)?|profesor(a|es|as)?|docentes?|catedr[áa]tic[oa]s?|autor(a|es|as)?|coordenador(a)?|coordinador(a)?|monitor(a)?|ayudante|editora|editorial|universidade|universidad|faculdade|facultad)\b|\b(agradec\w+|dedicat[óo]ria|carta de (agradecimento|agradecimiento|presentaci[óo]n|apresenta[çc][ãa]o)|pref[áa]cio|prefacio|[íi]ndice (do livro|del libro)|isbn|direitos autorais|derechos de autor|copyright)\b|\b(data|fecha|hor[áa]rio|horario)\b.{0,12}\b(da prova final|do exame final|del examen|de la prueba|da avalia[çc][ãa]o|de la evaluaci[óo]n|da aula|de la clase|do parcial|del parcial)\b|\b(quantos|cu[áa]ntos) (pontos|puntos)\b.{0,30}\b(vale|prova|examen|parcial|quest)|\b(n[úu]mero|en qu[ée]|em que|qual) (da |la |a )?(p[áa]gina|diapositiva|slide)\b|\b(crit[ée]rios? de (avalia[çc][ãa]o|evaluaci[óo]n) (da disciplina|de la materia|do curso|del curso)|bibliografia|bibliograf[íi]a (recomendada|b[áa]sica))\b/i;
+// 11: verdadeiro/falso equilibrado. Nunca muda o gabarito: só escolhe a ORDEM e descarta o excesso repetido da mesma resposta
+function pesoVF(lista) { let v = 0, f = 0; for (const q of lista) if (q?.tipo === "vf" || /^verdad/i.test(textoIA(q?.alternativas?.[0]))) q.correta === 1 ? f++ : v++; return { v, f }; }
+// intercala V e F sem deixar mais de 2 iguais seguidas quando dá
+function intercalarVF(lista) {
+  const ehVF = q => q.tipo === "vf", vs = embaralhar(lista.filter(q => ehVF(q) && q.correta === 0)), fs = embaralhar(lista.filter(q => ehVF(q) && q.correta === 1)), ordem = []; let ult = null, seg = 0;
+  while (vs.length || fs.length) { const pv = vs.length / (vs.length + fs.length); let usaV = !fs.length || (vs.length && Math.random() < pv); if (seg >= 2 && vs.length && fs.length) usaV = ult === "f"; const q = usaV ? vs.pop() : fs.pop(), t = usaV ? "v" : "f"; seg = t === ult ? seg + 1 : 1; ult = t; ordem.push(q); }
+  let k = 0; return lista.map(q => ehVF(q) ? ordem[k++] : q);
+}
 function semValorAcademico(x) {
   const t = textoIA(x.enunciado ?? x.frente), certa = Array.isArray(x.alternativas) ? textoIA(x.alternativas[x.correta]) : "";
   return ADMINISTRATIVO.test(t) || /^\s*(prof\.?|profa\.?|dr\.?|dra\.?|lic\.?|m\.?sc\.?|ph\.?d\.?)\s+[A-ZÁÉÍÓÚÑ]/i.test(certa);
@@ -2000,7 +2008,7 @@ async function gerar(tipo, modoProva = false) {
       if (!Object.values(cont).some(n => n > 0)) throw new Error("Escolha pelo menos 1 questão de algum tipo.");
       const regras = {
         multipla: `múltipla escolha: "tipo" = "multipla", "alternativas" com 5 opções e "correta" = índice da certa; em "resposta_esperada" repita a alternativa certa.`,
-        vf: `verdadeiro ou falso: "tipo" = "vf", o enunciado é UMA afirmação, "alternativas" = ["Verdadeiro","Falso"] e "correta" = 0 ou 1; faça afirmações falsas também, trocando um detalhe importante.`,
+        vf: `verdadeiro ou falso: "tipo" = "vf", o enunciado é UMA afirmação, "alternativas" = ["Verdadeiro","Falso"] e "correta" = 0 (verdadeira) ou 1 (falsa). EQUILIBRE: metade verdadeiras e metade falsas (na falsa, troque UM detalhe importante e plausível por outro que o material mostre ser errado). Cada afirmação sobre um fato diferente; não faça a versão verdadeira e a falsa do mesmo fato.`,
         dissertativa: `dissertativa: "tipo" = "dissertativa", "alternativas" = [] e "correta" = -1; em "resposta_esperada" escreva a resposta modelo com os pontos que precisam aparecer.`
       };
       const r = { titulo: "", questoes: [] };
@@ -2008,7 +2016,7 @@ async function gerar(tipo, modoProva = false) {
         if (!(cont[t] > 0)) continue;
         const parte = await emLotes(cont[t], "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie questões para uma prova simulada realista, como um professor faria: exatamente ${n} questões, TODAS do tipo ${regras[t]}\n"pontos" = peso da questão (dissertativas valem mais). ${d}${f}${ev}${r.questoes.length ? `\nNão repita estas questões já feitas:\n${r.questoes.map(q => "- " + String(q.enunciado).slice(0, 90)).join("\n")}` : ""}`, SCH.prova, foco));
         r.titulo ||= parte.titulo;
-        r.questoes.push(...parte.questoes.map(q => ({ ...q, tipo: t })));
+        r.questoes.push(...(t === "vf" ? intercalarVF(parte.questoes.map(q => ({ ...q, tipo: t, correta: q.correta === 1 ? 1 : 0 }))) : parte.questoes.map(q => ({ ...q, tipo: t }))));
       }
       r.questoes = r.questoes.filter(q => q.tipo === "dissertativa" || q.alternativas?.length >= 2);
       r.questoes.forEach(q => { if (q.tipo === "multipla") normalizarMultipla(q); if (q.tipo === "vf") { q.alternativas = ["Verdadeiro", "Falso"]; q.correta = q.correta === 1 ? 1 : 0; } if (!(q.pontos > 0)) q.pontos = q.tipo === "dissertativa" ? 2 : 1; });
@@ -2109,12 +2117,22 @@ function diasSeguidos() {
 /* ---------- XP e níveis (anel em volta da foto) ----------
    +10 por acerto, +2 por erro, +20 ao bater a meta do dia, Teste: +3 por ponto da nota, Ateneo: +5 por ponto da nota.
    Nível 1 vai até 100 XP; cada nível seguinte pede 50 XP a mais que o anterior (150, 200, 250…). */
-const XP_REGRAS = { acerto: 10, erro: 2, meta: 20, pontoTeste: 3, pontoAteneo: 5 };
+const XP_REGRAS = { acerto: 6, erro: 1, meta: 15, pontoTeste: 2, pontoAteneo: 4 }; // 25/11/2026: ganho menor e níveis mais longos
 function xpParaNivel(n) { return 100 + 50 * (n - 1); }
+// Curva nova (26/11/2026): níveis mais longos. Quem já tinha nível na curva antiga continua nele: guardamos o ponto de
+// partida (nível e XP do dia da mudança) e só os próximos níveis usam a curva nova.
+function nivelAntigo(xp) { let nivel = 1, resto = Math.max(0, Math.floor(xp || 0)); while (resto >= xpParaNivel(nivel)) { resto -= xpParaNivel(nivel); nivel++; } return { nivel, resto, precisa: xpParaNivel(nivel) }; }
+const xpNivelNovo = n => Math.round((300 + 180 * (n - 1) + 14 * (n - 1) * (n - 1)) / 10) * 10; // 300, 490, 720, 970…
+function basePartida() { // { xp, nivel, frac }: gravada uma vez por conta
+  let b = lsGet("fp-xp-base", null); if (b) return b;
+  const xp = xpTotal(), a = nivelAntigo(xp); b = { xp, nivel: a.nivel, frac: a.resto / a.precisa }; lsSet("fp-xp-base", b); return b;
+}
 function nivelDoXp(xp) {
-  let nivel = 1, resto = Math.max(0, Math.floor(xp || 0));
-  while (resto >= xpParaNivel(nivel)) { resto -= xpParaNivel(nivel); nivel++; }
-  return { nivel, atual: resto, precisa: xpParaNivel(nivel), pct: resto / xpParaNivel(nivel) };
+  const b = basePartida(); xp = Math.max(0, Math.floor(xp || 0));
+  if (xp < b.xp) { const a = nivelAntigo(xp); return { nivel: a.nivel, atual: a.resto, precisa: a.precisa, pct: a.resto / a.precisa }; }
+  let nivel = b.nivel, resto = xp - b.xp + Math.floor(b.frac * xpNivelNovo(b.nivel));
+  while (resto >= xpNivelNovo(nivel)) { resto -= xpNivelNovo(nivel); nivel++; }
+  return { nivel, atual: resto, precisa: xpNivelNovo(nivel), pct: resto / xpNivelNovo(nivel) };
 }
 function xpTotal() {
   let xp = lsGet("fp-xp", null);
@@ -2727,6 +2745,8 @@ async function gerarLoteSmart(c, focoTopico, aoItem, n, fundo = false, leve = fa
   const naFila = S.player?.tipo === "smart" ? S.player.fila.slice(S.player.i) : [];
   const jaFeitas = [...historicoAmplo(c).slice(-150), ...[...(I.banco || []), ...naFila].map(b => b.enunciado.slice(0, 100))];
   const hist = jaFeitas.map(h => "- " + h).join("\n") || "(nenhuma)";
+  const recentesVF = [...(S.player?.tipo === "smart" && S.atual === c.id ? S.player.fila.slice(-14) : []), ...(I.banco || [])], eq = pesoVF(recentesVF);
+  const pedeVF = eq.v - eq.f >= 2 ? "As de verdadeiro ou falso deste lote devem ser FALSAS (troque um detalhe importante)." : eq.f - eq.v >= 2 ? "As de verdadeiro ou falso deste lote devem ser VERDADEIRAS." : "Nas de verdadeiro ou falso, metade verdadeiras e metade falsas.";
   const instr = `Você conduz uma sessão de ESTUDO ADAPTATIVO, como um professor particular. Gere exatamente ${n} perguntas.
 ${I.topicos.length ? `Tópicos conhecidos e domínio atual do estudante:\n${dom}` : `Primeira sessão: identifique os principais tópicos dos materiais (de 4 a 12, nomes curtos) e liste-os em "topicos". Comece com perguntas de dificuldade 1 e 2 sobre os tópicos mais importantes.`}
 ${focoTopico ? `\nO estudante pediu para focar SOMENTE no tópico: "${focoTopico}".` : escolhidos ? `
@@ -2736,6 +2756,7 @@ Regras de adaptação:
 - Cerca de 60% das perguntas nos tópicos com MENOR domínio, 25% em tópicos ainda não praticados e 15% de revisão de tópicos já dominados.`}
 - "dificuldade" (1 fácil, 2 média, 3 difícil) deve seguir a dificuldade alvo de cada tópico.
 - Cerca de 3 em cada 4 são de múltipla escolha ("tipo": "multipla") com EXATAMENTE 4 alternativas curtas e só uma correta ("correta" = índice 0 a 3 da certa; varie a posição). As outras são de verdadeiro ou falso ("tipo": "vf"): o enunciado é UMA afirmação curta (sem "verdadeiro ou falso?" no texto), "alternativas" = ["${idiomaCaderno(c) === "es" ? "Verdadero" : "Verdadeiro"}", "Falso"] e "correta" = 0 se for verdadeira ou 1 se for falsa. Faça afirmações falsas também, trocando UM detalhe importante (o valor, o órgão, aumenta/diminui).
+- ${pedeVF}
 - "explicacao" (OBRIGATÓRIO, nunca vazio): 2 ou 3 tópicos curtos em lista ("- "), fáceis de memorizar, com o fato em **negrito** (sem dizer "segundo o material" ou "o livro diz").
 - "explicacoes" (OBRIGATÓRIO): 4 textos MUITO curtos (até 12 palavras cada), um por alternativa NA MESMA ORDEM. Comece cada uma com "Correta:" ou "Errada:" (só UMA pode ser "Correta:", a mesma de "correta"); nas erradas, diga o erro concreto (ex.: "Errada: quem produz ATP é a mitocôndria, não o ribossomo"). Evite perguntas com mais de uma resposta defensável.
 - Em "topico", use EXATAMENTE um dos nomes da lista de tópicos${I.topicos.length ? " acima" : ""}. Em "topicos", devolva a lista completa (pode acrescentar novos).
@@ -2903,6 +2924,9 @@ function empurrar(c, p, it) {
   if (it.revisao && S.player === p && repetida(it, p.fila.slice(Math.max(0, p.i - 10)).filter(x => x !== it).map(fatoDe))) return;
   if (S.player === p && !p.fim) {
     const esperando = p.i >= p.fila.length;
+    // 3ª V/F seguida com a mesma resposta: vai para o banco e aparece mais tarde
+    const vfs = p.fila.filter(q => q.tipo === "vf").slice(-2);
+    if (it.tipo === "vf" && !it.revisao && !esperando && vfs.length === 2 && vfs.every(q => q.correta === it.correta)) { garantirSmart(c); (c.inteligente.banco ||= []).push(it); salvar(c); return; }
     p.fila.push(it);
     if (esperando) { render(); window.scrollTo(0, 0); }
   } else { garantirSmart(c); (c.inteligente.banco ||= []).push(it); salvar(c); }
@@ -7586,7 +7610,7 @@ function labHipoHTML() {
   return `<div class="lab-hipo ${L.falando ? "falando" : ""} ${resp ? "" : "espera"}">
       <div class="lab-hipo-fig">${hipoSVG("falando", 120)}</div>
       <div class="lab-hipo-txt"><div class="lab-status">${status}</div>
-        ${L.fala ? `<div class="lab-fala">${esc(L.fala)}</div>` : ""}
+        ${L.fala ? `<div class="lab-fala" id="labFala">${L.mostrando != null ? esc(String(L.fala).slice(0, L.mostrando)) : esc(L.fala)}</div>` : ""}
         ${L.fala && !L.falando ? `<div class="lab-botoes"><button class="btn small" data-act="labOuvir">${iconeSVG("play")} Ouvir de novo</button></div>` : ""}</div>
     </div>`;
 }
@@ -7777,7 +7801,8 @@ function labTirarReacaoInicial(t) {
   }
   x = x.trim(); return x ? x[0].toUpperCase() + x.slice(1) : String(t || "").trim();
 }
-const labTextoExplic = t => labTirarReacaoInicial(labLimparFala(t));
+const labTextoExplic = t => labTirarReacaoInicial(labSemEco(labLimparFala(t), [...labTodasFrases()]));
+const labTodasFrases = () => { const r = LAB_REACOES[labIdioma()]?.[labJeito()] || {}, p = LAB_PONTES[labIdioma()]?.[labJeito()] || {}; return [...(r.erro || []), ...(r.acerto || []), ...(p.erro || []), ...(p.acerto || [])]; };
 const labLimparFala = t => String(t || "").replace(/[*_#`]/g, "").replace(/\s+/g, " ").trim();
 const labVozPronta = (t, lang) => AUDIO_CACHE.has("piper|" + vozPiper(idiomaVoz(lang)) + "|" + t);
 // só fica aqui quando a voz terminou de ser gerada (o AUDIO_CACHE guarda também as que ainda estão no forno)
@@ -7877,16 +7902,29 @@ function labParar() {
   L.falaId = (L.falaId || 0) + 1;
   try { L.audio?.pause(); } catch {} L.audio = null;
   try { speechSynthesis.cancel(); } catch {}
-  cancelAnimationFrame(L.raf); L.falando = false;
+  cancelAnimationFrame(L.raf); L.falando = false; L.mostrando = null;
+}
+// legenda que acompanha a voz: mostra o texto até onde o Hipo já falou (sem voz, aparece inteiro)
+function labLegenda(L, ate) { const t = String(L.fala || ""); let n = Math.max(L.mostrando || 0, Math.min(t.length, Math.ceil(ate))); while (n < t.length && n > 0 && /\S/.test(t[n])) n++; if (n === L.mostrando) return; L.mostrando = n; const el = labEl()?.querySelector("#labFala"); if (el) el.textContent = t.slice(0, n); }
+// tira do começo da explicação o que o Hipo acabou de dizer (reação ou frase de ligação)
+const chaveFala = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").trim().split(/\s+/).filter(Boolean);
+function labSemEco(texto, ditas) {
+  let x = String(texto || "");
+  for (let k = 0; k < 3; k++) {
+    const m = x.match(/^[^.!?…]{1,90}[.!?…]+\s+/); if (!m) break;
+    const a = chaveFala(m[0]), eco = a.length && ditas.some(t => { const b = new Set(chaveFala(t)); if (!b.size) return false; const n = a.filter(w => b.has(w)).length; return n / a.length >= .7; });
+    if (!eco) break; x = x.slice(m[0].length);
+  }
+  return x || String(texto || "");
 }
 async function labFalar() {
   const L = S.lab; if (!L?.reacao && !L?.explic && !L?.fala) return;
   labParar(); const id = L.falaId, taxa = labVoz()[2], lang = labLang();
   const vivo = () => S.lab === L && L.falaId === id && !!labEl();
   const boca = () => labEl()?.querySelector(".hipo-boca");
-  const fim = () => { if (!vivo()) return; L.falando = false; L.pensando = false; cancelAnimationFrame(L.raf); desenharLab(); };
+  const fim = () => { if (!vivo()) return; L.falando = false; L.pensando = false; L.mostrando = null; cancelAnimationFrame(L.raf); desenharLab(); };
   const medir = matchMedia("(pointer: fine)").matches && !IOS; // só no computador: no celular o medidor pode picotar o som
-  const tocar = url => {
+  const tocar = (url, de = 0, ate = String(L.fala || "").length) => {
     const a = L.audio = AUDIO_UNICO; let an = null, buf = null;
     if (medir) try {
       LAB_CTX ||= new (window.AudioContext || window.webkitAudioContext)(); LAB_CTX.resume();
@@ -7899,12 +7937,14 @@ async function labFalar() {
       if (an) { an.getByteTimeDomainData(buf); let m = 0; for (const x of buf) m = Math.max(m, Math.abs(x - 128)); v = Math.min(1, m / 50); }
       else { const t = performance.now(); v = a.paused ? 0 : .35 + .65 * Math.abs(Math.sin(t / 95) * Math.sin(t / 230 + 1)); }
       const b = boca(); if (b) b.setAttribute("ry", (0.8 + v * 4.2).toFixed(2));
+      if (a.duration > 0 && isFinite(a.duration)) labLegenda(L, de + (ate - de) * Math.min(1, (a.currentTime + .25) / a.duration));
       L.raf = requestAnimationFrame(animar);
     };
-    return tocarNoTocador(url, { taxa, semTom: true, aoComecar: () => { cancelAnimationFrame(L.raf); animar(); } });
+    return tocarNoTocador(url, { taxa, semTom: true, aoComecar: () => { cancelAnimationFrame(L.raf); animar(); } }).then(x => { if (vivo()) labLegenda(L, ate); return x; });
   };
   try {
-    L.falando = true; L.erroFala = ""; desenharLab();
+    L.falando = true; L.erroFala = ""; L.mostrando = 0; desenharLab();
+    const nReac = String(L.reacao || "").length;
     const espera = (pr, ms) => Promise.race([Promise.resolve(pr).catch(() => null), new Promise(r => setTimeout(() => r(null), ms))]);
     const junto = async urls => { try { return await labJuntar(urls); } catch (e) { console.warn("juntar falas:", e?.message); return null; } };
     let feito = false;
@@ -7920,7 +7960,7 @@ async function labFalar() {
       if (!feito && reac) {
         const pt = exp ? "" : labEscolherPonte(L.certo, lang), uPt = pt ? await espera(labVozReacao(pt, lang), 200) : null; if (!vivo()) return;
         const inicio = uPt ? await junto([reac, uPt]) : null; if (!vivo()) return;
-        await (inicio ? tocar(inicio).finally(() => URL.revokeObjectURL(inicio)) : tocar(reac));
+        await (inicio ? tocar(inicio, 0, nReac).finally(() => URL.revokeObjectURL(inicio)) : tocar(reac, 0, nReac));
       }
       if (!vivo()) return;
     }
@@ -7934,7 +7974,7 @@ async function labFalar() {
         const url = await labGerarVoz(explic, lang); if (!vivo()) return;
         L.pensando = false; desenharLab(); S.labEmenda = { modo: "ponte", buraco: Math.round(performance.now() - t0) };
         const limpo = await junto([url]); if (!vivo()) return;
-        await (limpo ? tocar(limpo).finally(() => URL.revokeObjectURL(limpo)) : tocar(url));
+        await (limpo ? tocar(limpo, L.reacao ? nReac : 0).finally(() => URL.revokeObjectURL(limpo)) : tocar(url, L.reacao ? nReac : 0));
       }
     }
     fim();
