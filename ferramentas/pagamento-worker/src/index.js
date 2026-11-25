@@ -35,6 +35,7 @@ export default {
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
       if (rota === "/grupo") return json(req, await grupo(env, corpo));
       if (rota === "/ia") return json(req, await iaReserva(env, corpo));
+      if (rota === "/pdf-cota") return json(req, await cotaPDF(env, email, corpo.acao));
       if (rota === "/criar") return json(req, await criarPix(env, email));
       if (rota === "/status") return json(req, await conferir(env, corpo.id, email));
       if (rota === "/cartao") return json(req, await criarCheckout(env, email));
@@ -367,4 +368,42 @@ async function saudeIA(req, env) {
   if (env.GROQ_KEY) for (const m of String(env.GROQ_MODELOS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",")) await testar("groq", "https://api.groq.com/openai/v1/chat/completions", env.GROQ_KEY, m.trim());
   if (env.OPENROUTER_KEY) for (const m of String(env.OPENROUTER_MODELOS || "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free").split(",")) await testar("openrouter", "https://openrouter.ai/api/v1/chat/completions", env.OPENROUTER_KEY, m.trim());
   return { resultados: out };
+}
+
+/* ---------- Limite do Resumo em PDF ----------
+   Conta os PEDIDOS à IA (inclusive tentativas) no site todo e por aluno. O dia é o da cota do Gemini (meia-noite da Califórnia).
+   Guardado em pdfcota/{dia} e pdfcota/{dia}/alunos/{email} (só o servidor lê e grava). */
+const PDF_SITE = 80, PDF_GRATIS = 1, PDF_PRO = 3, PDF_TENTATIVAS = 5; // 80 pedidos = 40 a 80 PDFs, dos 500 pedidos diários
+const ADMIN_EMAIL = "cadutvx@gmail.com";
+async function cotaPDF(env, email, acao) {
+  const tok = await tokenGoogle(env), H = { Authorization: "Bearer " + tok, "Content-Type": "application/json" };
+  const dia = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  const docDia = `pdfcota/${dia}`, docAluno = `${docDia}/alunos/${email}`; // no commit o nome vai sem codificar
+  const ler = async d => {
+    const r = await fetch(`${DOCS(env)}/${d.split("/").map(encodeURIComponent).join("/")}`, { headers: H });
+    if (r.status === 404) return {};
+    if (!r.ok) throw new Error("não consegui ler o limite");
+    return (await r.json()).fields || {};
+  };
+  // soma atômica: devolve os valores novos, então dois pedidos ao mesmo tempo não furam o limite
+  const raiz = DOCS(env).replace("https://firestore.googleapis.com/v1/", "");
+  const somar = async itens => {
+    const r = await fetch(`${DOCS(env)}:commit`, { method: "POST", headers: H, body: JSON.stringify({ writes: itens.map(([d, campo]) => ({ transform: { document: `${raiz}/${d}`, fieldTransforms: [{ fieldPath: campo, increment: int(1) }] } })) }) });
+    if (!r.ok) throw new Error("não consegui contar o limite: " + (await r.text()).slice(0, 120));
+    return (await r.json()).writeResults.map(w => Number(w.transformResults?.[0]?.integerValue || 0));
+  };
+  const n = v => Number(v?.integerValue || 0);
+  if (acao === "pronto") { await somar([[docAluno, "pdfs"]]); return { ok: true }; }
+  if (acao !== "pedir") return { ok: false, motivo: "erro" };
+  let limite = PDF_GRATIS;
+  if (email === ADMIN_EMAIL) limite = PDF_PRO;
+  else { const l = await ler(`liberados/${email}`); if (Object.keys(l).length && (!l.expira || n(l.expira) > Date.now())) limite = PDF_PRO; }
+  const [a, d] = await Promise.all([ler(docAluno), ler(docDia)]);
+  if (n(a.pdfs) >= limite) return { ok: false, motivo: "aluno" };
+  if (n(a.pedidos) >= limite * PDF_TENTATIVAS) return { ok: false, motivo: "tentativas" };
+  if (n(d.pedidos) >= PDF_SITE) return { ok: false, motivo: "site" };
+  const [pa, pd] = await somar([[docAluno, "pedidos"], [docDia, "pedidos"]]);
+  if (pa > limite * PDF_TENTATIVAS) return { ok: false, motivo: "tentativas" };
+  if (pd > PDF_SITE) return { ok: false, motivo: "site" };
+  return { ok: true, usados: pd, total: PDF_SITE };
 }

@@ -772,6 +772,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgGrupos" style="width:min(520px,calc(100vw - 24px))"><div id="gruposCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
+<input type="file" id="origIn" accept=".pdf,.pptx,.docx,.png,.jpg,.jpeg,.webp,.zip" multiple hidden>
 <input type="file" id="provaAntigaIn" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,.zip" multiple hidden>
 <dialog id="dlgIdioma" style="width:min(460px,calc(100vw - 24px))"><div class="stack" style="text-align:center;gap:14px">
   <div style="font-size:40px;line-height:1">🌎</div>
@@ -1326,14 +1327,14 @@ async function enviarUsoIA() {
   } finally { USO_IA_INDO = false; }
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && Date.now() - USO_IA_ULT > 30000 && Object.keys(lsGet("fp-ia-pend", {})).length) enviarUsoIA(); });
-async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo, zoeira, ferr }) {
+async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo, zoeira, ferr, modelos }) {
   const { ai, AI } = await motorGemini();
   const sys = textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido que siga exatamente este esquema JSON:\n" + JSON.stringify(schema) : "");
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: partesGemini(m.content) }));
   const limite = Math.min(maxTokens || 8192, 32768);
   let ultimoErro;
   const livres = MODELOS_GEMINI.filter(n => !(GEM_PAUSA[n] > Date.now()));
-  const ordem = livres.length ? livres : MODELOS_GEMINI;
+  const ordem = modelos || (livres.length ? livres : MODELOS_GEMINI); // "modelos": usa só estes
   for (const [i, nome] of ordem.entries()) {
     const prog = fundo ? () => {} : progressoEscrita(Math.min(limite, 3000), rotulo);
     try {
@@ -1590,6 +1591,7 @@ async function adicionarArquivos(files) {
       const r = await extrair(f);
       const novo = { id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r };
       c.materiais.push(novo);
+      if (temFigura(novo)) await guardarOriginal(novo.id, r.arquivo || f); // para as imagens do Resumo em PDF
       await salvar(c); render();
       if (r.poucoTexto) { toast(`${f.name}: tem páginas em imagem. Lendo com IA…`); lerRapido(novo.id); }
     } catch (e) { toast(`${f.name}: ${e.message}`, true); }
@@ -2511,7 +2513,7 @@ function viewMateriais(c) {
 /* ---------- Resumo ---------- */
 function viewResumo(c) {
   const sem = semMateriais(c); if (sem) return sem;
-  return `<div class="stack">${cartaoAudioResumo(c)}${formGerar("resumo", "resumo", { qtd: false })}
+  return `<div class="stack">${cartaoResumoPDF(c)}${cartaoAudioResumo(c)}${formGerar("resumo", "resumo", { qtd: false })}
   ${c.resumos.length ? "" : `<div class="empty">Nenhum resumo gerado ainda.</div>`}
   ${c.resumos.map(r => `<article class="card">${r.gerando ? `<div class="badge warn" style="display:inline-flex;gap:6px;align-items:center;margin-bottom:10px;text-transform:none;letter-spacing:0"><span class="spin"></span>${esc(r.status || "Gerando…")}</div>` : ""}
     <div class="head" style="margin-bottom:8px"><div><h2 style="margin:0">${esc(r.titulo)}</h2><div class="muted" style="font-size:12px">${fmtData(r.criado)}${r.foco ? " · foco: " + esc(r.foco) : ""}</div></div>
@@ -5012,7 +5014,7 @@ function cadernoLeve(c) {
   const leve = { ...c, materiais: c.materiais.map(m => m.id) };
   delete leve._idsSync;
   let dados = JSON.stringify(leve);
-  if (dados.length > 900000) { leve.chat = (c.chat || []).slice(-20); if (leve.inteligente) leve.inteligente = { ...leve.inteligente, banco: [] }; dados = JSON.stringify(leve); }
+  if (dados.length > 900000) { leve.chat = (c.chat || []).slice(-20); if (leve.resumosPdf) leve.resumosPdf = leve.resumosPdf.slice(0, 2); if (leve.inteligente) leve.inteligente = { ...leve.inteligente, banco: [] }; dados = JSON.stringify(leve); }
   return dados;
 }
 function agendarSync(c) {
@@ -5330,6 +5332,10 @@ document.addEventListener("click", async e => {
     case "tourPular": fimTour(true); break;
     case "mmEstilo": S.mmEstilo = id; S.mmDesc = $("#mmDesc")?.value ?? S.mmDesc; render(); break;
     case "mmIdeia": { const t = $("#mmDesc"); if (t) { t.value = id; S.mmDesc = id; } break; }
+    case "rpGerar": gerarResumoPDF(); break;
+    case "rpBaixar": baixarResumoPDF(id); break;
+    case "rpJuntar": $("#origIn").click(); break;
+    case "rpApagar": if (confirm(TT("Excluir este resumo em PDF?", "¿Eliminar este resumen en PDF?"))) { const r = c.resumosPdf.find(x => x.id === id); r?.secoes.forEach(s => (s.figs || []).forEach(f => apagarOriginal(f.id))); c.resumosPdf = c.resumosPdf.filter(x => x.id !== id); await salvar(c); render(); } break;
     case "mmGerar": gerarMapa(); break;
     case "mmCancelar": S.mmCancelar?.(); break;
     case "mmZoom": $("#mmSvg")?._zoom?.(+id); break;
@@ -5442,7 +5448,7 @@ document.addEventListener("click", async e => {
     case "escolher": $("#arquivo").click(); break;
     case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); break; }
     case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = m.ativo === false; await salvar(c); render(); break; }
-    case "excluirMat": { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); await salvar(c); render(); } break; }
+    case "excluirMat": { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); apagarOriginal(id); await salvar(c); render(); } break; }
     case "transcrever": transcrever(id); break;
     case "ocr": lerComOCR(id); break;
     case "lerRapido": lerRapido(id); break;
@@ -5603,7 +5609,7 @@ $("#perfilFoto").addEventListener("change", async e => {
 $("#txtValor").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("[data-act=txtOk]").click(); } });
 $("#novoNome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); criarCaderno(); } });
 const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-if (IOS) { document.documentElement.classList.add("ios"); ["#arquivo", "#novoArquivo", "#provaAntigaIn"].forEach(q => $(q)?.removeAttribute("accept")); }
+if (IOS) { document.documentElement.classList.add("ios"); ["#arquivo", "#novoArquivo", "#provaAntigaIn", "#origIn"].forEach(q => $(q)?.removeAttribute("accept")); }
 $("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });
 $("#backupIn").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -7511,8 +7517,8 @@ function miniaturaMapa(k, e) {
   return s + "</svg>";
 }
 // material em até `max` partes de 45 mil letras; maior que isso, trechos espalhados por TODO o material (antes só entrava o começo)
-function partesDoMapa(mats, foco, max) {
-  const LOTE = 45000, cab = m => `### ${m.nome}\n`, inteiro = mats.map(m => cab(m) + m.texto).join("\n\n");
+function partesDoMapa(mats, foco, max, LOTE = 45000) {
+  const cab = m => `### ${m.nome}\n`, inteiro = mats.map(m => cab(m) + m.texto).join("\n\n");
   if (inteiro.length <= LOTE) return [inteiro];
   let blocos = []; for (const m of mats) { let b = ""; for (const par of m.texto.split(/\n\s*\n|\n(?=\[(?:Página|Slide) \d+\])/)) { for (let i = 0; i < Math.max(1, par.length); i += 1800) { const t = par.slice(i, i + 1800); if (b.length + t.length > 1800 && b) { blocos.push({ m, t: b }); b = ""; } b += t + "\n\n"; } } if (b.trim()) blocos.push({ m, t: b }); }
   const cabem = LOTE * max, total = blocos.reduce((n, b) => n + b.t.length, 0);
@@ -8328,6 +8334,446 @@ document.addEventListener("toggle", e => { if (e.target.classList?.contains("lab
 document.addEventListener("change", e => { if (e.target.id === "labFonte" && S.lab) { S.lab.pronta = null; S.lab.fonte = e.target.value; S.lab.i = -1; proxLab(); } });
 $("#dlgLab").addEventListener("close", () => { if (!S.lab?.naPagina) labParar(); });
 
+/* ================= Resumo em PDF (com imagens tiradas dos próprios materiais) =================
+   1) o arquivo original fica guardado SÓ NESTE APARELHO, num banco separado (nunca vai para a nuvem);
+   2) as figuras são achadas no PDF/slides/Word e vão junto com o material num ÚNICO pedido à IA, que escreve tudo e diz onde cada figura entra;
+   3) o simulado usa as perguntas que o aluno já tem (não gasta IA); o servidor limita os pedidos por aluno e no site todo;
+   4) o PDF é montado no aparelho com o pdfmake (texto de verdade, sumário e gabarito). */
+let DB_ORIG = null;
+function abrirOriginais() {
+  return DB_ORIG ||= new Promise((ok, erro) => {
+    const r = indexedDB.open("foco-prova-originais" + (SUFIXO_CONTA ? "-" + SUFIXO_CONTA : ""), 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("arq", { keyPath: "id" });
+    r.onsuccess = () => ok(r.result); r.onerror = () => { DB_ORIG = null; erro(r.error); };
+  });
+}
+async function origTx(modo, fn) {
+  const d = await abrirOriginais();
+  return new Promise((ok, erro) => {
+    const t = d.transaction("arq", modo), req = fn(t.objectStore("arq"));
+    t.oncomplete = () => ok(req.result); t.onerror = t.onabort = () => erro(t.error || req.error);
+  });
+}
+const ORIG_MAX = 120 * 1048576; // arquivos maiores que isso não são guardados
+const temFigura = m => ["pdf", "pptx", "docx", "imagem"].includes(m.tipo);
+async function guardarOriginal(id, file) {
+  try { if (file?.size && file.size <= ORIG_MAX) { await origTx("readwrite", s => s.put({ id, blob: file, nome: file.name })); return true; } }
+  catch (e) { console.warn("original não guardado:", e); }
+  return false;
+}
+async function original(m) {
+  try { const r = await origTx("readonly", s => s.get(m.id)); if (r?.blob) return r.blob; } catch {}
+  if (m.arquivo) return m.arquivo;
+  const d = await dadosOriginais(m); return d ? new Blob([d], { type: m.mime || "" }) : null;
+}
+const apagarOriginal = id => origTx("readwrite", s => s.delete(id)).catch(() => {});
+async function idsOriginais() { try { return new Set(await origTx("readonly", s => s.getAllKeys())); } catch { return new Set(); } }
+// originais de materiais que não existem mais (caderno apagado, material removido em outro aparelho)
+async function limparOriginais() {
+  if (!db) return;
+  const vivos = new Set(S.cadernos.flatMap(c => [...(c.materiais || []).map(m => m.id), ...(c.resumosPdf || []).flatMap(r => r.secoes.flatMap(s => (s.figs || []).map(f => f.id)))]));
+  if (!S.cadernos.length) return;
+  for (const k of await idsOriginais()) if (!vivos.has(k) && !(String(k).startsWith("rpc-") && S.cadernos.some(c => "rpc-" + c.id === k))) await apagarOriginal(k);
+}
+
+/* ---------- achar as figuras ---------- */
+const novoCanvas = (w, h) => Object.assign(document.createElement("canvas"), { width: Math.max(1, Math.round(w)), height: Math.max(1, Math.round(h)) });
+async function blobCanvas(blob, max = 1400) {
+  const img = await createImageBitmap(blob), k = Math.min(1, max / Math.max(img.width, img.height)), cv = novoCanvas(img.width * k, img.height * k), x = cv.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(img, 0, 0, cv.width, cv.height); img.close?.(); return cv;
+}
+function recortar(cv, x0, y0, x1, y1) {
+  const r = novoCanvas(x1 - x0, y1 - y0); r.getContext("2d").drawImage(cv, x0, y0, x1 - x0, y1 - y0, 0, 0, r.width, r.height); return r;
+}
+const reduzir = (cv, max) => { const k = Math.min(1, max / Math.max(cv.width, cv.height)); if (k === 1) return cv; const r = novoCanvas(cv.width * k, cv.height * k); r.getContext("2d").drawImage(cv, 0, 0, r.width, r.height); return r; };
+async function paginaCanvas(pdf, n, larg = 1400) {
+  const pg = await pdf.getPage(n), b = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: Math.min(3, larg / Math.max(b.width, b.height)) }), cv = novoCanvas(vp.width, vp.height);
+  await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp, intent: "print" }).promise; return cv; // "print": continua mesmo com a aba em segundo plano
+}
+// caixas (0–1, de cima para baixo) das imagens desenhadas numa página + quanto desenho vetorial ela tem
+async function caixasDaPagina(pdf, n) {
+  const pg = await pdf.getPage(n), vp = pg.getViewport({ scale: 1 }), O = pdfjsLib.OPS, U = pdfjsLib.Util, ops = await pg.getOperatorList();
+  let m = [1, 0, 0, 1, 0, 0], vetor = 0; const pilha = [], caixas = [];
+  ops.fnArray.forEach((f, i) => {
+    const a = ops.argsArray[i];
+    if (f === O.save) pilha.push(m);
+    else if (f === O.restore) m = pilha.pop() || m;
+    else if (f === O.transform) m = U.transform(m, a);
+    else if (f === O.paintFormXObjectBegin) { pilha.push(m); if (a?.[0]) m = U.transform(m, a[0]); }
+    else if (f === O.paintFormXObjectEnd) m = pilha.pop() || m;
+    else if (f === O.constructPath) vetor += a?.[0]?.length || 1;
+    else if (f === O.paintImageXObject || f === O.paintJpegXObject || f === O.paintInlineImageXObject) {
+      const p = [[0, 0], [1, 0], [0, 1], [1, 1]].map(q => U.applyTransform(U.applyTransform(q, m), vp.transform)), xs = p.map(q => q[0] / vp.width), ys = p.map(q => q[1] / vp.height);
+      const c = [Math.max(0, Math.min(...xs)), Math.max(0, Math.min(...ys)), Math.min(1, Math.max(...xs)), Math.min(1, Math.max(...ys))];
+      if (c[2] - c[0] > .01 && c[3] - c[1] > .01) caixas.push(c);
+    }
+  });
+  // pedaços da mesma figura (encostados) viram uma caixa só
+  for (let mudou = true; mudou;) {
+    mudou = false;
+    fora: for (let i = 0; i < caixas.length; i++) for (let j = i + 1; j < caixas.length; j++) {
+      const p = caixas[i], q = caixas[j];
+      if (p[0] <= q[2] + .006 && q[0] <= p[2] + .006 && p[1] <= q[3] + .006 && q[1] <= p[3] + .006) {
+        caixas[i] = [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[2], q[2]), Math.max(p[3], q[3])]; caixas.splice(j, 1); mudou = true; break fora;
+      }
+    }
+  }
+  return { caixas: caixas.filter(c => c[2] - c[0] > .14 && c[3] - c[1] > .1), vetor };
+}
+const normRP = t => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+// devolve candidatos: { mat, pag, texto, canvas: async () => canvas, inteira } — nada é desenhado ainda
+async function figurasDoMaterial(m, notaTexto) {
+  const blob = await original(m); if (!blob) return [];
+  const out = [];
+  if (m.tipo === "imagem") return [{ mat: m.nome, pag: 1, texto: m.texto || "", inteira: true, canvas: () => blobCanvas(blob) }];
+  if (m.tipo === "pdf") {
+    const pdf = await abrirPDF(new Uint8Array(await blob.arrayBuffer()));
+    const txt = n => (m.paginas?.[n - 1]) || (m.texto || "").match(new RegExp(`\\[Página ${n}\\]\\n([\\s\\S]*?)(?=\\n\\n\\[Página \\d+\\]|$)`))?.[1] || "";
+    // livros grandes: só as páginas mais ligadas ao assunto
+    let nums = Array.from({ length: pdf.numPages }, (_, i) => i + 1);
+    if (nums.length > 120) nums = nums.map(n => [n, notaTexto(txt(n))]).sort((a, b) => b[1] - a[1]).slice(0, 120).map(x => x[0]).sort((a, b) => a - b);
+    const achados = [];
+    for (const n of nums) {
+      try {
+        const { caixas, vetor } = await caixasDaPagina(pdf, n), texto = txt(n);
+        const cheia = caixas.some(c => (c[2] - c[0]) * (c[3] - c[1]) > .72);
+        if (cheia || (!caixas.length && vetor > 250 && texto.length < 900)) achados.push({ n, c: null, texto });
+        else caixas.forEach(c => achados.push({ n, c, texto }));
+      } catch {}
+    }
+    // logo/cabeçalho que se repete no mesmo lugar em várias páginas não é figura
+    const chave = c => c.map(v => Math.round(v * 40)).join(), vezes = {};
+    achados.forEach(a => { if (a.c) vezes[chave(a.c)] = (vezes[chave(a.c)] || 0) + 1; });
+    for (const a of achados) {
+      if (a.c && vezes[chave(a.c)] >= 3 && vezes[chave(a.c)] > nums.length * .25) continue;
+      out.push({ mat: m.nome, pag: a.n, texto: a.texto, inteira: !a.c, canvas: async () => { const cv = await paginaCanvas(pdf, a.n, a.c ? 2000 : 1500); return a.c ? recortar(cv, a.c[0] * cv.width, a.c[1] * cv.height, a.c[2] * cv.width, a.c[3] * cv.height) : cv; } });
+    }
+    return out;
+  }
+  const zip = await JSZip.loadAsync(blob), ok = /\.(png|jpe?g|gif|bmp|webp)$/i;
+  if (m.tipo === "docx") {
+    for (const f of Object.values(zip.files).filter(z => /^word\/media\//.test(z.name) && ok.test(z.name))) out.push({ mat: m.nome, pag: 0, texto: "", canvas: async () => blobCanvas(await f.async("blob")) });
+    return out;
+  }
+  const nums = Object.keys(zip.files).map(n => n.match(/^ppt\/slides\/slide(\d+)\.xml$/)).filter(Boolean).map(x => +x[1]).sort((a, b) => a - b), porMidia = {};
+  for (const n of nums) {
+    const rels = await zip.file(`ppt/slides/_rels/slide${n}.xml.rels`)?.async("string") || "";
+    for (const r of rels.match(/<Relationship\b[^>]*>/g) || []) {
+      const alvo = /\/image"/.test(r) && r.match(/Target="\.\.\/media\/([^"]+)"/)?.[1];
+      if (alvo && ok.test(alvo)) (porMidia[alvo] ||= []).push(n);
+    }
+  }
+  for (const [nome, slides] of Object.entries(porMidia)) {
+    const f = zip.file("ppt/media/" + nome); if (!f || new Set(slides).size > 3) continue; // fundo/logo do modelo
+    const n = slides[0], t = xmlTexto(await zip.file(`ppt/slides/slide${n}.xml`).async("string"), "a:p", "a:t") || m.paginas?.[n - 1] || "";
+    out.push({ mat: m.nome, pag: n, slide: true, texto: t, canvas: async () => blobCanvas(await f.async("blob")) });
+  }
+  return out;
+}
+const MAX_FIGS = 16; // figuras mostradas à IA (tudo no mesmo pedido do texto)
+async function coletarFiguras(c, foco, status) {
+  const base = foco || ativos(c).map(m => m.nome + " " + m.texto.slice(0, 1500)).join(" ");
+  const palavras = [...new Set(normRP(base).split(/[^a-z0-9]+/).filter(p => p.length > 4))].slice(0, 250);
+  const nota = t => { const x = normRP(t); return palavras.reduce((n, p) => n + (x.includes(p) ? 1 : 0), 0); };
+  const cands = [];
+  for (const m of ativos(c).filter(temFigura)) {
+    status(TT(`Procurando imagens em ${m.nome}…`, `Buscando imágenes en ${m.nome}…`));
+    try { const fs = await figurasDoMaterial(m, nota); fs.forEach(f => f.nota = nota(f.texto)); cands.push(fs.sort((a, b) => b.nota - a.nota)); } catch (e) { console.warn("figuras de", m.nome, e); }
+  }
+  // divide as vagas entre os materiais (um de cada vez), sempre os mais ligados ao assunto primeiro
+  const lista = []; for (let i = 0; lista.length < MAX_FIGS * 2 && cands.some(l => i < l.length); i++) cands.forEach(l => { if (l[i]) lista.push(l[i]); });
+  const prontos = [], vistos = new Set();
+  for (const f of lista) {
+    if (prontos.length >= MAX_FIGS) break;
+    try {
+      const cv = await f.canvas(); if (cv.width < 160 || cv.height < 110) continue;
+      const mini = novoCanvas(12, 12), x = mini.getContext("2d"); x.drawImage(cv, 0, 0, 12, 12);
+      const px = [...x.getImageData(0, 0, 12, 12).data].filter((_, i) => i % 4 !== 3), media = px.reduce((a, b) => a + b, 0) / px.length;
+      if (px.reduce((a, b) => a + Math.abs(b - media), 0) / px.length < 4) continue; // imagem lisa
+      const ass = px.map(v => v >> 5).join(""); if (vistos.has(ass)) continue; vistos.add(ass);
+      f.cv = cv; prontos.push(f);
+    } catch {}
+  }
+  return prontos;
+}
+
+/* ---------- cota: o servidor conta os pedidos do site todo e de cada aluno (dia da cota do Gemini) ---------- */
+async function cotaPDF(acao) {
+  const semConferir = TT("Não consegui conferir o limite de PDFs agora. Tente de novo em alguns minutos.", "No pude verificar el límite de PDFs ahora. Intenta de nuevo en unos minutos.");
+  let d = null;
+  try {
+    const idToken = await NUVEM.user.getIdToken();
+    const r = await prazo(fetch(PAG_AUTO + "/pdf-cota", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, acao }) }), 15000);
+    d = await r.json();
+  } catch (e) { console.warn("cota:", e); }
+  if (d?.ok) return d;
+  const e = new Error(d?.motivo === "aluno" ? (ACESSO.liberado ? TT("Você já usou os seus PDFs de hoje. Amanhã tem mais.", "Ya usaste tus PDFs de hoy. Mañana hay más.") : TT("No plano grátis dá para fazer 1 resumo em PDF por dia. Amanhã tem mais; no Pro são 3 por dia.", "En el plan gratis puedes hacer 1 resumen en PDF por día. Mañana hay más; en el Pro son 3 por día."))
+    : d?.motivo === "tentativas" ? TT("A IA falhou várias vezes hoje. Tente de novo amanhã.", "La IA falló varias veces hoy. Intenta de nuevo mañana.")
+    : d?.motivo === "site" ? TT("Os resumos em PDF de hoje acabaram. Amanhã tem mais; quiz e tutor continuam normais.", "Los resúmenes en PDF de hoy se terminaron. Mañana hay más; quiz y tutor siguen normales.") : semConferir);
+  e.cota = true; throw e;
+}
+
+/* ---------- escrever: UM pedido só, em texto com marcas (dá para aproveitar o que chegou se a IA cair no meio) ---------- */
+const REGRAS_RP = `Regras do resumo:
+- Seja FIEL ao material: use só o que está nele. Nunca invente valores, classificações, doses ou exemplos de números. Se algo pedido não estiver no material, avise em uma linha que não consta, em vez de completar por conta própria.
+- Se dois documentos se contradizem, mostre os dois valores num quadro de atenção.
+- Escreva como um bom professor prepara o aluno para a prova: conceito, classificação, como reconhecer e aplicar, e o que costuma confundir. Frases curtas, subtítulos "###" e listas.
+- Toda classificação com pontos de corte, comparação, indicação ou permitido/proibido vira TABELA em Markdown (uma linha por faixa; nunca uma frase corrida com siglas). Escreva os diagnósticos por extenso.
+- Seja COMPLETO no que foi pedido: não deixe um item só com o nome; explique e dê os exemplos que o material traz. Se houver fórmula, resolva um exemplo passo a passo com números do material.
+- Quadros (linha começando com ">", no máximo 3 por seção): "> [!CLAVE] ..." conceito central, "> [!ATENCAO] ..." erro comum ou conflito, "> [!MACETE] ..." para memorizar.
+- Sem HTML, sem emojis, sem LaTeX, sem referências de arquivo ou página, sem dizer "segundo o material".`;
+const FORMATO_RP = `Responda SOMENTE neste formato, com cada marca no começo de uma linha:
+@@TITULO título curto e específico
+@@MINIMO
+- de 5 a 8 frases curtas com o mínimo para o dia da prova
+@@SECAO nome do assunto
+texto da seção em Markdown
+@@FIG número | legenda curta do que mostra | y0,x0,y1,x1
+mais texto da seção, se houver
+@@SECAO ...
+@@FIM
+(de 3 a 10 seções; termine sempre com @@FIM)`;
+function lerMarcasRP(t) {
+  const r = { titulo: "", minimo: [], secoes: [], fim: false }; let onde = "", s = null;
+  for (const l of String(t || "").split(/\r?\n/)) {
+    const m = l.match(/^\s*(?:[*#`]+\s*)?@@\s*(TITULO|MINIMO|SECAO|FIG|FIM)\b[:\s]*(.*)$/i);
+    if (!m) {
+      if (onde === "min") { const x = l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/\*\*/g, "").trim(); if (x) r.minimo.push(semEmojiTexto(x)); }
+      else if (s) { const u = s.partes.at(-1); if (u && u.md !== undefined) u.md += l + "\n"; else s.partes.push({ md: l + "\n" }); }
+      continue;
+    }
+    const k = m[1].toUpperCase(), v = m[2].trim();
+    if (k === "TITULO") { r.titulo = semEmojiTexto(v.replace(/[*#]/g, "")); onde = ""; }
+    else if (k === "MINIMO") { onde = "min"; s = null; }
+    else if (k === "FIM") { r.fim = true; break; }
+    else if (k === "SECAO") { onde = "sec"; s = { titulo: semEmojiTexto(v.replace(/[*#]/g, "").replace(/^\d+[.)]\s*/, "")), partes: [] }; r.secoes.push(s); }
+    else if (s) { const p = v.split("|"), n = parseInt((p[0].match(/\d+/) || [])[0]); if (Number.isInteger(n)) s.partes.push({ fig: n, legenda: semEmojiTexto((p[1] || "").trim()), caixa: ((p[2] || "").match(/\d+(?:\.\d+)?/g) || []).map(Number) }); }
+  }
+  r.secoes = r.secoes.filter(x => x.titulo && x.partes.some(p => p.md?.trim()));
+  r.minimo = r.minimo.slice(0, 8);
+  return r;
+}
+function figuraFinal(f, p) {
+  let cv = f.cv; const b = p.caixa.map(v => Math.max(0, Math.min(1000, v)) / 1000), k = .02;
+  // margem em volta do recorte, para não cortar rótulos; recorte estranho (muito pequeno) é ignorado
+  if (f.inteira && b.length === 4 && b[2] - b[0] > .15 && b[3] - b[1] > .15) { const y0 = Math.max(0, b[0] - k), x0 = Math.max(0, b[1] - k), y1 = Math.min(1, b[2] + k), x1 = Math.min(1, b[3] + k); cv = recortar(cv, x0 * cv.width, y0 * cv.height, x1 * cv.width, y1 * cv.height); }
+  cv = reduzir(cv, 1100);
+  return { legenda: p.legenda, fonte: `${f.mat}${f.pag ? `, ${f.slide ? "slide" : "p."} ${f.pag}` : ""}`, w: cv.width, h: cv.height, data: cv.toDataURL("image/jpeg", .85) };
+}
+// um pedido contado no servidor, só no modelo principal (os de 20 por dia ficam para quiz e tutor)
+async function pedirRP(system, content) {
+  await cotaPDF("pedir");
+  let parcial = "";
+  try { return { texto: await chamarGemini(cfg(), { system, messages: [{ role: "user", content }], maxTokens: 24000, fundo: true, ferr: "pdf", modelos: MODELOS_GEMINI.slice(0, 1), aoParcial: t => parcial = t }) }; }
+  catch (e) { return { texto: parcial, erro: e }; }
+}
+const RP_LOTE = 90000, RP_LOTES = 3; let RP_ESPERA = 6000;
+const hashRP = t => { let a = 5381, b = 52711; for (let i = 0; i < t.length; i++) { const k = t.charCodeAt(i); a = (a * 33 ^ k) >>> 0; b = (b * 31 + k) >>> 0; } return a.toString(36) + b.toString(36) + t.length.toString(36); };
+async function gerarResumoPDF() {
+  const c = atual(); if (!c || S.rp) return;
+  if (!ativos(c).length) return toast(TT("Adicione materiais primeiro.", "Agrega materiales primero."), true);
+  if (!NUVEM.user) return toast(TT("Entre com o Google para gerar o resumo em PDF.", "Inicia sesión con Google para generar el resumen en PDF."), true);
+  if (!podeUsar()) return;
+  const guia = (S.rpGuia?.[c.id] || "").trim().slice(0, 12000), comFig = S.rpFig !== false;
+  const chave = hashRP(JSON.stringify([guia, comFig, idiomaCaderno(c), ativos(c).map(m => [m.nome, m.texto])])), igual = (c.resumosPdf || []).find(x => x.chave === chave && x.completo);
+  if (igual && !confirm(TT("Você já tem este guia, feito com os mesmos materiais. Gerar outro mesmo assim? (Cancelar baixa o que já existe)", "Ya tienes esta guía, hecha con los mismos materiales. ¿Generar otra de todos modos? (Cancelar descarga la que ya existe)"))) return baixarResumoPDF(igual.id);
+  let guardado = null; try { guardado = igual ? null : await origTx("readonly", s => s.get("rpc-" + c.id)); } catch {}
+  if (S.rp) return;
+  S.rp = { cid: c.id, txt: "" }; render();
+  const status = t => { if (S.rp) S.rp.txt = t; const el = $("#rpStatus"); if (el) el.textContent = t; };
+  try {
+    let figs = [];
+    if (comFig) { try { figs = await coletarFiguras(c, guia, status); } catch (e) { console.warn("figuras:", e); } }
+    status(TT("Escrevendo o resumo… (pode levar 1 ou 2 minutos)", "Escribiendo el resumen… (puede tardar 1 o 2 minutos)"));
+    // material grande vira até 3 lotes (1 pedido cada); o que já foi escrito fica guardado e não é pedido de novo
+    const partes = partesDoMapa(ativos(c), guia, RP_LOTES, RP_LOTE), feitas = guardado?.chave === chave && guardado.n === partes.length ? guardado.partes : {}, lidos = [], faltaram = []; let erroRP = null;
+    const guardar = () => origTx("readwrite", s => s.put({ id: "rpc-" + c.id, chave, n: partes.length, partes: feitas })).catch(() => {});
+    for (const [k, texto] of partes.entries()) {
+      const nP = partes.length, lote = nP > 1 ? `\nEste é o LOTE ${k + 1} de ${nP} do material (os outros lotes são escritos à parte e juntados depois): ${guia ? "escreva só os itens da guia que aparecem NESTE lote, na ordem da guia, e não comente os que não aparecem" : "cubra tudo o que há NESTE lote"}; use o nome do assunto no título de cada seção.` : "";
+      let lido = feitas[k] ? lerMarcasRP(feitas[k]) : null;
+      if (!lido?.fim) {
+        status(nP > 1 ? TT(`Escrevendo o guia… parte ${k + 1} de ${nP}`, `Escribiendo la guía… parte ${k + 1} de ${nP}`) : TT("Escrevendo o guia… (pode levar 1 ou 2 minutos)", "Escribiendo la guía… (puede tardar 1 o 2 minutos)"));
+        const system = [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\n" + REGRAS_RP + "\n" + FORMATO_RP }, { type: "text", text: `<materiais>\n${texto}\n</materiais>` }], content = [], meus = figs.map((f, i) => [f, i]).filter(([f]) => nP === 1 || texto.includes("### " + f.mat + "\n"));
+        for (const [f, i] of meus) content.push({ type: "text", text: `[Figura ${i}] ${f.mat}, ${f.slide ? "slide" : "página"} ${f.pag}` }, { type: "image", source: { type: "base64", media_type: "image/jpeg", data: await canvasJPEG(reduzir(f.cv, 768), 768) } });
+        content.push({ type: "text", text: `Escreva um RESUMO DE ESTUDO completo para prova. ${guia ? `Siga ESTRITAMENTE esta guia do estudante: todos os itens, na mesma ordem, e nada fora dela.\n<guia>\n${guia}\n</guia>` : "Cubra TODOS os assuntos dos materiais, em ordem lógica: mecanismos, valores, classificações, causas e consequências. Não deixe assunto só citado."}${lote}${meus.length ? `\nFIGURAS: use com "@@FIG" as figuras acima que ENSINAM (esquemas, gráficos, curvas, tabelas, algoritmos, fotos didáticas), de 1 a 3 por seção quando houver, logo depois do texto que elas ilustram e sem repetir a mesma. Recuse logos, capas, decoração e páginas de texto corrido. As quatro coordenadas vão de 0 a 1000 e recortam só a figura com seus rótulos (0,0,1000,1000 se já estiver recortada). Você também pode usar os valores que LÊ nas tabelas e gráficos das figuras.` : "\nNão use @@FIG."}` });
+        let r, txt = feitas[k] || ""; lido ||= lerMarcasRP("");
+        try { if (!lido.secoes.length) { r = await pedirRP(system, content); txt = r.texto || ""; lido = lerMarcasRP(txt); if (r.erro) erroRP = r.erro; } } catch (e) { erroRP = e; if (e.cota && !k && !Object.keys(feitas).length) throw e; faltaram.push(k); continue; }
+        if (!lido.fim) {
+          if (r) await new Promise(ok => setTimeout(ok, RP_ESPERA));
+          // caiu no meio: pede só o que falta; se veio quase nada, pede de novo do zero (só mais UM pedido)
+          const corte = lido.secoes.length > 1 ? txt.lastIndexOf("\n@@SECAO") : 0, feito = corte > 0 ? txt.slice(0, corte) : "";
+          status(TT("Terminando o guia…", "Terminando la guía…"));
+          try {
+            const r2 = await pedirRP(system, feito ? [...content, { type: "text", text: `Você já escreveu esta parte:\n<feito>\n${feito}\n</feito>\nContinue a partir da próxima seção que falta (comece com @@SECAO), sem repetir nada, até @@FIM.` }] : content);
+            const t2 = r2.texto || "", junto = feito ? feito + "\n" + t2.slice(Math.max(0, t2.search(/@@\s*SECAO/i))) : t2, lido2 = lerMarcasRP(junto);
+            if (lido2.fim || lido2.secoes.length >= lido.secoes.length) { lido = lido2; txt = junto; }
+            if (r2.erro) erroRP = r2.erro;
+          } catch (e) { erroRP = e; }
+        }
+        if (lido.secoes.length) { feitas[k] = txt; await guardar(); }
+      }
+      if (!lido.fim) { faltaram.push(k); if (lido.secoes.length > 1) lido.secoes.pop(); if (lido.secoes.length < 2) lido.secoes = []; } // a última veio cortada; com menos de 2 seções inteiras não vale
+      if (lido.secoes.length) lidos.push(lido);
+    }
+    const lido = { titulo: lidos[0]?.titulo || "", minimo: [], secoes: [], fim: !faltaram.length && lidos.length === partes.length };
+    for (const l of lidos) { lido.minimo.push(...l.minimo); for (const s of l.secoes) { const ig = lido.secoes.find(x => normRP(x.titulo) === normRP(s.titulo)); ig ? ig.partes.push(...s.partes) : lido.secoes.push(s); } }
+    lido.minimo = [...new Set(lido.minimo)].slice(0, partes.length > 1 ? 12 : 8);
+    if (!lido.secoes.length) throw erroRP || new Error(TT("A IA está ocupada agora. Tente de novo em alguns minutos.", "La IA está ocupada ahora. Intenta de nuevo en unos minutos."));
+    const res = { id: uid(), criado: Date.now(), titulo: lido.titulo || c.nome, es: idiomaCaderno(c) === "es", guia: !!guia, foco: guia.slice(0, 1500), minimo: lido.minimo, fontes: ativos(c).map(m => m.nome), secoes: [], faltou: [], chave, completo: lido.fim };
+    if (!lido.fim) res.faltou.push(res.es ? "las partes finales (la IA se cortó)" : "as partes finais (a IA foi interrompida)");
+    const usadas = new Set();
+    for (const s of lido.secoes) {
+      const partes = [], fs = [];
+      for (const p of s.partes) {
+        if (p.md !== undefined) { partes.push({ md: p.md }); continue; }
+        if (!figs[p.fig] || usadas.has(p.fig) || fs.length >= 4) continue;
+        usadas.add(p.fig);
+        try { const f = figuraFinal(figs[p.fig], p), id = "fig-" + uid(); await origTx("readwrite", st => st.put({ id, data: f.data })); delete f.data; fs.push({ id, ...f }); partes.push({ fig: id }); } catch (e) { console.warn("figura não guardada:", e); }
+      }
+      res.secoes.push({ titulo: s.titulo, partes, figs: fs });
+    }
+    if (lido.fim) { origTx("readwrite", s => s.delete("rpc-" + c.id)).catch(() => {}); gastar(); cotaPDF("pronto").catch(() => {}); } // resumo cortado pela IA não gasta o PDF do dia
+    const cad = S.cadernos.find(x => x.id === c.id) || c; (cad.resumosPdf ||= []).unshift(res); cad.resumosPdf = cad.resumosPdf.slice(0, 12); await salvar(cad);
+    S.rp = null; render();
+    const nf = res.secoes.reduce((n, s) => n + s.figs.length, 0);
+    const tem = await idsOriginais(), semOrig = comFig && ativos(c).some(m => temFigura(m) && !m.arquivo && !m.b64 && !tem.has(m.id));
+    toast(res.faltou.length ? TT("Resumo pronto, mas a IA foi interrompida antes do fim.", "Resumen listo, pero la IA se cortó antes del final.")
+      : !nf && semOrig ? TT("Resumo pronto, sem imagens: junte os arquivos originais para incluir as figuras.", "Resumen listo, sin imágenes: agrega los archivos originales para incluir las figuras.")
+      : TT(`Resumo pronto, com ${nf} ${nf === 1 ? "imagem" : "imagens"}.`, `Resumen listo, con ${nf} ${nf === 1 ? "imagen" : "imágenes"}.`));
+    baixarResumoPDF(res.id, cad.id);
+  } catch (e) { toast(e.cota ? e.message : erroMsg(e), true); }
+  finally { S.rp = null; if (atual()?.id === c.id) render(); }
+}
+// simulado SEM gastar IA: perguntas de múltipla escolha que o aluno já tem neste caderno
+function questoesDoCaderno(c, foco = "") {
+  const todas = [...(c.quizzes || []).flatMap(q => q.questoes || []), ...(c.provas || []).flatMap(p => (p.questoes || []).filter(q => q.tipo === "multipla"))]
+    .filter(q => q?.enunciado && q.alternativas?.length >= 3 && q.alternativas[q.correta] !== undefined);
+  const vistos = new Set(), palavras = [...new Set(normRP(foco).split(/[^a-z0-9]+/).filter(p => p.length > 2 && !/^(los|las|del|una|unos|por|para|com|con|que|dos|das|uma|como|sus|seus|entre|sobre|grupos?|concepto|conceito|formula|clasificacion|classificacao|ejercicios|exercicios)$/.test(p)))];
+  return todas.filter(q => { const k = normRP(q.enunciado).slice(0, 120); if (vistos.has(k)) return false; vistos.add(k); return true; })
+    .map(q => ({ q, n: palavras.reduce((n, p) => n + (normRP(q.enunciado + " " + q.alternativas.join(" ")).includes(p) ? 1 : 0), 0) }))
+    .filter(x => !palavras.length || x.n).sort((a, b) => b.n - a.n).slice(0, 20)
+    .map(({ q }) => ({ e: q.enunciado, a: q.alternativas, c: q.correta, x: q.explicacoes?.[q.correta] || q.explicacao || q.alternativas[q.correta] }));
+}
+
+/* ---------- montar o PDF ---------- */
+const limpaPDF = t => semEmoPDF(String(t ?? "").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/<br\s*\/?>/gi, "\n").replace(/<\/?[a-z][^>]*>/gi, "").replace(/\$([^$\n]{1,80})\$/g, "$1").replace(/⇒|→|⟶|➜|➔/g, "»").replace(/←/g, "«").replace(/↑/g, "aum. ").replace(/↓/g, "dim. ").replace(/✓|✔/g, "sí ").replace(/[✗✘]/g, "no ").replace(/[☐□■▪►▶]/g, "•").replace(/‑/g, "-"));
+// só tira emojis; não mexe em espaços (semEmojiTexto apara as pontas e colaria as palavras)
+function semEmoPDF(t) { return t.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ""); }
+function linhaPDF(tokens) {
+  return (tokens || []).flatMap(t => {
+    if (t.type === "strong") return linhaPDF(t.tokens).map(x => ({ ...x, bold: true }));
+    if (t.type === "em") return linhaPDF(t.tokens).map(x => ({ ...x, italics: true }));
+    if (t.type === "br") return [{ text: "\n" }];
+    if (t.tokens?.length) return linhaPDF(t.tokens);
+    return [{ text: limpaPDF(t.text ?? t.raw ?? "") }];
+  });
+}
+const COR_RP = "#0f4c5c";
+const QUADROS = { CLAVE: ["#e8f2f4", COR_RP, "Conceito-chave", "Concepto clave"], ATENCAO: ["#fdf1e3", "#c96f12", "Atenção", "Atención"], MACETE: ["#eaf5ea", "#37803c", "Para lembrar", "Para recordar"] };
+function quadroPDF(corpo, tipo, es) {
+  const [fundo, cor, pt, esp] = QUADROS[tipo] || QUADROS.CLAVE;
+  return { unbreakable: true, margin: [0, 4, 0, 6], table: { widths: ["*"], body: [[{ stack: [...(tipo ? [{ text: es ? esp : pt, bold: true, color: cor, fontSize: 9, margin: [0, 0, 0, 2] }] : []), ...corpo], fillColor: fundo, margin: [8, 5, 8, 5] }]] }, layout: { hLineWidth: () => 0, vLineWidth: i => i ? 0 : 4, vLineColor: () => cor, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 } };
+}
+const TAB_RP = { hLineWidth: () => .5, vLineWidth: () => .5, hLineColor: () => "#b8c4cc", vLineColor: () => "#b8c4cc", fillColor: i => i === 0 ? COR_RP : i % 2 ? "#f3f7f8" : null, paddingLeft: () => 5, paddingRight: () => 5, paddingTop: () => 3, paddingBottom: () => 3 };
+function blocosPDF(tokens, es) {
+  return (tokens || []).flatMap(t => {
+    if (t.type === "space" || t.type === "html") return [];
+    if (t.type === "hr") return [];
+    if (t.type === "heading") return [{ text: linhaPDF(t.tokens), style: t.depth <= 3 ? "h2" : "h3", headlineLevel: 2 }];
+    if (t.type === "paragraph") return [{ text: linhaPDF(t.tokens), margin: [0, 2, 0, 4] }];
+    if (t.type === "text") return [{ text: t.tokens ? linhaPDF(t.tokens) : limpaPDF(t.text) }];
+    if (t.type === "list") { const it = t.items.map(i => ({ stack: blocosPDF(i.tokens, es), margin: [0, 0, 0, 2] })); return [t.ordered ? { ol: it, start: +t.start || 1, margin: [0, 2, 0, 5] } : { ul: it, margin: [0, 2, 0, 5] }]; }
+    if (t.type === "blockquote") {
+      const m = String(t.text || "").match(/^\s*\[!\s*([\p{L}]+)\s*\]\s*/u), k = m ? normRP(m[1]).toUpperCase() : "", tipo = QUADROS[k] ? k : /^ATEN/.test(k) ? "ATENCAO" : /^(MACETE|RECORD|LEMBR|TIP)/.test(k) ? "MACETE" : "CLAVE";
+      return [quadroPDF(blocosPDF(marked.lexer(m ? t.text.slice(m[0].length) : t.text), es), tipo, es)];
+    }
+    if (t.type === "table") {
+      const n = t.header.length; if (!n) return [];
+      const cel = (x, h) => ({ text: linhaPDF(x?.tokens), ...(h ? { bold: true, color: "#fff" } : {}) });
+      return [{ margin: [0, 4, 0, 7], fontSize: n > 4 ? 8 : 9, table: { headerRows: 1, dontBreakRows: true, widths: Array(n).fill("*"), body: [t.header.map(x => cel(x, true)), ...t.rows.map(r => Array.from({ length: n }, (_, i) => cel(r[i])))] }, layout: TAB_RP }];
+    }
+    return t.tokens ? blocosPDF(t.tokens, es) : [{ text: limpaPDF(t.text || t.raw) }];
+  });
+}
+async function docResumo(r, questoes = []) {
+  const es = r.es, L = (pt, e) => es ? e : pt, corpo = [];
+  for (const [i, s] of r.secoes.entries()) {
+    corpo.push({ text: `${i + 1}. ${limpaPDF(s.titulo)}`, style: "h1", tocItem: true, pageBreak: "before" });
+    for (const p of s.partes || []) {
+      if (p.md !== undefined) { corpo.push(...blocosPDF(marked.lexer(p.md), es)); continue; }
+      const f = (s.figs || []).find(x => x.id === p.fig); let d = null;
+      try { d = f && (await origTx("readonly", st => st.get(f.id)))?.data; } catch {}
+      if (!d) continue;
+      corpo.push({ unbreakable: true, margin: [0, 5, 0, 8], stack: [{ image: d, fit: [f.w / f.h > 1.6 ? 470 : 400, 300], alignment: "center" }, { text: `${limpaPDF(f.legenda)} (${limpaPDF(f.fonte)})`, alignment: "center", fontSize: 8, color: "#556", margin: [0, 3, 0, 0] }] });
+    }
+  }
+  if (questoes.length) {
+    corpo.push({ text: L("Simulado", "Simulacro"), style: "h1", tocItem: true, pageBreak: "before" });
+    questoes.forEach((q, i) => corpo.push({ unbreakable: true, margin: [0, 0, 0, 9], stack: [{ text: `${i + 1}. ${limpaPDF(q.e)}`, bold: true, margin: [0, 0, 0, 2] }, ...q.a.map((a, k) => ({ text: `${"abcde"[k]}) ${limpaPDF(a)}`, margin: [10, 0, 0, 1] }))] }));
+    corpo.push({ text: L("Gabarito comentado", "Respuestas comentadas"), style: "h1", tocItem: true, pageBreak: "before" },
+      { table: { headerRows: 1, dontBreakRows: true, widths: [26, 34, "*"], body: [["N.º", L("Resp.", "Resp."), L("Por quê", "Por qué")].map(t => ({ text: t, bold: true, color: "#fff" })), ...questoes.map((q, i) => [String(i + 1), { text: "abcde"[q.c], bold: true }, limpaPDF(q.x || q.a[q.c])])] }, layout: TAB_RP });
+  }
+  return {
+    pageSize: "A4", pageMargins: [42, 42, 42, 46], info: { title: limpaPDF(r.titulo), creator: "Hipocampo Study" },
+    defaultStyle: { fontSize: 10.5, lineHeight: 1.18, color: "#1c2733" },
+    styles: { h1: { fontSize: 18, bold: true, color: COR_RP, margin: [0, 0, 0, 8] }, h2: { fontSize: 13, bold: true, color: COR_RP, margin: [0, 8, 0, 3] }, h3: { fontSize: 11, bold: true, margin: [0, 6, 0, 2] } },
+    footer: (p, n) => ({ columns: [{ text: "Hipocampo Study", color: "#889", fontSize: 8 }, { text: `${p} / ${n}`, alignment: "right", color: "#889", fontSize: 8 }], margin: [42, 14, 42, 0] }),
+      content: [
+      { text: limpaPDF(r.titulo), fontSize: 24, bold: true, color: COR_RP, margin: [0, 0, 0, 4] },
+      { text: r.guia ? L("Resumo feito seguindo a guia que você colou, com os seus materiais.", "Resumen hecho siguiendo la guía que pegaste, con tus materiales.") : L("Resumo feito com os seus materiais.", "Resumen hecho con tus materiales."), color: "#556", margin: [0, 0, 0, 10] },
+      { toc: { title: { text: L("Conteúdo", "Contenido"), style: "h2" }, numberStyle: { color: "#556" } } },
+      ...(r.minimo?.length ? [{ text: L("O mínimo para o dia da prova", "Lo mínimo para el día del examen"), style: "h2" }, quadroPDF([{ ul: r.minimo.map(limpaPDF) }], "", es)] : []),
+      ...(r.faltou?.length ? [quadroPDF([{ text: L("Não foi possível gerar: ", "No se pudo generar: ") + limpaPDF(r.faltou.join(", ")) }], "ATENCAO", es)] : []),
+      { text: L("Materiais usados", "Materiales usados"), style: "h2" }, { text: limpaPDF(r.fontes.slice(0, 40).join(" · ")), fontSize: 9, color: "#556" },
+      { text: L("Feito por IA: confira valores importantes no material da aula.", "Hecho por IA: verifica los valores importantes en el material de clase."), fontSize: 8.5, italics: true, color: "#556", margin: [0, 6, 0, 0] },
+      ...corpo
+    ]
+  };
+}
+async function baixarResumoPDF(id, cid) {
+  const c = S.cadernos.find(x => x.id === (cid || S.atual)), r = c?.resumosPdf?.find(x => x.id === id); if (!r) return;
+  try {
+    toast(TT("Montando o PDF…", "Armando el PDF…"));
+    const base = "https://cdn.jsdelivr.net/npm/pdfmake@0.2.12/build/";
+    if (!window.pdfMake) await carregarScript(base + "pdfmake.min.js");
+    if (!window.pdfMake?.vfs) await carregarScript(base + "vfs_fonts.js");
+    const dd = await docResumo(r, S.rpSim === false ? [] : questoesDoCaderno(c, r.foco)), blob = await new Promise((ok, erro) => { try { pdfMake.createPdf(dd).getBlob(ok); setTimeout(() => erro(new Error(TT("o PDF demorou demais", "el PDF tardó demasiado"))), 120000); } catch (e) { erro(e); } });
+    const nome = limpaPDF(r.titulo).replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 80) || "Resumo";
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: nome + ".pdf" });
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  } catch (e) { console.warn("pdf:", e); toast(TT("Não consegui montar o PDF: ", "No pude armar el PDF: ") + erroMsg(e), true); }
+}
+
+/* ---------- tela (aba Guia de estudo) ---------- */
+function cartaoResumoPDF(c) {
+  const aqui = S.rp?.cid === c.id, mats = ativos(c).filter(m => temFigura(m) && !m.oficial);
+  S.rpGuia ||= {};
+  if (mats.length && S.rpVisto !== c.id) { S.rpVisto = c.id; conferirOriginais(c); }
+  return `<div class="card stack"><div><h2 style="margin:0">${TT("Guia de estudo em PDF", "Guía de estudio en PDF")}</h2><div class="muted" style="font-size:13px">${TT("A IA monta um PDF completo: resumo, tabelas, imagens dos seus próprios materiais e um simulado com as perguntas dos seus quizzes e testes.", "La IA arma un PDF completo: resumen, tablas, imágenes de tus propios materiales y un simulacro con las preguntas de tus quizzes y exámenes.")}</div></div>
+    <label>${TT("O que vai cair na prova ou o que você quer (opcional)", "Lo que entra en el examen o lo que quieres (opcional)")}<textarea id="rpGuia" rows="3" maxlength="12000" placeholder="${TT("Cole aqui o que vai cair na prova. O PDF segue só isso.", "Pega aquí lo que entra en el examen. El PDF sigue solo eso.")}">${esc(S.rpGuia[c.id] || "")}</textarea></label>
+    <div class="row"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rpFig" style="width:auto" ${S.rpFig === false ? "" : "checked"}> ${TT("Incluir imagens", "Incluir imágenes")}</label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rpSim" style="width:auto" ${S.rpSim === false ? "" : "checked"}> ${TT("Incluir simulado", "Incluir simulacro")} (${questoesDoCaderno(c).length} ${TT("perguntas", "preguntas")})</label></div>
+    <div id="rpOrig">${S.rpFalta?.cid === c.id ? avisoOriginais(S.rpFalta.n) : ""}</div>
+    <div class="row" style="align-items:center"><button class="btn primary" data-act="rpGerar" ${S.rp ? "disabled" : ""}>${aqui ? `<span class="spin"></span> ${TT("Gerando…", "Generando…")}` : TT("Gerar guia em PDF", "Generar guía en PDF")}</button><span class="muted" style="font-size:12.5px">${ACESSO.liberado ? TT("Até 3 por dia.", "Hasta 3 por día.") : TT("1 por dia no plano grátis.", "1 por día en el plan gratis.")}</span><span class="muted" id="rpStatus" style="font-size:13px">${aqui ? esc(S.rp.txt) : ""}</span></div>
+    ${(c.resumosPdf || []).map(r => `<div class="row" style="align-items:center;justify-content:space-between;border-top:1px solid var(--line,rgba(128,128,128,.25));padding-top:10px"><div class="grow"><b>${esc(r.titulo)}</b><div class="muted" style="font-size:12.5px">${fmtData(r.criado)} · ${r.secoes.reduce((n, s) => n + (s.figs?.length || 0), 0)} ${TT("imagens", "imágenes")}</div></div><button class="btn small primary" data-act="rpBaixar" data-id="${r.id}">${iconeSVG("baixar")} ${TT("Baixar PDF", "Descargar PDF")}</button><button class="btn small danger" data-act="rpApagar" data-id="${r.id}">${TT("Excluir", "Eliminar")}</button></div>`).join("")}</div>`;
+}
+const avisoOriginais = n => n ? `<div class="mm-aviso">${iconeSVG("imagem")}<div>${TT(`Para usar as imagens, falta o arquivo original de <b>${n}</b> ${n === 1 ? "material" : "materiais"} neste aparelho (enviados antes desta novidade ou em outro aparelho).`, `Para usar las imágenes, falta el archivo original de <b>${n}</b> ${n === 1 ? "material" : "materiales"} en este dispositivo (subidos antes de esta novedad o en otro dispositivo).`)}<div class="mm-aviso-bts"><button class="btn small" data-act="rpJuntar">${TT("Escolher os arquivos", "Elegir los archivos")}</button></div></div></div>` : "";
+async function conferirOriginais(c) {
+  const tem = await idsOriginais(), n = ativos(c).filter(m => temFigura(m) && !m.oficial && !m.arquivo && !m.b64 && !tem.has(m.id)).length;
+  S.rpFalta = { cid: c.id, n };
+  const el = $("#rpOrig"); if (el && atual()?.id === c.id) el.innerHTML = avisoOriginais(n);
+}
+async function juntarOriginais(files) {
+  const c = atual(); if (!c) return;
+  files = await abrirZips(files); const chave = n => normRP(n).split(/[\\/›]/).pop().replace(/\s+/g, " ").trim(); let ok = 0;
+  for (const f of files) for (const m of c.materiais) if (temFigura(m) && chave(m.nome) === chave(f.name) && await guardarOriginal(m.id, f)) ok++;
+  toast(ok ? TT(`${ok} arquivo(s) ligado(s) aos materiais.`, `${ok} archivo(s) vinculados a los materiales.`) : TT("Nenhum arquivo tem o mesmo nome de um material deste caderno.", "Ningún archivo tiene el mismo nombre que un material de este cuaderno."), !ok);
+  await conferirOriginais(c);
+}
+document.addEventListener("input", e => { if (e.target.id === "rpGuia" && S.atual) (S.rpGuia ||= {})[S.atual] = e.target.value; });
+document.addEventListener("change", e => { if (e.target.id === "rpFig") S.rpFig = e.target.checked; if (e.target.id === "rpSim") S.rpSim = e.target.checked; });
+$("#origIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; if (fs.length) juntarOriginais(fs); });
+setTimeout(() => limparOriginais().catch(() => {}), 60000);
+
 /* ================= início ================= */
 { const c0 = lsGet("fp-config", {}); if (c0.provider === "ollama" && c0.ollamaCtx === 16384 && !c0.migr1) lsSet("fp-config", { ...c0, ollamaCtx: 8192, migr1: true }); }
 aplicarTema();
@@ -8347,8 +8793,6 @@ navigator.serviceWorker?.getRegistrations?.().then(regs => {
   if (velhos.length) Promise.all(velhos.map(r => r.unregister())).then(() => { if (crossOriginIsolated) location.reload(); });
 }).catch(() => {});
 setTimeout(detectarPendentes, 1500);
-// o "Resumo em PDF" saiu do ar: libera o espaço dos arquivos que ele guardou neste aparelho
-try { indexedDB.deleteDatabase("foco-prova-originais" + (SUFIXO_CONTA ? "-" + SUFIXO_CONTA : "")); } catch {}
 // Só existe o Gemini: grava isso também nas configurações antigas (quem usava Claude ou a IA do navegador)
 if (lsGet("fp-config", {}).provider !== "gemini") lsSet("fp-config", { ...lsGet("fp-config", {}), provider: "gemini" });
 </script>
