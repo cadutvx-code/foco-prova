@@ -913,8 +913,10 @@ function toast(msg, err = false) {
 function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
 const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
 const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
-const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome", "fp-grupos", "fp-grupos-mat", "fp-rank-pts", "fp-rank-oculto", "fp-xp-base", "fp-ordem-kits"]);
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome", "fp-grupos", "fp-grupos-mat", "fp-rank-pts", "fp-rank-oculto", "fp-xp-base", "fp-ordem-kits", "fp-materias", "fp-aviso"]);
 const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
+// 2ª conta deste aparelho: começa com as cores que já via aqui
+if (SUFIXO_CONTA) try { const k = "fp-materias@" + SUFIXO_CONTA; if (localStorage.getItem(k) === null && localStorage.getItem("fp-materias") !== null) localStorage.setItem(k, localStorage.getItem("fp-materias")); } catch {}
 function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
 // Ao entrar/sair: se a conta mudou, recarrega a página já com os dados certos daquela conta
@@ -2329,6 +2331,26 @@ function render() {
 const CORES_MATERIA = ["#f2a900", "#1d6ff2", "#12a36b", "#e0475e", "#7c4dff", "#f26b1d", "#0b9fa8", "#d6338a"];
 const SEM_MATERIA = "Outros";
 function materiasCfg() { return lsGet("fp-materias", {}); }
+// a cor acompanha a conta: cada matéria guarda quando mudou (q) e vale a mudança mais nova entre os aparelhos
+let corT = null;
+function gravarMaterias(m, ...mudou) {
+  for (const n of mudou) m[n] = { ...(m[n] || {}), q: Date.now() };
+  lsSet("fp-materias", m);
+  if (!NUVEM.user || !NUVEM.F) return;
+  clearTimeout(corT); corT = setTimeout(sincronizarCores, 1500); // espera a pessoa parar de arrastar
+}
+async function sincronizarCores() {
+  const uid = NUVEM.user?.uid, F = NUVEM.F; if (!uid || !F) return;
+  try {
+    const ref = F.doc(NUVEM.db, `users/${uid}/conta/cores`), s = await F.getDoc(ref); if (NUVEM.user?.uid !== uid) return;
+    const nv = s.exists() && s.data().m || {}, lo = materiasCfg(), out = { ...nv }; let subir = false, mudou = false;
+    for (const n in lo) if (lo[n]?.cor && (!nv[n] || (lo[n].q || 0) > (nv[n].q || 0))) { out[n] = { cor: lo[n].cor, q: lo[n].q || 1 }; subir = true; }
+    for (const n in out) if (hexOk(out[n]?.cor) && lo[n]?.cor !== out[n].cor) { lo[n] = { ...(lo[n] || {}), cor: out[n].cor, q: out[n].q }; mudou = true; }
+    if (mudou) lsSet("fp-materias", lo);
+    if (subir) await F.setDoc(ref, { m: out, atualizado: Date.now() });
+    if (mudou && !atual() && !S.player && !S.corMat) render();
+  } catch (e) { console.warn("cores:", e?.message); }
+}
 // ---------- cor da matéria: cores prontas ou qualquer cor (seletor, R, G e B ou código) ----------
 const hexOk = h => { const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(h || "").trim()); if (!m) return ""; const x = m[1].toLowerCase(); return "#" + (x.length === 3 ? [...x].map(c => c + c).join("") : x); };
 const rgbDe = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -2350,7 +2372,7 @@ function corMudar(h, de = null, gravar = true) {
   p.querySelectorAll(".corR").forEach(e => { const a = [...v], b = [...v]; a[+e.dataset.k] = 0; b[+e.dataset.k] = 255; e.style.background = `linear-gradient(90deg,${hexDe(a)},${hexDe(b)})`; });
   for (const id of ["corSel", "corHex"]) { const e = $("#" + id); if (e && e !== de) e.value = hex; }
   if (!gravar) return;
-  const m = materiasCfg(); m[c.nome] = { ...(m[c.nome] || {}), cor: hex }; lsSet("fp-materias", m);
+  const m = materiasCfg(); m[c.nome] = { ...(m[c.nome] || {}), cor: hex }; gravarMaterias(m, c.nome);
   const bl = [...document.querySelectorAll("#main .mkits")].find(x => x.dataset.materia === c.nome); // pinta os cartões sem redesenhar a tela
   bl?.querySelectorAll(".mkit").forEach(e => { e.style.background = hex; e.classList.toggle("claro", corClara(hex)); });
   const i = bl?.closest(".materia")?.querySelector(".cor-bt i"); if (i) i.style.background = hex;
@@ -4111,7 +4133,7 @@ async function iniciarNuvem() {
       if (S.excluindo) return; // a conta está sendo apagada: excluirConta cuida do resto
       if (u && trocarDadosDaConta(u.uid)) return; // outra conta: recarrega com o progresso dela
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
-      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosRank(); }).catch(() => {}); lerOcultos(); lerOrdemKits(); }
+      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosRank(); }).catch(() => {}); lerOcultos(); lerOrdemKits(); sincronizarCores(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
       { let pm = ""; try { pm = sessionStorage.getItem("fp-materia-pendente") || ""; if (pm && u) sessionStorage.removeItem("fp-materia-pendente"); } catch {} if (pm) { telaImportar(linkMateria(pm)); if (u) verMateriaLink(); } }
       { let pd = ""; try { pd = sessionStorage.getItem("fp-duelo-pendente") || ""; } catch {}
@@ -5082,6 +5104,7 @@ async function excluirConta() {
     await A.reauthenticateWithPopup(u, new A.GoogleAuthProvider());
     msg(`<span class="spin"></span> ${TT("Apagando… não feche esta tela.", "Borrando… no cierres esta pantalla.")}`);
     await pagAuto("/cancelar-assinatura"); // se falhar, para aqui: ninguém fica pagando por uma conta apagada
+    { const r = await fetch(PAG_AUTO + "/lembrete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: await u.getIdToken(), acao: "apagar-todos" }) }), d = await r.json(); if (!r.ok || (d.erro && d.codigo !== "sem-chave")) throw new Error("lembretes"); }
     const gs = (await F.getDocs(F.query(F.collection(db, "grupos"), F.where("membros", "array-contains", u.uid)))).docs.map(d => ({ id: d.id, ...d.data() }));
     for (const g of gs) {
       if (g.admin === u.uid) { const outro = (g.membros || []).find(m => m !== u.uid); if (!outro) { await grupoServidor("apagar", { id: g.id }); continue; } await grupoServidor("passar", { id: g.id, alvo: outro }); }
@@ -5545,6 +5568,8 @@ document.addEventListener("click", async e => {
     case "revAvaliar": revAvaliar(+id); break;
     case "lembrete": abrirLembrete(); break;
     case "baixarLembrete": baixarLembrete(); break;
+    case "avisoLigar": avisoLigar(); break;
+    case "avisoDesligar": avisoDesligar(); break;
     case "fecharFeedback": $("#dlgFeedback").close(); break;
     case "fbTipo": S.fbTipo = id; document.querySelectorAll(".fb-tipos button").forEach(b => b.classList.toggle("on", b.dataset.id === id)); break;
     case "enviarFeedback": enviarFeedback(); break;
@@ -5589,8 +5614,8 @@ document.addEventListener("click", async e => {
       for (const k of lista) await apagarCaderno(k);
       toast(`🗑 Matéria "${id}" apagada (${lista.length} caderno(s)).`); render(); break;
     }
-    case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo)) { k.materia = v; await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; lsSet("fp-materias", m); } render(); }); break; }
-    case "corMateria": { const m = materiasCfg(), atualCor = corMateria(id); m[id] = { ...(m[id] || {}), cor: CORES_MATERIA[(CORES_MATERIA.indexOf(atualCor) + 1) % CORES_MATERIA.length] }; lsSet("fp-materias", m); render(); if (S.corMat?.nome === id) corMudar(corMateria(id)); break; }
+    case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo)) { k.materia = v; await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; gravarMaterias(m, v); } render(); }); break; }
+    case "corMateria": { const m = materiasCfg(), atualCor = corMateria(id); m[id] = { ...(m[id] || {}), cor: CORES_MATERIA[(CORES_MATERIA.indexOf(atualCor) + 1) % CORES_MATERIA.length] }; gravarMaterias(m, id); render(); if (S.corMat?.nome === id) corMudar(corMateria(id)); break; }
     case "corLivre": if (S.corMat?.nome === id) fecharCor(); else abrirCor(id, el); break;
     case "txtCancelar": $("#dlgTexto").close(); break;
     case "txtOk": { const v = $("#txtValor").value.trim(); $("#dlgTexto").close(); S.aoSalvarTexto?.(v); break; }
@@ -6630,10 +6655,44 @@ async function revAvaliar(nivel) {
 // 📅 Lembrete diário: cria um evento repetido no calendário do celular (funciona no iPhone, Android e Google Agenda)
 function abrirLembrete() {
   $("#perfilCorpo").innerHTML = `<h2 style="margin:0">📅 Lembrete diário</h2>
-    <div class="muted" style="font-size:13.5px">Escolha o horário. Vamos criar um evento que se repete todo dia no calendário do seu celular, com aviso, chamando para a sua Revisão do dia.</div>
-    <label>Horário<input type="time" id="lembHora" value="${esc(lsGet("fp-lembrete", "20:00"))}"></label>
-    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="perfilCancelar">Cancelar</button><button class="pill" data-act="baixarLembrete">📅 Adicionar ao calendário</button></div>`;
+    <div class="muted" style="font-size:13.5px">Escolha o horário. ${TT("Você pode receber um aviso neste aparelho ou criar um evento diário no calendário.", "Puedes recibir un aviso en este dispositivo o crear un evento diario en el calendario.")}</div>
+    <label>Horário<input type="time" id="lembHora" style="background:var(--panel);color:var(--text);color-scheme:light dark;border:1px solid var(--line);border-radius:12px;padding:10px 12px" value="${esc(lsGet("fp-lembrete", "20:00"))}"></label>
+    <div id="avisoMsg" role="status"></div>
+    <div class="row" style="justify-content:flex-end;flex-wrap:wrap"><button class="btn" data-act="perfilCancelar">Cancelar</button><button class="btn" data-act="baixarLembrete">📅 Adicionar ao calendário</button><button class="pill" data-act="avisoLigar">${TT("Avisar neste aparelho", "Avisar en este dispositivo")}</button></div>
+    <div id="avisoDesl" class="row" style="justify-content:flex-end"></div>`;
+  if (lsGet("fp-aviso", null)) $("#avisoDesl").innerHTML = `<small class="muted">${TT("Aviso ligado neste aparelho.", "Aviso activado en este dispositivo.")}</small><button class="btn small ghost" data-act="avisoDesligar">${TT("Desligar", "Desactivar")}</button>`;
   const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+// Notificação de verdade no celular ou no computador, mesmo com o site fechado (aviso.js + servidor). Nenhum dado de estudo vai no aviso.
+async function avisoLigar() {
+  const msg = t => { const el = $("#avisoMsg"); if (el) el.innerHTML = `<div class="aviso-nuvem" style="margin:0">${t}</div>`; };
+  if (!NUVEM.user) return msg(TT("Entre com o Google para ligar o aviso.", "Entra con Google para activar el aviso."));
+  const instalado = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (IOS && !instalado) return msg(TT("No iPhone: toque em Compartilhar → Adicionar à Tela de Início, abra o Hipocampo por esse ícone e volte aqui.", "En iPhone: toca Compartir → Agregar a inicio, abre Hipocampo desde ese ícono y vuelve aquí."));
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return msg(TT("Este navegador não tem avisos. Use o calendário.", "Este navegador no tiene avisos. Usa el calendario."));
+  const hora = $("#lembHora").value || "20:00";
+  try {
+    if (await Notification.requestPermission() !== "granted") return msg(TT("As notificações estão bloqueadas para este site. Libere nas configurações do navegador ou use o calendário.", "Las notificaciones están bloqueadas para este sitio. Actívalas en la configuración del navegador o usa el calendario."));
+    msg(`<span class="spin"></span> ${TT("Ligando…", "Activando…")}`);
+    const es = lsGet("fp-ui", "pt") === "es", { chave } = await pagAuto("/lembrete", { acao: "chave" });
+    const reg = await navigator.serviceWorker.register("aviso.js?l=" + (es ? "es" : "pt")); await navigator.serviceWorker.ready;
+    const bytes = Uint8Array.from(atob(chave.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+    const velha = await reg.pushManager.getSubscription(), kv = velha?.options?.applicationServerKey;
+    if (velha && kv && String(new Uint8Array(kv)) !== String(bytes)) await velha.unsubscribe(); // a chave do servidor mudou
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
+    const [h, m] = hora.split(":").map(Number), d = new Date(); d.setHours(h, m, 0, 0);
+    const r = await pagAuto("/lembrete", { acao: "ligar", endereco: sub.endpoint, vez: Math.floor((d.getUTCHours() * 60 + d.getUTCMinutes()) / 5), idioma: es ? "es" : "pt" });
+    const real = new Date(d); real.setUTCHours(Math.floor(r.vez / 12), r.vez % 12 * 5, 0, 0);
+    lsSet("fp-lembrete", hora); lsSet("fp-aviso", { hora });
+    $("#dlgPerfil").close(); toast(TT("Aviso diário ligado, por volta das ", "Aviso diario activado, cerca de las ") + real.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ".");
+  } catch (e) { console.warn("aviso", e); msg(/limite de/.test(e.message) ? TT("Você já ligou em 5 aparelhos. Desligue um deles.", "Ya lo activaste en 5 dispositivos. Desactiva uno.") : /horário cheio/.test(e.message) ? TT("Esse horário está cheio. Escolha outro.", "Ese horario está lleno. Elige otro.") : TT("Não consegui ligar o aviso agora. Você pode usar o calendário.", "No pude activar el aviso ahora. Puedes usar el calendario.")); }
+}
+async function avisoDesligar() {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration(), sub = await reg?.pushManager?.getSubscription();
+    if (sub) { await pagAuto("/lembrete", { acao: "desligar", endereco: sub.endpoint }); await sub.unsubscribe(); }
+    lsSet("fp-aviso", null); $("#dlgPerfil").close(); toast(TT("Aviso desligado.", "Aviso desactivado."));
+  } catch (e) { console.warn("aviso", e); toast(TT("Não consegui desligar agora.", "No pude desactivarlo ahora."), true); }
 }
 function baixarLembrete() {
   const h = ($("#lembHora").value || "20:00").split(":"), d = new Date(); d.setHours(+h[0], +h[1], 0, 0); if (d < new Date()) d.setDate(d.getDate() + 1);

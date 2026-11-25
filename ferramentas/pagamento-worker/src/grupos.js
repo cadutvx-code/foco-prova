@@ -182,10 +182,10 @@ export function bancoFirestore(projeto, token, buscar = fetch) {
       if (!r.ok) throw new Error("banco indisponível (" + r.status + ")");
       const d = await r.json(); return { dados: campos(d.fields), versao: d.updateTime };
     },
-    async consultar(campo, op, valor, limite) {
-      const r = await chamar(`${raiz}:runQuery`, { method: "POST", body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "grupos" }], where: { fieldFilter: { field: { fieldPath: campo }, op, value: paraFS(valor) } }, limit: limite } }) });
+    async consultar(campo, op, valor, limite, colecao = "grupos") {
+      const r = await chamar(`${raiz}:runQuery`, { method: "POST", body: JSON.stringify({ structuredQuery: { from: [{ collectionId: colecao }], where: { fieldFilter: { field: { fieldPath: campo }, op, value: paraFS(valor) } }, limit: limite } }) });
       if (!r.ok) throw new Error("banco indisponível (" + r.status + ")");
-      return (await r.json()).filter(x => x.document).map(x => ({ id: x.document.name.split("/").pop(), dados: campos(x.document.fields) }));
+      return (await r.json()).filter(x => x.document).map(x => ({ id: x.document.name.split("/").pop(), dados: campos(x.document.fields), versao: x.document.updateTime }));
     },
     async somar(caminho, campo) {
       const r = await chamar(`${raiz}:commit`, { method: "POST", body: JSON.stringify({ writes: [{ transform: { document: `${raiz}/${caminho}`, fieldTransforms: [{ fieldPath: campo, increment: { integerValue: "1" } }] } }] }) });

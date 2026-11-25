@@ -12,6 +12,7 @@
 // Segredos (wrangler secret put): MP_TOKEN (Access Token do Mercado Pago), SA_JSON (chave da conta de serviço do Firebase)
 
 import { rotaGrupo, bancoFirestore } from "./grupos.js";
+import { rotaLembrete, enviarLembretes } from "./lembrete.js";
 import { liberarPro, estornarPro, precoDe, podeIA } from "./pro.js";
 
 const ORIGENS = ["https://hipocampo.web.app", "https://hipocampo.firebaseapp.com", "https://focoprova.web.app", "https://focoprova.firebaseapp.com", "http://localhost:47821", "http://localhost:47822"];
@@ -23,6 +24,8 @@ function cors(req) {
 const json = (req, dados, status = 200) => new Response(JSON.stringify(dados), { status, headers: { "Content-Type": "application/json", ...cors(req) } });
 
 export default {
+  // a cada 5 minutos: lembretes diários (wrangler.toml → [triggers])
+  async scheduled(ev, env) { if (env.VAPID_JWK) { const r = await enviarLembretes(await banco(env), env.VAPID_JWK, ev.scheduledTime); if (r.enviados || r.apagados) console.log("lembretes", JSON.stringify(r)); } },
   async fetch(req, env) {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors(req) });
     const rota = new URL(req.url).pathname;
@@ -36,6 +39,7 @@ export default {
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
       if (rota === "/grupo") return json(req, await grupo(env, corpo));
       if (rota === "/ia") return await iaComLimite(req, env, email, corpo);
+      if (rota === "/lembrete") return json(req, await rotaLembrete(await banco(env), env.VAPID_JWK, email, corpo));
       if (rota === "/pdf-cota") return json(req, await cotaPDF(env, email, corpo.acao));
       if (rota === "/criar") return json(req, await criarPix(env, email));
       if (rota === "/status") return json(req, await conferir(env, corpo.id, email));
