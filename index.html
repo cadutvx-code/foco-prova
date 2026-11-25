@@ -1778,6 +1778,7 @@ function lerForm() {
   }
 }
 const REGRAS_PERGUNTA = `
+SÓ CONTEÚDO ACADÊMICO: nunca pergunte sobre nomes de professores ou autores, instituição, avisos, datas, critérios de avaliação, cartas, agradecimentos, prefácio, sumário, bibliografia ou número de página, mesmo que estejam no material.
 ESTILO DAS PERGUNTAS (diretas e fáceis de memorizar):
 - Pergunta CURTA e DIRETA, de uma linha, cobrando UM fato-chave por vez: função, principal causa/fonte, valor normal com unidade, onde fica/onde é produzido, o que aumenta ou diminui algo, causa → consequência simples. Exemplos do tom certo: "Qual é a principal fonte de energia do encéfalo em condições normais?", "Qual é o valor normal aproximado da pressão do líquido cefalorraquidiano?".
 - Alternativas CURTAS (de 1 a 6 palavras sempre que possível), do MESMO tipo e formato (todas números com a mesma unidade, ou todas substâncias, ou todas estruturas), plausíveis; as erradas são confusões comuns de estudante, mas claramente erradas.
@@ -1868,32 +1869,41 @@ function numerosDe(t) {
   for (const m of String(t).matchAll(RE_NUM_UNID)) for (const v of [m[1], m[2]]) if (v) out.add(String(parseFloat(v.replace(",", "."))));
   return out;
 }
+// 9: pergunta sobre professor, agradecimento, avaliação ou outro dado administrativo não tem valor acadêmico (a regra também vai no pedido à IA)
+const ADMINISTRATIVO = /\b(nome|nombre|quem (é|foi|s[ãa]o|escreveu|ministra|organizou|elaborou)|qui[eé]n(es)? (es|son|fue|escribi[oó]|dicta|elabor[oó])|e-?mail|correo)\b.{0,50}\b(professor(a|es|as)?|profesor(a|es|as)?|docentes?|catedr[áa]tic[oa]s?|autor(a|es|as)?|coordenador(a)?|coordinador(a)?|monitor(a)?|ayudante|editora|editorial|universidade|universidad|faculdade|facultad)\b|\b(agradec\w+|dedicat[óo]ria|carta de (agradecimento|agradecimiento|presentaci[óo]n|apresenta[çc][ãa]o)|pref[áa]cio|prefacio|[íi]ndice (do livro|del libro)|isbn|direitos autorais|derechos de autor|copyright)\b|\b(data|fecha|hor[áa]rio|horario)\b.{0,12}\b(da prova final|do exame final|del examen|de la prueba|da avalia[çc][ãa]o|de la evaluaci[óo]n|da aula|de la clase|do parcial|del parcial)\b|\b(quantos|cu[áa]ntos) (pontos|puntos)\b.{0,30}\b(vale|prova|examen|parcial|quest)|\b(n[úu]mero|en qu[ée]|em que|qual) (da |la |a )?(p[áa]gina|diapositiva|slide)\b|\b(crit[ée]rios? de (avalia[çc][ãa]o|evaluaci[óo]n) (da disciplina|de la materia|do curso|del curso)|bibliografia|bibliograf[íi]a (recomendada|b[áa]sica))\b/i;
+function semValorAcademico(x) {
+  const t = textoIA(x.enunciado ?? x.frente), certa = Array.isArray(x.alternativas) ? textoIA(x.alternativas[x.correta]) : "";
+  return ADMINISTRATIVO.test(t) || /^\s*(prof\.?|profa\.?|dr\.?|dra\.?|lic\.?|m\.?sc\.?|ph\.?d\.?)\s+[A-ZÁÉÍÓÚÑ]/i.test(certa);
+}
 // Gera em lotes pequenos e junta: pedir 30 de uma vez estourava o limite da resposta e perdia tudo.
 // Se um lote falhar, tenta de novo; se continuar falhando, entrega o que já ficou pronto.
-async function emLotes(qtd, campo, chave, fn) {
+async function emLotes(qtd, campo, chave, fn, { aoItem } = {}) {
   const lote = 6;
   const res = { [campo]: [] }, termos = [];
   let falhasSeguidas = 0, vazios = 0, ultimoErro = null;
+  const aceitar = x => {
+    if (res[campo].length >= qtd || !x?.[chave] || !altsValidas(x) || semValorAcademico(x)) return false;
+    const f = fatoDe(x); if (termos.some(a => mesmoFato(f, a))) return false;
+    termos.push(f); res[campo].push(x); aoItem?.(x, res); return true;
+  };
   while (res[campo].length < qtd) {
     const feitos = res[campo].length, falta = qtd - feitos;
     const ev = feitos ? `\nJÁ CRIADOS — não repita nenhum destes fatos (nem com outras palavras); cubra OUTRAS partes do conteúdo:\n${res[campo].map(x => "- " + String(x[chave]).slice(0, 110)).join("\n")}` : "";
-    progressoIA(`Gerando… ${feitos} de ${qtd}`, feitos / qtd);
-    let r;
-    try { r = await fn(Math.min(lote, falta), ev); falhasSeguidas = 0; }
+    if (!aoItem || !feitos) progressoIA(`Gerando… ${feitos} de ${qtd}`, feitos / qtd);
+    // o primeiro lote é o menor (a 1ª pergunta aparece antes); a quantidade de pedidos é a mesma
+    const n = aoItem && !feitos ? Math.min(qtd, qtd % lote || lote) : Math.min(lote, falta);
+    let r, lidos = 0, tam = 0; const antes = res[campo].length;
+    const parcial = aoItem ? t => { if (t.length < tam) lidos = 0; tam = t.length; const it = itensCompletos(t, campo); while (lidos < it.length) aceitar(it[lidos++]); } : undefined; // outro modelo recomeçou: relê (repetidos são descartados)
+    try { r = await fn(n, ev, parcial); falhasSeguidas = 0; }
     catch (e) {
       ultimoErro = e; console.warn("lote falhou:", e.message);
+      if (res[campo].length > antes) { falhasSeguidas = 0; continue; } // caiu no meio: aproveita o que chegou
       if (++falhasSeguidas >= 3) break;
       await new Promise(ok => setTimeout(ok, 3000)); continue;
     }
-    if (!res.titulo && r.titulo) res.titulo = r.titulo;
-    const novos = (r[campo] || []).filter(x => {
-      if (!x?.[chave] || !altsValidas(x)) return false;
-      const f = fatoDe(x);
-      if (termos.some(a => mesmoFato(f, a))) return false;
-      termos.push(f); return true;
-    });
-    res[campo].push(...novos);
-    if (!novos.length && ++vazios >= 3) break;
+    if (!res.titulo && r.titulo) res.titulo = textoIA(r.titulo);
+    (Array.isArray(r[campo]) ? r[campo] : []).slice(lidos).forEach(aceitar);
+    if (res[campo].length === antes && ++vazios >= 3) break;
   }
   progressoIA("", null);
   if (!res[campo].length) throw ultimoErro || new Error("A IA não devolveu itens válidos. Tente de novo.");
@@ -1936,6 +1946,33 @@ async function gerarGuiaEmPartes(c, foco) {
   } finally { delete g.gerando; delete g.status; await salvar(c); }
 }
 
+const REGRA_ACADEMICA = "Use SÓ conteúdo acadêmico da matéria: nunca nomes de professores ou autores, avisos, datas, critérios de avaliação, cartas, agradecimentos, sumário, bibliografia ou dados da instituição.";
+// Quiz e flashcards ao vivo: abre assim que o 1º fica pronto e os outros entram enquanto a pessoa estuda
+function geracaoAoVivo(c, tipo, qtd) {
+  let o = null, acabou = false; const lista = tipo === "quiz" ? c.quizzes : c.decks, campo = tipo === "quiz" ? "questoes" : "cards";
+  const meu = () => S.atual === c.id && S.player?.tipo === tipo && S.player.aoVivo === o?.id ? S.player : null;
+  return {
+    item(novo, x) {
+      const primeiro = !o; if (primeiro) { o = novo(); lista.unshift(o); }
+      o[campo].push(x); const i = o[campo].length - 1;
+      if (primeiro) {
+        progressoIA("", null);
+        if (S.atual === c.id && !S.player && S.aba === tipo && !document.querySelector("dialog[open]")) {
+          if (tipo === "quiz") S.player = { tipo: "quiz", id: o.id, ordem: [0], i: 0, escolha: null, confirmado: false, acertos: 0, erros: [], aoVivo: o.id, alvo: qtd };
+          else S.player = { tipo: "flash", deckId: o.id, fila: [0], virado: false, feitos: 0, total: qtd, acertos: 0, errados: new Set(), aoVivo: o.id };
+          render(); window.scrollTo(0, 0);
+        }
+      } else { const p = meu(); if (p) { const esperando = tipo === "quiz" ? p.i >= p.ordem.length : p.fila[0] === undefined; if (tipo === "quiz") p.ordem.push(i); else p.fila.push(i); if (esperando) render(); } }
+      if (o[campo].length % 3 === 0) salvar(c);
+    },
+    fim(titulo) {
+      if (acabou) return; acabou = true; if (!o) return; if (titulo) o.titulo = titulo;
+      const p = S.player?.aoVivo === o.id ? S.player : null;
+      if (p) { p.aoVivo = null; p.alvo = null; if (tipo === "flash") p.total = p.feitos + new Set(p.fila).size; else if (p.i >= p.ordem.length) o.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); } // terminou antes de a IA acabar: fecha a tentativa agora
+      salvar(c);
+    }
+  };
+}
 async function gerar(tipo, modoProva = false) {
   const c = atual();
   if (!ativos(c).length) return toast("Adicione materiais na aba Materiais primeiro.", true);
@@ -1945,6 +1982,7 @@ async function gerar(tipo, modoProva = false) {
   const f = (foco ? `\nConcentre-se especificamente em: ${foco}.` : "") + (modoProva ? estiloProfTxt(c) : "");
   const d = dif === "mista" ? "Misture níveis de dificuldade (fácil, médio e difícil)." : `Nível de dificuldade: ${dif}.`;
   S.ocupado = tipo; render();
+  const aoVivo = tipo === "quiz" || tipo === "flash" ? geracaoAoVivo(c, tipo, qtd) : null;
   try {
     if (tipo === "resumo" && cfg().provider !== "anthropic") {
       await gerarGuiaEmPartes(c, foco);
@@ -1952,12 +1990,11 @@ async function gerar(tipo, modoProva = false) {
       const r = await gerarJSON(c, `Crie um resumo de estudo completo e bem estruturado dos materiais, organizado por tópicos (seções com conteúdo em Markdown, usando listas, negrito e tabelas quando ajudar). Inclua um glossário de conceitos-chave e de 5 a 10 perguntas de revisão.${f}`, SCH.resumo);
       c.resumos.unshift({ id: uid(), criado: Date.now(), foco, ...r });
     } else if (tipo === "flash") {
-      const r = await emLotes(qtd, "cards", "frente", (n, ev) => gerarJSON(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${d}${f}${ev}`, SCH.flash, foco));
-      c.decks.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, cards: r.cards.map(k => ({ ...k, caixa: 0, proxima: 0 })) });
+      const r = await emLotes(qtd, "cards", "frente", (n, ev, aoParcial) => gerarJSON(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${REGRA_ACADEMICA} ${d}${f}${ev}`, SCH.flash, foco, { aoParcial }), { aoItem: k => aoVivo.item(() => ({ id: uid(), criado: Date.now(), titulo: "Flashcards", cards: [] }), { ...k, caixa: 0, proxima: 0 }) });
+      aoVivo.fim(r.titulo);
     } else if (tipo === "quiz") {
-      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras), um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada.${REGRAS_PERGUNTA} ${d}${f}${ev}`, SCH.quiz, foco));
-      r.questoes.forEach(normalizarMultipla);
-      c.quizzes.unshift({ id: uid(), criado: Date.now(), titulo: r.titulo, questoes: r.questoes, tentativas: [] });
+      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev, aoParcial) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras), um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada.${REGRAS_PERGUNTA} ${d}${f}${ev}`, SCH.quiz, foco, { aoParcial }), { aoItem: q => { normalizarMultipla(q); aoVivo.item(() => ({ id: uid(), criado: Date.now(), titulo: "Quiz", questoes: [], tentativas: [] }), q); } });
+      aoVivo.fim(r.titulo);
     } else if (tipo === "prova") {
       const cont = S.form.contagem || { multipla: qtd, vf: 0, dissertativa: 0 };
       if (!Object.values(cont).some(n => n > 0)) throw new Error("Escolha pelo menos 1 questão de algum tipo.");
@@ -1979,7 +2016,7 @@ async function gerar(tipo, modoProva = false) {
     }
     await salvar(c);
     toast("Pronto! ✨");
-  } catch (e) { toast(erroMsg(e), true); }
+  } catch (e) { aoVivo?.fim(); toast(erroMsg(e), true); }
   progressoIA("", null);
   S.ocupado = null; render();
 }
@@ -2389,6 +2426,7 @@ function playerFlash(c) {
   const idx = p.fila[0];
   const pct = p.total ? p.feitos / p.total * 100 : 100;
   const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← Voltar</button><b>${esc(d.titulo)}</b><span class="muted">${p.feitos}/${p.total}</span></div><div class="prog" style="margin-bottom:18px"><div style="width:${pct}%"></div></div>`;
+  if (idx === undefined && p.aoVivo) return topo + `<div class="card empty"><span class="spin"></span><p>${TT("Preparando o próximo cartão…", "Preparando la próxima tarjeta…")}</p></div>`;
   if (idx === undefined) return topo + `<div class="card empty"><div class="score">🎉</div><h2 style="margin-top:12px">Revisão concluída!</h2><p>Acertos de primeira: ${p.acertos} de ${p.total}.</p><button class="btn primary" data-act="sair">Voltar aos baralhos</button></div>`;
   const k = d.cards[idx];
   return topo + `<div class="card flash" data-act="virar">
@@ -2439,7 +2477,8 @@ function playerQuiz(c) {
   const p = S.player, qz = c.quizzes.find(x => x.id === p.id);
   if (!qz) { S.player = null; return ""; }
   const qs = p.ordem.map(i => qz.questoes[i]);
-  const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← Sair</button><b>${esc(qz.titulo)}</b><span class="muted">${Math.min(p.i + 1, qs.length)}/${qs.length}</span></div><div class="prog" style="margin-bottom:18px"><div style="width:${p.i / qs.length * 100}%"></div></div>`;
+  const topo = `<div class="sticky-bar"><button class="btn small" data-act="sair">← Sair</button><b>${esc(qz.titulo)}</b><span class="muted">${Math.min(p.i + 1, p.aoVivo ? p.alvo : qs.length)}/${p.aoVivo ? p.alvo : qs.length}</span></div><div class="prog" style="margin-bottom:18px"><div style="width:${p.i / (p.aoVivo ? p.alvo : qs.length) * 100}%"></div></div>`;
+  if (p.ver == null && p.aoVivo && p.i >= qs.length) return topo + `<div class="card empty"><span class="spin"></span><p>Preparando a próxima pergunta…</p></div>`;
   if (p.i >= qs.length) {
     const pct = Math.round(p.acertos / qs.length * 100);
     return topo + `<div class="card stack" style="text-align:center"><div class="score">${pct}%</div><div>Você acertou <b>${p.acertos}</b> de ${qs.length}.</div>
@@ -2453,7 +2492,7 @@ function playerQuiz(c) {
     <div class="q-text md">${md(q.enunciado)}</div>
     ${altsHTML(q, p, "escolher-alt")}
     ${p.confirmado ? explicacaoHTML(q, p.escolha) : ""}
-    <div class="study-foot"><span class="l">${botaoAnterior(p)}</span>${p.confirmado ? `<button class="pill" data-act="proxima">${p.i + 1 < qs.length ? "Próxima pergunta →" : "Ver resultado"}</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
+    <div class="study-foot"><span class="l">${botaoAnterior(p)}</span>${p.confirmado ? `<button class="pill" data-act="proxima">${p.i + 1 < qs.length || p.aoVivo ? "Próxima pergunta →" : "Ver resultado"}</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
 }
 function quizResponder(c, i) {
   const p = S.player; if (p.confirmado) return;
@@ -2602,8 +2641,8 @@ function statusTopico(d) {
   return ["Dominado", "var(--ok)"];
 }
 // Acha as perguntas já completas dentro do JSON que ainda está sendo escrito
-function itensCompletos(texto) {
-  const k = texto.indexOf('"itens"'); if (k < 0) return [];
+function itensCompletos(texto, campo = "itens") {
+  const k = texto.indexOf(`"${campo}"`); if (k < 0) return [];
   const a = texto.indexOf("[", k); if (a < 0) return [];
   const out = []; let prof = 0, ini = -1, str = false, esc = false;
   for (let i = a + 1; i < texto.length; i++) {
@@ -2714,7 +2753,7 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
     const vf = bruto.tipo === "vf" || (Array.isArray(bruto.alternativas) && bruto.alternativas.length === 2 && /^verdade/i.test(String(bruto.alternativas[0])));
     const it = { ...bruto, tipo: vf ? "vf" : "multipla" };
     if (vf) { it.alternativas = idiomaCaderno(c) === "es" ? ["Verdadero", "Falso"] : ["Verdadeiro", "Falso"]; it.correta = it.correta === 1 ? 1 : 0; delete it.explicacoes; it.enunciado = String(it.enunciado || "").replace(/^\s*¿?(verdadeiro ou falso|verdadero o falso)\s*[?:.\-–]*\s*/i, ""); }
-    if (!it.enunciado || !altsValidas(it)) return null;
+    if (!it.enunciado || !altsValidas(it) || semValorAcademico(it)) return null;
     // liga a pergunta ao fato do mapa (revisão de fato errado pode parecer com a anterior: é de propósito)
     // uma pergunta por fato em cada lote (a IA às vezes põe o mesmo número em todas) e só é revisão se falar mesmo daquele fato
     let ef = escolhidos?.[(Number.isInteger(bruto.fato) ? bruto.fato : 0) - 1];
@@ -5174,7 +5213,7 @@ document.addEventListener("click", async e => {
     case "verSeguinte": navegarVistas(1); break;
     case "verPorque": { const q = questaoAberta(c); if (q) { q._verPorque = true; render(); } break; }
     case "explicarMais": { const q = questaoAberta(c); if (q && podeUsar()) { gastar(); const dv = donoVistas(); completarExplicacao(c, q, dv?.ver != null ? dv.vistas[dv.ver].escolha : S.player.escolha); } break; }
-    case "proxima": { const p = S.player; guardarVista(p, c.quizzes.find(x => x.id === p.id)?.questoes[p.ordem[p.i]], p.escolha); p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
+    case "proxima": { const p = S.player; guardarVista(p, c.quizzes.find(x => x.id === p.id)?.questoes[p.ordem[p.i]], p.escolha); p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length && !p.aoVivo) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
     case "fazerProva": escolherTempoProva(id); break;
     case "tempoOp": S.tempoEscolhido = +id; document.querySelectorAll(".tempo-ops button").forEach(b => b.classList.toggle("on", b.dataset.id === id)); if ($("#tempoLivre")) $("#tempoLivre").value = ""; break;
     case "tempoComecar": comecarProvaComTempo(id); break;
@@ -6486,9 +6525,13 @@ async function criarDuelo() {
   if (!podeUsar()) return; gastar();
   S.criandoDuelo = true; render(); hipoFala("Preparando 10 perguntas para o duelo… ⚔️", "feliz");
   try {
-    const r = await emLotes(10, "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha para um DUELO entre estudantes: diretas, de dificuldade média, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras).${REGRAS_PERGUNTA}${ev}`, SCH.quiz, ""));
-    r.questoes.forEach(normalizarMultipla);
-    const questoes = r.questoes.slice(0, 10).map(q => ({ enunciado: q.enunciado, alternativas: q.alternativas, correta: q.correta, explicacao: String(q.explicacao || "").slice(0, 600) }));
+    const prontas = (c.inteligente?.banco || []).filter(q => q.tipo === "multipla" && !q.revisao && q.alternativas?.length === 4 && altsValidas({ ...q, alternativas: [...q.alternativas] })).slice(0, 10), falta = 10 - prontas.length;
+    const pedir = (n, parte) => emLotes(n, "questoes", "enunciado", (k, ev) => gerarJSON(c, `Crie exatamente ${k} questões de múltipla escolha para um DUELO entre estudantes: diretas, de dificuldade média, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras). ${REGRA_ACADEMICA}${parte}${REGRAS_PERGUNTA}${ev}${prontas.length ? `\nNão repita: ${prontas.map(q => q.enunciado.slice(0, 80)).join("; ")}` : ""}`, SCH.quiz, "")).then(r => r.questoes, e => { console.warn("duelo:", e.message); return []; });
+    const partes = falta > 6 ? await Promise.all([pedir(Math.ceil(falta / 2), "\nUse SÓ assuntos da PRIMEIRA metade do material."), pedir(Math.floor(falta / 2), "\nUse SÓ assuntos da SEGUNDA metade do material.")]) : falta ? [await pedir(falta, "")] : [];
+    const vistos = prontas.map(fatoDe), novas = partes.flat().filter(q => { const f = fatoDe(q); if (vistos.some(v => mesmoFato(f, v))) return false; vistos.push(f); return true; });
+    novas.forEach(normalizarMultipla);
+    const questoes = [...prontas, ...novas].slice(0, 10).map(q => ({ enunciado: textoIA(q.enunciado), alternativas: q.alternativas.map(textoIA), correta: q.correta, explicacao: textoIA(q.explicacao).slice(0, 600) }));
+    if (questoes.length >= 5 && prontas.length) { const usadas = new Set(prontas); c.inteligente.banco = c.inteligente.banco.filter(q => !usadas.has(q)); await salvar(c); }
     if (questoes.length < 5) throw new Error("a IA devolveu poucas perguntas");
     const F = NUVEM.F, ref = await F.addDoc(F.collection(NUVEM.db, "duelos"), { criador: NUVEM.user.uid, criadorNome: nomeCurto(nomeUser()), titulo: (c.nome || "Duelo").slice(0, 80), idioma: idiomaCaderno(c), questoes, criado: Date.now(), resultados: {} });
     lembrarDuelo(ref.id, c.nome);
@@ -7594,7 +7637,7 @@ async function labGerarPergunta(c, L, segunda = false) {
   arrumarTextos(r); if (Array.isArray(r.falas)) r.falas = r.falas.map(textoIA);
   if (!(r.alternativas?.length >= 2 && r.correta >= 0 && r.correta < r.alternativas.length)) throw new Error("a IA não devolveu uma pergunta válida");
   // mesma pergunta com outras palavras: pede outra uma única vez (para não gastar cota à toa)
-  if (!segunda && repetida(r, (S.labVistas?.[c.id] || []).map(fatoDe))) return labGerarPergunta(c, { ...L, feitas: [...L.feitas, String(r.enunciado).slice(0, 100)] }, true);
+  if (!segunda && (semValorAcademico(r) || repetida(r, (S.labVistas?.[c.id] || []).map(fatoDe)))) return labGerarPergunta(c, { ...L, feitas: [...L.feitas, String(r.enunciado).slice(0, 100)] }, true);
   const vistas = ((S.labVistas ||= {})[c.id] ||= []); vistas.push({ enunciado: r.enunciado, alternativas: [...r.alternativas], correta: r.correta }); if (vistas.length > 120) vistas.shift();
   return { ...r, falasDe: labChave() };
 }
