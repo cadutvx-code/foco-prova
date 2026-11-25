@@ -338,7 +338,6 @@ h3{font-size:16px;margin:0 0 6px}
 .cst-tab{overflow-x:auto}.cst-tab table{width:100%;border-collapse:collapse;font-size:13px}.cst-tab td,.cst-tab th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}.cst-tab td:first-child,.cst-tab th:first-child{text-align:left}
 #admCustos h4{margin:8px 0 0}
 label.comp-linha{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;gap:10px;align-items:center;cursor:pointer;flex-wrap:nowrap}.comp-linha input{width:auto;flex:none}.comp-linha span{flex:1;text-align:left}.comp-linha small{display:block;color:var(--muted)}
-.linha-ou{display:flex;align-items:center;gap:10px;color:var(--muted)}.linha-ou:before,.linha-ou:after{content:"";flex:1;height:1px;background:var(--line)}
 .importar-mat{margin:0 0 14px}
 .grupos-card{margin-bottom:16px}
 .grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
@@ -772,7 +771,6 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgGrupos" style="width:min(520px,calc(100vw - 24px))"><div id="gruposCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
-<input type="file" id="migIn" accept=".pdf,.pptx,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.webp,.zip" multiple hidden>
 <input type="file" id="origIn" accept=".pdf,.pptx,.docx,.png,.jpg,.jpeg,.webp,.zip" multiple hidden>
 <input type="file" id="provaAntigaIn" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,.zip" multiple hidden>
 <dialog id="dlgIdioma" style="width:min(460px,calc(100vw - 24px))"><div class="stack" style="text-align:center;gap:14px">
@@ -5367,8 +5365,6 @@ document.addEventListener("click", async e => {
     case "compCopiar": navigator.clipboard?.writeText(linkMateria(id)).then(() => toast(TT("Link copiado.", "Enlace copiado.")), () => toast(TT("Copie o link manualmente.", "Copia el enlace manualmente."))); break;
     case "impVer": verMateriaLink(); break;
     case "impFazer": importarMateriaAgora(); break;
-    case "impColar": importarColado(); break;
-    case "migEscolher": if (S.migIndo) return; if (!$("#migMateria").value.trim()) { msgComp(TT("Escreva o nome da matéria primeiro.", "Escribe primero el nombre de la materia.")); $("#migMateria").focus(); return; } S.migMat = $("#migMateria").value.trim().slice(0, 60); $("#migIn").click(); break;
     case "maoKit": if (Date.now() - (S.soltouKit || 0) > 400) toast(TT("Segure a mãozinha e arraste o caderno para onde quiser.", "Mantén la manita y arrastra el cuaderno a donde quieras.")); break;
     case "gruposAbrir": case "grupoVer": case "gruposFechar": case "grupoTela": case "grupoTelaEntrar": case "grupoBuscar": case "grupoCriar": case "grupoEntrar": case "grupoPedir": case "grupoAceitar": case "grupoRecusar": case "grupoRemover": case "grupoPassar": case "grupoSenha": case "grupoSair": case "grupoApagar": cliqueGrupo(act, id); break;
     case "rankSalvarTurma": salvarTurma(); break;
@@ -5610,7 +5606,7 @@ $("#perfilFoto").addEventListener("change", async e => {
 $("#txtValor").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("[data-act=txtOk]").click(); } });
 $("#novoNome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); criarCaderno(); } });
 const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-if (IOS) { document.documentElement.classList.add("ios"); ["#arquivo", "#novoArquivo", "#migIn", "#provaAntigaIn", "#origIn"].forEach(q => $(q)?.removeAttribute("accept")); }
+if (IOS) { document.documentElement.classList.add("ios"); ["#arquivo", "#novoArquivo", "#provaAntigaIn", "#origIn"].forEach(q => $(q)?.removeAttribute("accept")); }
 $("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });
 $("#backupIn").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -7095,21 +7091,11 @@ function telaImportar(valor = "") {
     <label>${TT("Link da matéria", "Enlace de la materia")}<input type="url" id="impLink" value="${esc(valor)}" placeholder="${esc(linkMateria("…"))}"></label>
     <div id="materiaMsg"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="fecharMateria">${TT("Fechar", "Cerrar")}</button><button class="pill" data-act="impVer">${TT("Ver matéria", "Ver materia")}</button></div>
-    <div class="linha-ou"><span>${TT("ou", "o")}</span></div>
-    <b>${TT("Vindo do Thea ou de outro site?", "¿Vienes de Thea o de otro sitio?")}</b>
-    <p class="muted" style="margin:0">${TT("Escolha todos os arquivos de uma vez (os mesmos PDFs e slides que você colocou lá, ou um .zip). Cada arquivo vira um caderno, já dentro da matéria.", "Elige todos los archivos de una vez (los mismos PDF y diapositivas que pusiste allá, o un .zip). Cada archivo se vuelve un cuaderno, ya dentro de la materia.")}</p>
-    <label>${TT("Matéria", "Materia")}<input type="text" id="migMateria" list="listaMaterias" maxlength="60" placeholder="${TT("ex.: Fisiologia Humana II", "ej.: Fisiología Humana II")}"></label>
-    <div><button class="pill" data-act="migEscolher">${TT("Escolher os arquivos", "Elegir los archivos")}</button></div>
-    <details><summary class="muted" style="cursor:pointer">${TT("Não tem os arquivos? Cole o texto", "¿No tienes los archivos? Pega el texto")}</summary><div class="stack" style="margin-top:8px">
-      <small class="muted">${TT("No Thea, abra o Guia de Estudo, copie o texto e cole aqui.", "En Thea, abre la Guía de estudio, copia el texto y pégalo aquí.")}</small>
-      <label>${TT("Nome do caderno", "Nombre del cuaderno")}<input type="text" id="impNome" maxlength="80"></label>
-      <textarea id="impTexto" rows="5" placeholder="${TT("Cole o texto da matéria aqui", "Pega aquí el texto de la materia")}"></textarea>
-      <div class="row" style="justify-content:flex-end"><button class="btn" data-act="impColar">${TT("Criar caderno com o texto", "Crear cuaderno con el texto")}</button></div></div></details>`}`;
-  abrirDlgMateria(); atualizarListaMaterias();
+`}`;
+  abrirDlgMateria();
 }
 async function verMateriaLink() {
   const v = $("#impLink")?.value.trim() || ""; let id = "";
-  if (/^https?:\/\/([\w-]+\.)*thea\.study\//i.test(v)) return msgComp(TT("Esse link é do Thea: ele pede o login do Thea e copia a matéria só para dentro de lá, então o nosso site não consegue abrir. Escolha os arquivos logo abaixo: cada um vira um caderno.", "Ese enlace es de Thea: pide iniciar sesión en Thea y copia la materia solo allí, así que nuestro sitio no puede abrirlo. Elige los archivos de abajo: cada uno se vuelve un cuaderno."));
   try { id = new URL(v).searchParams.get("materia") || ""; } catch { id = v; }
   if (!/^[a-f0-9]{30}$/.test(id)) return msgComp(TT("Esse não é um link de matéria do Hipocampo Study.", "Ese no es un enlace de materia de Hipocampo Study."));
   msgComp(`<span class="spin"></span> ${TT("Abrindo…", "Abriendo…")}`);
@@ -7123,28 +7109,6 @@ async function verMateriaLink() {
     msgComp(`<b>${esc(S.impPronta.nome)}</b>${m.autor ? ` · ${TT("de", "de")} ${esc(m.autor)}` : ""}<ul style="margin:6px 0;padding-left:18px">${kits.map(k => `<li>${esc(k.nome)} <small class="muted">${contaKit(k)}</small></li>`).join("")}</ul>${ja ? `<p class="muted" style="margin:0 0 6px">${TT("Você já importou este link. Importar de novo cria outra cópia.", "Ya importaste este enlace. Importar de nuevo crea otra copia.")}</p>` : ""}<button class="pill" data-act="impFazer">${TT("Importar para minha conta", "Importar a mi cuenta")}</button>`);
   } catch (e) { msgComp(esc(msgErro(e)), " erro"); }
 }
-// migração: cada arquivo vira um caderno da mesma matéria (não gasta IA para identificar a matéria)
-async function migrarArquivos(files) {
-  if (S.migIndo || !files.length) return; S.migIndo = true; const mat = S.migMat || SEM_MATERIA, falhas = []; let ok = 0;
-  try {
-    const lista = (await abrirZips(files)).slice(0, 80), dono = SUFIXO_CONTA;
-    for (const [i, f] of lista.entries()) {
-      msgComp(`<span class="spin"></span> ${TT(`Lendo ${i + 1} de ${lista.length}`, `Leyendo ${i + 1} de ${lista.length}`)}: ${esc(f.name)}`);
-      try {
-        if (!ZIP_OK[f.name.split(".").pop().toLowerCase()] && !/^(application\/(pdf|vnd\.openxml)|image\/|text\/)/.test(f.type)) throw new Error(TT("tipo de arquivo não aceito", "tipo de archivo no aceptado"));
-        const r = await extrair(f); if (SUFIXO_CONTA !== dono) return;
-        const c = { ...novoCaderno((f.name.split(" › ").pop().replace(/\.[^.]+$/, "").replace(/_+/g, " ").trim() || TT("Caderno", "Cuaderno")).slice(0, 80)), icone: ICONES_KIT[i % 6], materia: mat === SEM_MATERIA ? "" : mat, materiaAuto: false, materiaTentada: true };
-        const m = { id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r }; c.materiais.push(m); S.cadernos.push(c);
-        if (temFigura(m)) await guardarOriginal(m.id, r.arquivo || f);
-        await salvar(c); ok++; if (r.poucoTexto) lerRapido(m.id);
-      } catch (e) { falhas.push(`${f.name}: ${erroMsg(e)}`); }
-    }
-    render();
-    msgComp(`<b>${ok} ${TT(ok === 1 ? "caderno criado" : "cadernos criados", ok === 1 ? "cuaderno creado" : "cuadernos creados")}</b>${falhas.length ? `<br>${TT("Não consegui ler", "No pude leer")}:<br>${falhas.slice(0, 8).map(esc).join("<br>")}` : ""}`, falhas.length && !ok ? " erro" : "");
-    if (ok && !falhas.length) { $("#dlgMateria").close(); toast(TT(`${ok} caderno(s) criados em ${mat}.`, `${ok} cuaderno(s) creados en ${mat}.`)); }
-  } finally { S.migIndo = false; }
-}
-$("#migIn").addEventListener("change", e => { const l = [...e.target.files]; e.target.value = ""; migrarArquivos(l); });
 async function importarMateriaAgora() {
   const p = S.impPronta; if (!p) return; S.impPronta = null; const agora = Date.now();
   for (const [i, k] of p.kits.entries()) {
@@ -7154,11 +7118,6 @@ async function importarMateriaAgora() {
     S.cadernos.push(c); await salvar(c);
   }
   $("#dlgMateria").close(); S.atual = null; S.player = null; render(); toast(TT(`Matéria ${p.nome} importada: ${p.kits.length} caderno(s).`, `Materia ${p.nome} importada: ${p.kits.length} cuaderno(s).`));
-}
-async function importarColado() {
-  const t = $("#impTexto").value.trim(); if (t.length < 40) return msgComp(TT("Cole um pouco mais de texto.", "Pega un poco más de texto."));
-  const c = novoCaderno($("#impNome").value.trim() || TT("Matéria importada", "Materia importada")); c.icone = ICONES_KIT[0]; c.materiais.push({ id: uid(), nome: TT("Texto importado", "Texto importado"), tipo: "texto", texto: t.slice(0, 3e6), ativo: true, criado: Date.now() });
-  S.cadernos.push(c); await salvar(c); $("#dlgMateria").close(); S.atual = c.id; S.player = null; S.aba = "materiais"; render(); detectarMateria(c).catch?.(() => {});
 }
 function cartaoGrupos() {
   if (!NUVEM.user) return "";
