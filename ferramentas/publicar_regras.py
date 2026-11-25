@@ -18,6 +18,7 @@ auth = {"uid": "u1", "token": {"email": "aluno@gmail.com", "email_verified": Tru
 # grupos: o doc lido por get() é simulado (functionMocks)
 GR = P + "/grupos/uni-c__fisio"; PT = GR + "/semanas/2026-S48/pontos/u1"
 G_U1 = {"data": {"nome": "Fisio", "membros": ["u1", "u2"], "admin": "u2"}}; G_OUTROS = {"data": {"nome": "Fisio", "membros": ["u2"], "admin": "u2"}}
+RK = P + "/rankingSemana/2026-S48"
 def mock(g): return [{"function": "get", "args": [{"exactValue": GR}], "result": {"value": g}}]
 pt = lambda xp=10, **k: {"data": {"nome": "Aluno A.", "av": None, "xp": xp, "atualizado": 5, **k}}
 G = lambda nome, esp, metodo, caminho, g=G_U1, quem=auth, novo=None, antes=None: (nome, esp, {"auth": quem, "path": caminho, "method": metodo, "resource": novo, "_mocks": mock(g), "_antes": antes})
@@ -43,7 +44,20 @@ casos_grupo = [
     G("membro vê o ranking do grupo", "ALLOW", "get", PT, antes=pt()),
     G("não membro não vê o ranking do grupo", "DENY", "get", PT, g=G_OUTROS, antes=pt()),
     G("sem login não pontua", "DENY", "create", PT, quem=None, novo=pt()),
-    G("ninguém apaga pontos", "DENY", "delete", PT, antes=pt()),
+    G("apaga os próprios pontos (ficar oculto)", "ALLOW", "delete", PT, antes=pt()),
+    G("não apaga pontos de outro", "DENY", "delete", GR + "/semanas/2026-S48/pontos/u2", antes=pt()),
+    G("ranking geral: grava a própria linha", "ALLOW", "create", RK + "/geral/u1", novo=pt(0, resp=3)),
+    G("ranking por matéria: grava a própria linha", "ALLOW", "create", RK + "/m_fisiologia-2/u1", novo=pt(5, resp=3)),
+    G("ranking: lista inventada", "DENY", "create", RK + "/qualquer/u1", novo=pt(5, resp=3)),
+    G("ranking geral no lugar de outro", "DENY", "create", RK + "/geral/u2", novo=pt(5, resp=3)),
+    G("ranking geral: salto de respostas", "DENY", "update", RK + "/geral/u1", novo=pt(5, resp=5000), antes=pt(5, resp=3)),
+    G("ranking geral: respostas não diminuem", "DENY", "update", RK + "/geral/u1", novo=pt(5, resp=1), antes=pt(5, resp=3)),
+    G("ranking geral: soma", "ALLOW", "update", RK + "/geral/u1", novo=pt(5, resp=30), antes=pt(5, resp=3)),
+    G("ranking geral: apaga a própria linha", "ALLOW", "delete", RK + "/geral/u1", antes=pt()),
+    G("ranking geral: não apaga a de outro", "DENY", "delete", RK + "/geral/u2", antes=pt()),
+    G("ranking geral: sem login não lê", "DENY", "get", RK + "/geral/u1", quem=None, antes=pt()),
+    G("ranking de XP: apaga a própria linha", "ALLOW", "delete", P + "/ranking/2026-S48/pessoas/u1", antes=pt()),
+    G("ranking de XP: não apaga a de outro", "DENY", "delete", P + "/ranking/2026-S48/pessoas/u2", antes=pt()),
 ]
 casos = [
     ("anônimo envia feedback", "ALLOW", {"auth": None, "path": P + "/feedback/a", "method": "create", "resource": {"data": fb()}}),

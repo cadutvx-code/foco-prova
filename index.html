@@ -319,6 +319,8 @@ h3{font-size:16px;margin:0 0 6px}
 .tutor-voce{display:block;font-size:11.5px;font-weight:700;opacity:.8;margin-bottom:2px}
 @media (max-width:760px){.tutor-corpo{padding:14px;font-size:15.5px}}
 .vista-selo{font-weight:800;color:var(--accent)}
+.rank-chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px}.rank-chips .chip{flex:none;white-space:nowrap}.rank-chips .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.rank-chave{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;font-size:14px;cursor:pointer}.rank-chave input{width:18px;height:18px;accent-color:var(--accent);flex:none}
 .grupos-card{margin-bottom:16px}
 .grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
 .grupo-linha:hover{border-color:var(--accent)}
@@ -877,7 +879,7 @@ function toast(msg, err = false) {
 function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
 const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
 const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
-const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome", "fp-grupos", "fp-grupos-mat", "fp-grupos-pts"]);
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome", "fp-grupos", "fp-grupos-mat", "fp-rank-pts", "fp-rank-oculto"]);
 const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
 function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
@@ -2085,7 +2087,7 @@ function xpTotal() {
 let xpTimer = null;
 function ganharXP(qtd, c = null) { // c = caderno da pergunta (conta no grupo da matéria)
   qtd = Math.round(qtd); if (!(qtd > 0)) return;
-  xpSemana(qtd); pontosGrupo(qtd, c);
+  xpSemana(qtd); pontosRank(qtd, 0, c);
   const antes = nivelDoXp(xpTotal()).nivel, xp = xpTotal() + qtd;
   lsSet("fp-xp", xp);
   const depois = nivelDoXp(xp).nivel;
@@ -2113,7 +2115,8 @@ function anelNivel(tam, conteudo) {
     ${conteudo}<span class="nv-num">${nv.nivel}</span></span>`;
 }
 // Cada pergunta respondida (estudo inteligente, quiz, teste, ateneo) conta para a meta do dia
-function contarResposta(qtd = 1) {
+function contarResposta(qtd = 1, c = null) {
+  if (qtd > 0) pontosRank(0, qtd, c);
   const q = sequencia(), h = hojeStr(), antes = q.dias[h] || 0;
   q.dias[h] = antes + qtd;
   const limite = new Date(); limite.setDate(limite.getDate() - 120);
@@ -2459,7 +2462,7 @@ function quizResponder(c, i) {
   p.escolha = i; p.confirmado = true;
   if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
   ganharXP(i === q.correta ? XP_REGRAS.acerto : XP_REGRAS.erro, c);
-  contarResposta(); render(); if (!temExplicacao(q)) completarExplicacao(c, q, i);
+  contarResposta(1, c); render(); if (!temExplicacao(q)) completarExplicacao(c, q, i);
 }
 function iniciarQuiz(id, ordem) {
   const qz = atual().quizzes.find(x => x.id === id);
@@ -2574,7 +2577,7 @@ Corrija as respostas dissertativas abaixo como um professor justo, com base nos 
   p.resultado = { nota: max ? pontos / max * 10 : 0, pontos, max, porQuestao };
   p.corrigindo = false;
   pv.tentativas.push({ data: Date.now(), nota: p.resultado.nota });
-  contarResposta(pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
+  contarResposta(pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length, c);
   gastar("ia", pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
   ganharXP(p.resultado.nota * XP_REGRAS.pontoTeste, c);
   await salvar(c); render(); window.scrollTo(0, 0);
@@ -2948,7 +2951,7 @@ async function smartResponder(c, acertou) {
   if (acertou) { d.acertos++; d.score = d.score + (1 - d.score) * (0.12 + 0.08 * it.dificuldade); }
   else d.score = d.score * 0.65;
   ganharXP(acertou ? XP_REGRAS.acerto : XP_REGRAS.erro, c);
-  p.sessao.total++; I.respondidas++; contarResposta();
+  p.sessao.total++; I.respondidas++; contarResposta(1, c);
   if (acertou && [3, 5, 10, 20].includes(p.sessao.combo + 1)) hipoFala(({ 3: "3 seguidas! Tá voando! 🚀", 5: "5 em sequência! 🔥 Seu cérebro tá on.", 10: "10 seguidas?! Você tá imparável! 🏆", 20: "20 seguidas. Lenda. 👑" })[p.sessao.combo + 1], "festa");
   if (acertou) { p.sessao.acertos++; p.sessao.combo++; I.acertos++; const ganho = 5 * it.dificuldade + Math.min(p.sessao.combo, 5) * 2; p.sessao.xp += ganho; I.xp += ganho; }
   else {
@@ -3864,7 +3867,7 @@ async function iniciarNuvem() {
     A.onAuthStateChanged(NUVEM.auth, async u => {
       if (u && trocarDadosDaConta(u.uid)) return; // outra conta: recarrega com o progresso dela
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
-      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosGrupo(); }).catch(() => {}); }
+      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosRank(); }).catch(() => {}); lerOcultos(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
       { let pd = ""; try { pd = sessionStorage.getItem("fp-duelo-pendente") || ""; } catch {}
         if (pd) { if (u) { try { sessionStorage.removeItem("fp-duelo-pendente"); } catch {} abrirDuelo(pd); } else abrirDuelo(pd); } }
@@ -5071,6 +5074,7 @@ document.addEventListener("click", async e => {
     case "dueloAtualizar": abrirDuelo(S.player.d.id); break;
     case "dueloAbrir": $("#dlgPerfil").close(); abrirDuelo(id); break;
     case "rankAbrir": abrirRanking(); break;
+    case "rankVer": verRanking(id); break;
     case "gruposAbrir": case "grupoVer": case "gruposFechar": case "grupoTela": case "grupoTelaEntrar": case "grupoBuscar": case "grupoCriar": case "grupoEntrar": case "grupoPedir": case "grupoAceitar": case "grupoRecusar": case "grupoRemover": case "grupoPassar": case "grupoSenha": case "grupoSair": case "grupoApagar": cliqueGrupo(act, id); break;
     case "rankSalvarTurma": salvarTurma(); break;
     case "gerarPanico": gerarPanico(); break;
@@ -6563,7 +6567,7 @@ function xpSemana(qtd) {
   clearTimeout(S.rankT); S.rankT = setTimeout(enviarRanking, 4000);
 }
 async function enviarRanking() {
-  if (!NUVEM.user) return; const v = lsGet("fp-xp-semana", {}); if (v.semana !== semanaAtual()) return;
+  if (!NUVEM.user) return; const v = lsGet("fp-xp-semana", {}); if (v.semana !== semanaAtual() || RANK_OCULTO().xp) return;
   try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `ranking/${v.semana}/pessoas/${NUVEM.user.uid}`), { nome: nomeCurto(nomeUser()), av: avatarDoPerfil(), turma: turmaUser(), xp: Math.round(v.xp), atualizado: Date.now() }); } catch (e) { console.warn("ranking", e); }
 }
 async function carregarRanking() {
@@ -6586,12 +6590,30 @@ function cartaoRanking() {
       : `<p class="muted" style="margin:6px 0 0;font-size:13.5px">${r.turma ? "Ninguém da sua turma pontuou ainda nesta semana. Seja o primeiro!" : "Responda perguntas para entrar no ranking. Coloque o código da sua turma para competir com os colegas."}</p>`}
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">${r?.turma ? "" : `<button class="btn small" data-act="rankAbrir">👥 Entrar numa turma</button>`}${meusDuelos().length ? `<button class="btn small ghost" data-act="rankAbrir">⚔️ Meus duelos (${meusDuelos().length})</button>` : ""}</div></div>`;
 }
+const chaveOculto = (k, rot) => `<label class="rank-chave"><input type="checkbox" data-rankvis="${esc(k)}" ${RANK_OCULTO()[k] ? "" : "checked"}><span>${esc(rot)}</span></label>`;
+function rankChips(atualK) { return `<div class="rank-chips">${[["xp", TT("XP da turma", "XP del curso")], ["geral", TT("Geral: perguntas", "General: preguntas")], ...minhasMaterias().slice(0, 12).map(([k, n]) => ["m:" + k, n])].map(([k, n]) => `<button class="chip ${k === atualK ? "on" : ""}" data-act="rankVer" data-id="${esc(k)}">${esc(n)}</button>`).join("")}</div>`; }
+async function verRanking(k) {
+  if (k === "xp") return abrirRanking();
+  const eu = NUVEM.user?.uid, el = $("#perfilCorpo"), titulo = k === "geral" ? TT("Quem mais respondeu na semana", "Quién más respondió en la semana") : `${TT("Semana em", "Semana en")} ${minhasMaterias().find(([x]) => "m:" + x === k)?.[1] || ""}`;
+  const tela = meio => { el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${TT("Rankings", "Rankings")}</h2><button class="icon-btn" data-act="perfilCancelar" title="${TT("Fechar", "Cerrar")}">${iconeSVG("x")}</button></div>${rankChips(k)}<h3 style="margin:0">${esc(titulo)}</h3>${meio}${chaveOculto(k, TT("Aparecer neste ranking", "Aparecer en este ranking"))}<div class="muted" style="font-size:12.5px">${TT("Zera toda segunda-feira. Pode levar até 1 minuto para atualizar.", "Se reinicia cada lunes. Puede tardar hasta 1 minuto en actualizar.")}</div>`; };
+  S.rankVendo = k; tela(`<p class="muted"><span class="spin"></span> ${TT("Carregando…", "Cargando…")}</p>`);
+  let l; try { l = await rankingLista(k); } catch (e) { console.warn("ranking:", e?.message); if (S.rankVendo === k) tela(`<p class="muted">${TT("Não consegui carregar o ranking agora.", "No pude cargar el ranking ahora.")}</p>`); return; }
+  if (S.rankVendo !== k) return;
+  tela(l.length ? `<div>${l.map((x, i) => `<div class="rank-linha ${x.uid === eu ? "eu" : ""}"><span class="med">${i + 1}º</span><span class="avatar" style="width:30px;height:30px;cursor:default;flex:none">${x.av ? avatarHTML(30, x.av) : `<span style="font-size:13px">${esc((x.nome || "?")[0])}</span>`}</span><span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(x.nome || TT("Alguém", "Alguien"))}</span><b>${x.resp || 0}</b></div>`).join("")}</div>` : `<p class="muted">${TT("Ninguém pontuou aqui nesta semana ainda.", "Nadie sumó aquí esta semana todavía.")}</p>`);
+}
+document.addEventListener("change", async e => {
+  const k = e.target.dataset?.rankvis; if (!k) return; const quer = e.target.checked; e.target.disabled = true;
+  try { await mudarOculto(k, !quer); toast(quer ? TT("Você aparece neste ranking.", "Apareces en este ranking.") : TT("Você está oculto neste ranking.", "Estás oculto en este ranking.")); if (k.startsWith("g:")) gruposTela("ver"); else if ($("#dlgPerfil").open) verRanking(k); }
+  catch (x) { console.warn(x?.message); e.target.checked = !quer; e.target.disabled = false; toast(TT("Não consegui salvar agora.", "No pude guardar ahora.")); }
+});
 async function abrirRanking() {
-  const r = await carregarRanking() || { lista: [] }, eu = NUVEM.user?.uid;
+  S.rankVendo = "xp"; const r = await carregarRanking() || { lista: [] }, eu = NUVEM.user?.uid; if (S.rankVendo !== "xp") return;
   $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">🏆 Ranking da semana</h2><button class="icon-btn" data-act="perfilCancelar" title="Fechar">✕</button></div>
+    ${rankChips("xp")}
     <label>Código da sua turma (combine com os colegas, ex.: FISIO1-C)<div class="row" style="flex-wrap:nowrap;gap:6px"><input type="text" id="rankTurma" maxlength="20" value="${esc(turmaUser())}" placeholder="FISIO1-C" style="text-transform:uppercase"><button class="btn small primary" data-act="rankSalvarTurma">Salvar</button></div></label>
     <div class="muted" style="font-size:12.5px">O ranking zera toda segunda-feira. Cada pergunta respondida soma XP${r.turma ? "" : "; sem turma, você vê o ranking geral"}.</div>
     <div>${r.lista.length ? r.lista.map((x, i) => `<div class="rank-linha ${x.uid === eu ? "eu" : ""}"><span class="med">${["🥇", "🥈", "🥉"][i] || `${i + 1}º`}</span><span class="avatar" style="width:30px;height:30px;cursor:default;flex:none">${x.av ? avatarHTML(30, x.av) : `<span style="font-size:13px">${esc((x.nome || "?")[0])}</span>`}</span><span style="flex:1">${esc(x.nome || "Alguém")}</span><b>${x.xp} XP</b></div>`).join("") : `<p class="muted">Ninguém pontuou ainda nesta semana.</p>`}</div>
+    ${chaveOculto("xp", TT("Aparecer neste ranking", "Aparecer en este ranking"))}
     ${meusDuelos().length ? `<h3 style="margin:8px 0 0">⚔️ Meus duelos</h3>${meusDuelos().map(x => `<button class="mrow" data-act="dueloAbrir" data-id="${esc(x.id)}" style="width:100%;text-align:left;cursor:pointer"><span style="flex:1">${esc(x.titulo || "Duelo")}</span><small class="muted">${fmtData(x.data)}</small></button>`).join("")}` : ""}`;
   const d = $("#dlgPerfil"); if (!d.open) d.showModal();
 }
@@ -6628,38 +6650,72 @@ async function carregarGrupos() {
   } catch (e) { console.warn("grupos:", e?.message); throw e; }
   return meusGrupos();
 }
-// ---------- pontos da semana por grupo (só respostas de cadernos da matéria escolhida) ----------
-function pontosGrupo(qtd, c) {
-  if (!c || !NUVEM.user || !c.materia) return;
-  const s = semanaAtual(), p = lsGet("fp-grupos-pts", {}), v = p.semana === s ? p : { semana: s, g: {} }; let mudou = false;
-  for (const g of meusGrupos()) if (chaveGrupo(materiaDoGrupo(g)) && chaveGrupo(materiaDoGrupo(g)) === chaveGrupo(c.materia)) { v.g[g.id] = (v.g[g.id] || 0) + qtd; mudou = true; }
-  if (!mudou) return; lsSet("fp-grupos-pts", v);
-  S.grupoT ||= setTimeout(enviarPontosGrupo, 60000); // no máximo 1 envio por minuto (cota do banco)
+// ---------- pontos e respostas da semana: geral, por matéria e por grupo ----------
+// Tudo fica pendente no aparelho e sai no máximo 1 vez por minuto (cota do banco). Lista oculta não é enviada.
+const RANK_OCULTO = () => lsGet("fp-rank-oculto", {}); // { xp, geral, "m:chave", "g:id" } → true = não aparece
+const rankPts = () => { const p = lsGet("fp-rank-pts", {}); return p.semana === semanaAtual() ? p : { semana: semanaAtual(), l: {} }; };
+const caminhoRank = (k, sem) => k === "geral" ? `rankingSemana/${sem}/geral` : k.startsWith("m:") ? `rankingSemana/${sem}/m_${k.slice(2)}` : `grupos/${k.slice(2)}/semanas/${sem}/pontos`;
+function pontosRank(xp, resp, c) {
+  if (!NUVEM.user) return;
+  const v = rankPts(), mais = k => { const x = v.l[k] ||= { x: 0, r: 0 }; x.x += xp; x.r += resp; };
+  if (resp) mais("geral");
+  const km = chaveGrupo(c?.materia).slice(0, 50);
+  if (km) { const ms = Object.keys(v.l).filter(k => k.startsWith("m:")); if (v.l["m:" + km] || ms.length < 12) mais("m:" + km); for (const g of meusGrupos()) if (chaveGrupo(materiaDoGrupo(g)) === chaveGrupo(c.materia)) mais("g:" + g.id); }
+  lsSet("fp-rank-pts", v);
+  S.rankPT ||= setTimeout(enviarPontosRank, 60000);
 }
-async function enviarPontosGrupo() {
-  clearTimeout(S.grupoT); S.grupoT = null;
-  if (!NUVEM.user || !NUVEM.F || S.grupoEnviando) return;
-  const v = lsGet("fp-grupos-pts", {}), F = NUVEM.F, uid = NUVEM.user.uid;
-  if (v.semana !== semanaAtual()) { lsSet("fp-grupos-pts", {}); return; }
-  S.grupoEnviando = true;
+async function enviarPontosRank() {
+  clearTimeout(S.rankPT); S.rankPT = null;
+  if (!NUVEM.user || !NUVEM.F || S.rankEnviando) return;
+  const v = rankPts(), F = NUVEM.F, uid = NUVEM.user.uid, oc = RANK_OCULTO();
+  S.rankEnviando = true;
   try {
-    for (const [id, total] of Object.entries(v.g || {})) {
-      const x = Math.min(3000, Math.round(total)); if (!(x > 0) || !meusGrupos().some(g => g.id === id)) continue;
-      try { // increment: dois aparelhos da mesma pessoa somam em vez de um apagar o outro
-        await F.setDoc(F.doc(NUVEM.db, `grupos/${id}/semanas/${v.semana}/pontos/${uid}`), { nome: nomeCurto(nomeUser()), av: avatarDoPerfil(), xp: F.increment(x), atualizado: Date.now() }, { merge: true });
-        if (NUVEM.user?.uid !== uid) return;
-        const a = lsGet("fp-grupos-pts", {}); if (a.semana === v.semana) { a.g[id] = Math.max(0, (a.g[id] || 0) - x); if (!a.g[id]) delete a.g[id]; lsSet("fp-grupos-pts", a); }
-      } catch (e) { console.warn("pontos do grupo:", e?.code || e?.message); if (e?.code === "permission-denied") { const a = lsGet("fp-grupos-pts", {}); if (a.g) { delete a.g[id]; lsSet("fp-grupos-pts", a); } } }
+    for (const [k, t] of Object.entries(v.l)) {
+      if (oc[k] || (k.startsWith("g:") && !meusGrupos().some(g => "g:" + g.id === k))) continue;
+      for (let volta = 0, falta = { ...t }; volta < 10 && (falta.x > 0 || falta.r > 0); volta++) {
+        const x = Math.min(3000, Math.round(falta.x)), r = Math.min(600, Math.round(falta.r)); if (!x && !r) break;
+        try { // increment: dois aparelhos da mesma pessoa somam em vez de um apagar o outro
+          await F.setDoc(F.doc(NUVEM.db, `${caminhoRank(k, v.semana)}/${uid}`), { nome: nomeCurto(nomeUser()), av: avatarDoPerfil(), xp: F.increment(x), resp: F.increment(r), atualizado: Date.now() }, { merge: true });
+          if (NUVEM.user?.uid !== uid) return;
+          const a = rankPts(); if (a.semana === v.semana && a.l[k]) { a.l[k].x = Math.max(0, a.l[k].x - x); a.l[k].r = Math.max(0, a.l[k].r - r); lsSet("fp-rank-pts", a); }
+          falta.x -= x; falta.r -= r;
+        } catch (e) { console.warn("ranking:", k, e?.code || e?.message); break; }
+      }
     }
-  } finally { S.grupoEnviando = false; }
+  } finally { S.rankEnviando = false; }
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && S.grupoT) enviarPontosGrupo(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && S.rankPT) enviarPontosRank(); });
+// esconder: apaga a própria linha e guarda os pontos no aparelho; mostrar: manda de volta
+async function mudarOculto(k, esconder) {
+  const uid = NUVEM.user?.uid; if (!uid) return;
+  const oc = { ...RANK_OCULTO() }; if (esconder) oc[k] = true; else delete oc[k];
+  const F = NUVEM.F, sem = semanaAtual();
+  if (esconder) {
+    const cam = k === "xp" ? `ranking/${sem}/pessoas/${uid}` : `${caminhoRank(k, sem)}/${uid}`, ref = F.doc(NUVEM.db, cam);
+    if (k !== "xp") { const s = await F.getDoc(ref); if (s.exists()) { const v = rankPts(), x = v.l[k] ||= { x: 0, r: 0 }; x.x += s.data().xp || 0; x.r += s.data().resp || 0; await F.deleteDoc(ref); lsSet("fp-rank-pts", v); } }
+    else await F.deleteDoc(ref);
+  }
+  lsSet("fp-rank-oculto", oc);
+  F.setDoc(F.doc(NUVEM.db, `users/${uid}/conta/rankings`), { oculto: oc }).catch(e => console.warn("rankings:", e?.message));
+  if (!esconder) { if (k === "xp") await enviarRanking(); else await enviarPontosRank(); }
+  S.ranking = null;
+}
+async function lerOcultos() { // a escolha vale em todos os aparelhos da conta
+  const uid = NUVEM.user?.uid; if (!uid) return;
+  try { const s = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, `users/${uid}/conta/rankings`)); if (s.exists() && NUVEM.user?.uid === uid) lsSet("fp-rank-oculto", s.data().oculto || {}); } catch {}
+}
+const minhasMaterias = () => [...new Map(nomesMaterias().map(m => [chaveGrupo(m).slice(0, 50), m]).filter(([k]) => k)).entries()];
+async function rankingLista(k) {
+  await enviarPontosRank();
+  const F = NUVEM.F, col = F.collection(NUVEM.db, caminhoRank(k, semanaAtual()));
+  return (await F.getDocs(F.query(col, F.orderBy("resp", "desc"), F.limit(50)))).docs.map(x => ({ uid: x.id, ...x.data() })).sort((a, b) => (b.resp || 0) - (a.resp || 0));
+}
 async function rankingGrupo(id) {
-  await enviarPontosGrupo();
+  await enviarPontosRank();
   const F = NUVEM.F, g = meusGrupos().find(x => x.id === id); if (!g) return [];
   const pts = new Map((await F.getDocs(F.collection(NUVEM.db, `grupos/${id}/semanas/${semanaAtual()}/pontos`))).docs.map(d => [d.id, d.data()]));
   // só quem ainda é membro; quem não pontuou aparece com zero
-  return g.membros.map(uid => ({ uid, nome: pts.get(uid)?.nome || g.pessoas?.[uid]?.nome || TT("Alguém", "Alguien"), av: pts.get(uid)?.av || null, xp: pts.get(uid)?.xp || 0 })).sort((a, b) => b.xp - a.xp || a.nome.localeCompare(b.nome));
+  return g.membros.map(uid => ({ uid, nome: pts.get(uid)?.nome || g.pessoas?.[uid]?.nome || TT("Alguém", "Alguien"), av: pts.get(uid)?.av || null, xp: pts.get(uid)?.xp || 0, resp: pts.get(uid)?.resp || 0 })).filter(x => !(x.uid === NUVEM.user.uid && RANK_OCULTO()["g:" + id])).sort((a, b) => b.xp - a.xp || a.nome.localeCompare(b.nome));
 }
 // ---------- telas ----------
 function cartaoGrupos() {
@@ -6702,7 +6758,8 @@ function desenharGrupos() {
       ${adm ? `<button class="btn" data-act="grupoTela" data-id="painel">${TT("Painel do grupo", "Panel del grupo")}${g.pendentes ? ` (${g.pendentes})` : ""}</button>` : ""}
       <h3 style="margin:4px 0 0">${TT("Ranking da semana", "Ranking de la semana")}</h3>
       ${G.rank === null ? `<p class="muted"><span class="spin"></span> ${TT("Carregando…", "Cargando…")}</p>` : G.rank === false ? `<p class="muted">${TT("Não consegui carregar o ranking agora.", "No pude cargar el ranking ahora.")}</p>`
-        : `<div>${G.rank.map((x, i) => `<div class="rank-linha ${x.uid === uid ? "eu" : ""}"><span class="med">${i + 1}º</span><span class="avatar" style="width:30px;height:30px;cursor:default;flex:none">${x.av ? avatarHTML(30, x.av) : `<span style="font-size:13px">${esc((x.nome || "?")[0])}</span>`}</span><span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(x.nome)}${x.uid === g.admin ? ` <small class="muted">· ${TT("administra", "administra")}</small>` : ""}</span><b>${x.xp} XP</b></div>`).join("")}</div>`}
+        : `<div>${G.rank.map((x, i) => `<div class="rank-linha ${x.uid === uid ? "eu" : ""}"><span class="med">${i + 1}º</span><span class="avatar" style="width:30px;height:30px;cursor:default;flex:none">${x.av ? avatarHTML(30, x.av) : `<span style="font-size:13px">${esc((x.nome || "?")[0])}</span>`}</span><span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(x.nome)}${x.uid === g.admin ? ` <small class="muted">· ${TT("administra", "administra")}</small>` : ""}</span><small class="muted">${x.resp} ${x.resp === 1 ? TT("pergunta", "pregunta") : TT("perguntas", "preguntas")}</small><b>${x.xp} XP</b></div>`).join("")}</div>`}
+      ${chaveOculto("g:" + g.id, TT("Aparecer neste ranking", "Aparecer en este ranking"))}
       <div class="muted" style="font-size:12.5px">${TT("Zera toda segunda-feira. Os pontos podem levar até 1 minuto para aparecer.", "Se reinicia cada lunes. Los puntos pueden tardar hasta 1 minuto en aparecer.")}</div>${erro}
       ${adm ? "" : `<div class="row" style="justify-content:flex-end"><button class="btn small danger" data-act="grupoSair" ${oc}>${TT("Sair do grupo", "Salir del grupo")}</button></div>`}`;
     return;
@@ -7751,7 +7808,7 @@ async function labResponder(i) {
   const L = S.lab, q = L?.q; if (!q || L.escolha != null || L.gerando) return;
   L.escolha = i; const certo = i === q.correta;
   if (certo) { L.acertos++; L.seq++; L.melhor = Math.max(L.melhor, L.seq); } else { L.erros++; L.seq = 0; }
-  try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro, labCad()); contarResposta(); } catch {}
+  try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro, labCad()); contarResposta(1, labCad()); } catch {}
   // a reação sai NA HORA (banco pronto); a explicação daquela pergunta vem logo em seguida
   LAB_VOZFILA.fila = []; // as falas das outras alternativas não servem mais
   L.certo = certo; L.reacao = labEscolherReacao(certo); L.explic = null; L.explicFim = false; L.fala = L.reacao;
