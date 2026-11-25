@@ -333,6 +333,10 @@ h3{font-size:16px;margin:0 0 6px}
 .mkit .mao svg{width:19px;height:19px;pointer-events:none}.mkit .mao:active{cursor:grabbing}.mkit .mao:focus-visible{outline:2px solid #fff}
 .kit-vago{opacity:.35}
 .kit-sombra{position:fixed!important;left:0;top:0;margin:0!important;z-index:90;pointer-events:none;box-shadow:0 18px 40px rgba(0,0,0,.45)}
+.cst-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.cst{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}.cst b{font-size:18px}.cst small{color:var(--muted)}
+.cst-tab{overflow-x:auto}.cst-tab table{width:100%;border-collapse:collapse;font-size:13px}.cst-tab td,.cst-tab th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}.cst-tab td:first-child,.cst-tab th:first-child{text-align:left}
+#admCustos h4{margin:8px 0 0}
 .grupos-card{margin-bottom:16px}
 .grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
 .grupo-linha:hover{border-color:var(--accent)}
@@ -1288,7 +1292,37 @@ function partesGemini(content) {
     : b.type === "document" ? { inlineData: { mimeType: "application/pdf", data: b.source.data } }
     : { text: "" });
 }
-async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo, zoeira }) {
+// ---------- uso da IA (só números: pedidos e tokens por ferramenta e modelo; o painel é só do administrador) ----------
+const textoLen = x => typeof x === "string" ? x.length : Array.isArray(x) ? x.reduce((a, b) => a + (b.text?.length || 0) + (b.type && b.type !== "text" ? 4000 : 0), 0) : 0;
+let USO_IA_TIMER = null, USO_IA_ULT = 0;
+const quemUsaIA = () => NUVEM.user ? NUVEM.user.uid : "ap_" + String(idAparelho()).replace(/[^A-Za-z0-9-]/g, "").slice(0, 50);
+function registrarIA(ferr, modelo, u, { falhou = false, est = false } = {}) {
+  try {
+    const dia = diaHoje(), k = dia + "_" + quemUsaIA(), pend = lsGet("fp-ia-pend", {}), mod = String(modelo || "?").slice(0, 60), f = String(ferr || "outros").slice(0, 20);
+    const x = ((((pend[k] ||= { dia, u: {} }).u)[f] ||= {})[mod] ||= { n: 0, e: 0, s: 0, c: 0, f: 0, est: 0 });
+    const int = v => Math.max(0, Math.round(Number(v) || 0));
+    x.n++; x.e += int(u?.promptTokenCount); x.s += int(u?.candidatesTokenCount) + int(u?.thoughtsTokenCount); x.c += int(u?.cachedContentTokenCount); if (falhou) x.f++; if (est) x.est++;
+    const ks = Object.keys(pend); if (ks.length > 8) delete pend[ks[0]];
+    lsSet("fp-ia-pend", pend);
+    USO_IA_TIMER ||= setTimeout(() => { USO_IA_TIMER = null; enviarUsoIA(); }, 150000);
+  } catch (e) { console.warn("uso IA:", e?.message); }
+}
+let USO_IA_INDO = false;
+async function enviarUsoIA() {
+  const F = NUVEM.F; if (USO_IA_INDO || !F || !NUVEM.db) return; const pend = lsGet("fp-ia-pend", {}), id = quemUsaIA();
+  USO_IA_INDO = true; USO_IA_ULT = Date.now();
+  try {
+    for (const k of Object.keys(pend)) {
+      if (!k.endsWith("_" + id)) continue; // de outra conta: espera ela entrar de novo
+      const p = pend[k], inc = {}; for (const f in p.u) for (const m in p.u[f]) for (const c in p.u[f][m]) if (p.u[f][m][c]) ((inc[f] ||= {})[m] ||= {})[c] = F.increment(p.u[f][m][c]);
+      const resto = lsGet("fp-ia-pend", {}); delete resto[k]; lsSet("fp-ia-pend", resto); // tira antes: nunca conta duas vezes
+      try { await F.setDoc(F.doc(NUVEM.db, "usoIA/" + k), { dia: p.dia, email: NUVEM.user?.email?.toLowerCase() || "", nome: (NUVEM.user ? PERFIL.nome || NUVEM.user.displayName || "" : "").slice(0, 80), ult: Date.now(), u: inc }, { merge: true }); }
+      catch (e) { console.warn("uso IA não enviado:", e?.message); }
+    }
+  } finally { USO_IA_INDO = false; }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && Date.now() - USO_IA_ULT > 30000 && Object.keys(lsGet("fp-ia-pend", {})).length) enviarUsoIA(); });
+async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo, zoeira, ferr }) {
   const { ai, AI } = await motorGemini();
   const sys = textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido que siga exatamente este esquema JSON:\n" + JSON.stringify(schema) : "");
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: partesGemini(m.content) }));
@@ -1305,14 +1339,21 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
         ...(zoeira ? { safetySettings: [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }] } : {})
       });
       const r = await prazo(modelo.generateContentStream({ contents }), 30000);
-      let texto = "";
+      let texto = "", usoMeta = null, pronto = false;
       const it = r.stream[Symbol.asyncIterator]();
+      try {
       for (;;) {
         const { value: pedaco, done } = await prazo(it.next(), 45000);
         if (done) break;
         if (sinal?.aborted) throw new Error("interrompido");
+        if (pedaco.usageMetadata) usoMeta = pedaco.usageMetadata;
         const t = pedaco.text?.() || "";
         if (t) { texto += t; prog(texto); aoParcial?.(texto); }
+      }
+      pronto = true;
+      } finally { // parou no meio também gastou: usa o número da IA ou, sem ele, uma estimativa (4 letras por token)
+        const temUso = usoMeta && (usoMeta.promptTokenCount || usoMeta.candidatesTokenCount);
+        registrarIA(ferr, nome, temUso ? usoMeta : { promptTokenCount: (sys.length + messages.reduce((a, m) => a + textoLen(m.content), 0)) / 4, candidatesTokenCount: texto.length / 4 }, { falhou: !pronto, est: !temUso });
       }
       if (!fundo) progressoIA("", null);
       return schema ? limparJSON(texto) : texto.trim();
@@ -1355,30 +1396,31 @@ async function chamar(opts) {
    se o gabarito não bater, a pergunta é descartada (nunca mostrar gabarito errado). */
 const textoDasMensagens = msgs => { const partes = []; for (const m of msgs || []) { if (typeof m.content === "string") partes.push(m.content); else for (const b of m.content || []) { if (b.type !== "text") return null; partes.push(b.text); } } return partes.join("\n\n"); };
 const reservaPossivel = opts => !!NUVEM.user && textoDasMensagens(opts.messages) !== null;
-async function pedirReserva(system, prompt, querJSON, maxTokens) {
+async function pedirReserva(system, prompt, querJSON, maxTokens, ferr) {
   const idToken = await NUVEM.user.getIdToken();
   const r = await prazo(fetch(PAG_AUTO + "/ia", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, system, prompt, json: querJSON, maxTokens }) }), 70000);
   const d = await r.json().catch(() => ({}));
   if (!r.ok || d.erro || !d.texto) throw new Error(d.erro || "reserva indisponível");
   console.info("IA reserva usada:", d.via);
+  registrarIA(ferr, "reserva " + (d.via || "?"), d.uso || { promptTokenCount: (system.length + prompt.length) / 4, candidatesTokenCount: d.texto.length / 4 }, { est: !d.uso });
   return d.texto;
 }
 async function chamarReserva(opts) {
   const system = textoDoSystem(opts.system) + (opts.schema ? "\n\nResponda SOMENTE com JSON válido (sem texto antes ou depois, sem ```) que siga exatamente este esquema JSON:\n" + JSON.stringify(opts.schema) : "");
-  const texto = await pedirReserva(system, textoDasMensagens(opts.messages), !!opts.schema, Math.min(opts.maxTokens || 3000, 4000));
+  const texto = await pedirReserva(system, textoDasMensagens(opts.messages), !!opts.schema, Math.min(opts.maxTokens || 3000, 4000), opts.ferr);
   if (!opts.schema) return String(texto).trim();
   const r = limparJSON(texto);
-  return conferirGabarito(r, textoDoSystem(opts.system));
+  return conferirGabarito(r, textoDoSystem(opts.system), opts.ferr);
 }
 // confere o gabarito de cada pergunta da reserva; fica só o que bate
-async function conferirGabarito(r, material) {
+async function conferirGabarito(r, material, ferr) {
   const chave = Array.isArray(r?.itens) ? "itens" : Array.isArray(r?.questoes) ? "questoes" : null;
   if (!chave) return r;
   const lista = r[chave].map(q => ({ q, alts: Array.isArray(q?.alternativas) && q.alternativas.length >= 2 ? q.alternativas : (q?.tipo === "vf" ? ["Verdadeiro", "Falso"] : null) })).filter(x => x.alts && Number.isInteger(x.q.correta));
   if (!lista.length) return r;
   const prompt = `Responda cada questão abaixo usando SOMENTE o material do sistema. Para cada uma, diga o índice (começando em 0) da alternativa correta. Se o material não permitir ter certeza, ou se houver mais de uma correta, ou nenhuma, responda -1.\n\n${lista.map((x, i) => `Questão ${i + 1}: ${x.q.enunciado}\n${x.alts.map((a, k) => `  ${k}) ${a}`).join("\n")}`).join("\n\n")}\n\nResponda SOMENTE em JSON: {"respostas":[{"n": número da questão, "correta": índice}]}`;
   let conf;
-  for (let vez = 0; vez < 2 && !conf; vez++) { try { conf = limparJSON(await pedirReserva(material.slice(0, 16000), prompt, true, 800)); } catch (e) { if (vez) throw e; } }
+  for (let vez = 0; vez < 2 && !conf; vez++) { try { conf = limparJSON(await pedirReserva(material.slice(0, 16000), prompt, true, 800, ferr)); } catch (e) { if (vez) throw e; } }
   const certo = new Map((conf.respostas || []).map(x => [Number(x.n), Number(x.correta)]));
   const boas = new Set(lista.filter((x, i) => certo.get(i + 1) === x.q.correta).map(x => x.q));
   const antes = r[chave].length;
@@ -1388,11 +1430,12 @@ async function conferirGabarito(r, material) {
   return r;
 }
 
+const gerarPara = ferr => (c, i, s, foco = "", extra = {}) => gerarJSON(c, i, s, foco, { ...extra, ferr });
 function gerarJSON(c, instrucao, schema, foco = "", extra = {}) {
   return chamar({
     system: extra.system || [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: instrucao }],
-    schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo, aoParcial: extra.aoParcial, fundo: extra.fundo
+    schema, maxTokens: extra.maxTokens, rotulo: extra.rotulo, aoParcial: extra.aoParcial, fundo: extra.fundo, ferr: extra.ferr
   });
 }
 
@@ -1669,7 +1712,7 @@ async function transcrever(id) {
     const bloco = m.tipo === "imagem"
       ? { type: "image", source: { type: "base64", media_type: m.mime, data: m.b64 } }
       : { type: "document", source: { type: "base64", media_type: "application/pdf", data: m.b64 } };
-    m.texto = await chamar({
+    m.texto = await chamar({ ferr: "leitura",
       system: "Você transcreve materiais de estudo com fidelidade.",
       messages: [{ role: "user", content: [bloco, { type: "text", text: "Transcreva todo o conteúdo textual deste material, fielmente, em Markdown. Descreva brevemente entre colchetes figuras, gráficos e diagramas relevantes. Se houver várias páginas, marque cada uma como [Página N]. Responda apenas com a transcrição." }] }],
       maxTokens: 64000
@@ -1750,7 +1793,7 @@ async function lerComIA(id) {
       let erro;
       for (let vez = 0; vez < 2; vez++) {
         try {
-          const r = await chamar({ system: "Você transcreve slides e páginas de material de estudo de medicina com fidelidade.", messages: [{ role: "user", content }], schema: obj({ paginas: arr(obj({ n: int, texto: str })) }), maxTokens: 12000, fundo: true });
+          const r = await chamar({ ferr: "leitura", system: "Você transcreve slides e páginas de material de estudo de medicina com fidelidade.", messages: [{ role: "user", content }], schema: obj({ paginas: arr(obj({ n: int, texto: str })) }), maxTokens: 12000, fundo: true });
           for (const p of r.paginas || []) if (lote.includes(p.n) && limpar(p.texto)) m.paginas[p.n - 1] = (m.paginas[p.n - 1] && zip ? m.paginas[p.n - 1] + "\n" : "") + limpar(p.texto);
           return;
         } catch (e) { erro = e; }
@@ -1941,14 +1984,14 @@ async function gerarGuiaEmPartes(c, foco) {
   const f = foco ? ` Concentre-se em: ${foco}.` : "";
   const base = blocoMateriais(c, foco); // mesmo trecho em todas as partes: a IA não precisa reler tudo a cada seção
   try {
-    const plano = await gerarJSON(c, `Liste de 4 a 7 tópicos principais destes materiais, com os NOMES REAIS dos assuntos (ex.: 'Edema', 'Filtração glomerular'), nunca nomes genéricos como 'Tópico 1', em ordem lógica, e dê um título específico ao guia.${f}`,
+    const plano = await gerarPara("guia")(c, `Liste de 4 a 7 tópicos principais destes materiais, com os NOMES REAIS dos assuntos (ex.: 'Edema', 'Filtração glomerular'), nunca nomes genéricos como 'Tópico 1', em ordem lógica, e dê um título específico ao guia.${f}`,
       obj({ titulo: str, topicos: arr(str) }), foco, { maxTokens: 400, rotulo: "Escolhendo os tópicos", system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: base }] });
     g.titulo = plano.titulo || g.titulo;
     const tops = [...new Set((plano.topicos || []).map(t => String(t).trim()).filter(Boolean))].slice(0, 7);
     if (!tops.length) throw new Error("a IA não encontrou tópicos nos materiais");
     for (const [i, t] of tops.entries()) {
       g.status = `Escrevendo a parte ${i + 1} de ${tops.length}: ${t}`; render();
-      const txt = await chamar({
+      const txt = await chamar({ ferr: "guia",
         system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: base }],
         messages: [{ role: "user", content: `Escreva a seção "${t}" de um guia de estudo, em Markdown: explicação clara e didática (6 a 12 linhas), com listas e **negrito** nos termos-chave. Não repita o título da seção. Use só os materiais.` }],
         maxTokens: 900, rotulo: `Parte ${i + 1} de ${tops.length}`
@@ -1957,7 +2000,7 @@ async function gerarGuiaEmPartes(c, foco) {
     }
     g.status = "Criando o glossário e as perguntas de revisão…"; render();
     try {
-      const r = await gerarJSON(c, `Com base nos materiais, crie um glossário com 6 a 10 conceitos-chave (termo e definição curta) e 5 perguntas de revisão.${f}`,
+      const r = await gerarPara("guia")(c, `Com base nos materiais, crie um glossário com 6 a 10 conceitos-chave (termo e definição curta) e 5 perguntas de revisão.${f}`,
         obj({ conceitos: arr(obj({ termo: str, definicao: str })), perguntas_revisao: arr(str) }), foco, { maxTokens: 1200, rotulo: "Glossário", system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: base }] });
       g.conceitos = r.conceitos || []; g.perguntas_revisao = r.perguntas_revisao || [];
     } catch {}
@@ -2008,13 +2051,13 @@ async function gerar(tipo, modoProva = false) {
     if (tipo === "resumo" && cfg().provider !== "anthropic") {
       await gerarGuiaEmPartes(c, foco);
     } else if (tipo === "resumo") {
-      const r = await gerarJSON(c, `Crie um resumo de estudo completo e bem estruturado dos materiais, organizado por tópicos (seções com conteúdo em Markdown, usando listas, negrito e tabelas quando ajudar). Inclua um glossário de conceitos-chave e de 5 a 10 perguntas de revisão.${f}`, SCH.resumo);
+      const r = await gerarPara("guia")(c, `Crie um resumo de estudo completo e bem estruturado dos materiais, organizado por tópicos (seções com conteúdo em Markdown, usando listas, negrito e tabelas quando ajudar). Inclua um glossário de conceitos-chave e de 5 a 10 perguntas de revisão.${f}`, SCH.resumo);
       c.resumos.unshift({ id: uid(), criado: Date.now(), foco, ...r });
     } else if (tipo === "flash") {
-      const r = await emLotes(qtd, "cards", "frente", (n, ev, aoParcial) => gerarJSON(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${REGRA_ACADEMICA} ${d}${f}${ev}`, SCH.flash, foco, { aoParcial }), { aoItem: k => aoVivo.item(() => ({ id: uid(), criado: Date.now(), titulo: "Flashcards", cards: [] }), { ...k, caixa: 0, proxima: 0 }) });
+      const r = await emLotes(qtd, "cards", "frente", (n, ev, aoParcial) => gerarPara("flash")(c, `Crie exatamente ${n} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Evite cards repetidos e cubra os tópicos mais importantes. ${REGRA_ACADEMICA} ${d}${f}${ev}`, SCH.flash, foco, { aoParcial }), { aoItem: k => aoVivo.item(() => ({ id: uid(), criado: Date.now(), titulo: "Flashcards", cards: [] }), { ...k, caixa: 0, proxima: 0 }) });
       aoVivo.fim(r.titulo);
     } else if (tipo === "quiz") {
-      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev, aoParcial) => gerarJSON(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras), um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada.${REGRAS_PERGUNTA} ${d}${f}${ev}`, SCH.quiz, foco, { aoParcial }), { aoItem: q => { normalizarMultipla(q); aoVivo.item(() => ({ id: uid(), criado: Date.now(), titulo: "Quiz", questoes: [], tentativas: [] }), q); } });
+      const r = await emLotes(qtd, "questoes", "enunciado", (n, ev, aoParcial) => gerarPara("quiz")(c, `Crie exatamente ${n} questões de múltipla escolha, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras), um para cada alternativa na mesma ordem, dizendo por que ela está certa ou errada.${REGRAS_PERGUNTA} ${d}${f}${ev}`, SCH.quiz, foco, { aoParcial }), { aoItem: q => { normalizarMultipla(q); aoVivo.item(() => ({ id: uid(), criado: Date.now(), titulo: "Quiz", questoes: [], tentativas: [] }), q); } });
       aoVivo.fim(r.titulo);
     } else if (tipo === "prova") {
       const cont = S.form.contagem || { multipla: qtd, vf: 0, dissertativa: 0 };
@@ -2027,7 +2070,7 @@ async function gerar(tipo, modoProva = false) {
       const r = { titulo: "", questoes: [] };
       for (const t of ["multipla", "vf", "dissertativa"]) {
         if (!(cont[t] > 0)) continue;
-        const parte = await emLotes(cont[t], "questoes", "enunciado", (n, ev) => gerarJSON(c, `Crie questões para uma prova simulada realista, como um professor faria: exatamente ${n} questões, TODAS do tipo ${regras[t]}\n"pontos" = peso da questão (dissertativas valem mais). ${d}${f}${ev}${r.questoes.length ? `\nNão repita estas questões já feitas:\n${r.questoes.map(q => "- " + String(q.enunciado).slice(0, 90)).join("\n")}` : ""}`, SCH.prova, foco));
+        const parte = await emLotes(cont[t], "questoes", "enunciado", (n, ev) => gerarPara("teste")(c, `Crie questões para uma prova simulada realista, como um professor faria: exatamente ${n} questões, TODAS do tipo ${regras[t]}\n"pontos" = peso da questão (dissertativas valem mais). ${d}${f}${ev}${r.questoes.length ? `\nNão repita estas questões já feitas:\n${r.questoes.map(q => "- " + String(q.enunciado).slice(0, 90)).join("\n")}` : ""}`, SCH.prova, foco));
         r.titulo ||= parte.titulo;
         r.questoes.push(...(t === "vf" ? intercalarVF(parte.questoes.map(q => ({ ...q, tipo: t, correta: q.correta === 1 ? 1 : 0 }))) : parte.questoes.map(q => ({ ...q, tipo: t }))));
       }
@@ -2097,7 +2140,7 @@ async function completarExplicacao(c, q, escolha) {
   try {
     const alts = q.alternativas.map((a, i) => `${i + 1}) ${a}`).join("\n");
     const n1 = q.correta + 1, n2 = marcouErrada ? escolha + 1 : null;
-    const r = await chamar({
+    const r = await chamar({ ferr: "explicacao",
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + `
 Você é um professor de medicina corrigindo uma questão de prova, falando direto com quem estuda.${linhaPronome()}
 - Seja CURTO e fácil de memorizar, como um resumo de revisão: tópicos rápidos, sem enrolação. Explique o conceito de verdade (causa e efeito), nada de frases vagas como "isso é importante para o funcionamento do organismo".
@@ -2365,7 +2408,7 @@ async function detectarMateria(c, forcar = false) {
     const existentes = nomesMaterias();
     // trechos do começo e do meio de cada material (a capa sozinha engana)
     const amostra = ativos(c).map(m => { const t = m.texto, meio = Math.floor(t.length / 2); return `${t.slice(0, 1200)}\n…\n${t.slice(meio, meio + 1200)}`; }).join("\n\n").slice(0, 4000);
-    const r = await chamar({
+    const r = await chamar({ ferr: "leitura",
       system: "Você identifica a disciplina acadêmica de materiais de estudo lendo o CONTEÚDO deles.",
       messages: [{ role: "user", content: `Trechos do material:\n${amostra}\n\nO nome que o estudante deu ao caderno é "${c.nome}" — pode ser abreviado ou ambíguo; decida pelo CONTEÚDO dos trechos.\nDisciplinas comuns: Fisiologia, Anatomia, Bioquímica, Biologia Celular, Histologia, Microbiologia, Imunologia, Parasitologia, Genética, Farmacologia, Patologia, Nutrição, Fisioterapia, Enfermagem, Psicologia, Química, Física, Matemática, Português, Literatura, História, Geografia, Direito, Economia.\nAtenção: Fisiologia (como o corpo funciona: líquidos corporais, rins, sistema nervoso, Guyton) é diferente de Fisioterapia (reabilitação, exercícios terapêuticos).\nMatérias que o estudante já tem: ${existentes.length ? existentes.join(", ") : "(nenhuma)"} — se for a MESMA disciplina, use exatamente esse nome; se for outra, crie a nova (1 a 3 palavras, maiúscula inicial).\nResponda a matéria em "materia".` }],
       schema: obj({ materia: str }), maxTokens: cfg().provider === "anthropic" ? 4000 : 80, rotulo: "Identificando a matéria", urgente: true
@@ -2680,7 +2723,7 @@ async function entregar(forcado = false) {
   if (diss.length) {
     try {
       const lista = diss.map(({ q, i }) => `<questao indice="${i}" pontos="${q.pontos}">\n<enunciado>${q.enunciado}</enunciado>\n<resposta_esperada>${q.resposta_esperada}</resposta_esperada>\n<resposta_do_aluno>${p.resp[i]}</resposta_do_aluno>\n</questao>`).join("\n");
-      const r = await gerarJSON(c, `${linhaPronome().trim()}
+      const r = await gerarPara("teste")(c, `${linhaPronome().trim()}
 Corrija as respostas dissertativas abaixo como um professor justo, com base nos materiais e na resposta esperada. Para cada questão, dê "nota" entre 0 e 1 (fração da pontuação: 1 = completa e correta, 0.5 = parcial etc.) e um "feedback" curto em Markdown dizendo o que acertou, o que faltou e como melhorar.\n\n${lista}`, SCH.correcao);
       r.correcoes.forEach(k => { if (porQuestao[k.indice]) porQuestao[k.indice] = { frac: Math.max(0, Math.min(1, k.nota)), feedback: k.feedback }; });
     } catch (e) {
@@ -2761,7 +2804,7 @@ async function garantirFatos(c, mais = false) {
   if (S.mapeando[c.id]) return S.mapeando[c.id];
   return S.mapeando[c.id] = (async () => {
     const atuais = (I.fatos?.chave === k ? I.fatos.lista : []) || [];
-    const r = await gerarJSON(c, mais
+    const r = await gerarPara("inteligente")(c, mais
       ? `Estes fatos do material JÁ foram usados:\n${atuais.map(f => "- " + f.t).join("\n")}\n\nLeia TODO o material de novo e liste de 20 a 60 fatos-chave NOVOS, que NÃO estejam na lista acima (nem com outras palavras): detalhes, valores, mecanismos, causas e consequências, exceções, comparações. Cada fato numa frase curta e completa, no idioma do material.`
       : `Leia TODO o material, do começo ao fim, e liste de 40 a 90 FATOS-CHAVE DIFERENTES que um aluno precisa saber para a prova, cobrindo o conteúdo inteiro (não só o começo). Cada fato numa frase curta e completa, com o valor e a unidade quando houver (ex.: "O fluxo sanguíneo encefálico normal é de 50–65 mL/100 g/min, cerca de 15% do débito cardíaco."). Não repita fatos nem escreva o mesmo fato de dois jeitos. Escreva no idioma do material.`,
       SCH.fatos, "", { maxTokens: 7000, fundo: true, rotulo: "Mapeando os fatos do material", system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: materialFixo(c, 40000) }] });
@@ -2861,7 +2904,7 @@ ${I.prefs ? `\nPreferências do estudante (siga com prioridade): ${I.prefs}` : "
     : instrFinal;
   const messages = continuar ? [...conversa.msgs, { role: "user", content: pedido }] : [{ role: "user", content: pedido }];
   let bruto = "";
-  const r = await chamar({
+  const r = await chamar({ ferr: "inteligente",
     system: local
       ? [{ type: "text", text: (cpu ? "Você cria perguntas de estudo a partir do material abaixo." : SYS_BASE) + linhaIdioma(c) }, { type: "text", text: materialFixo(c, cpu ? 1800 : cfg().provider === "webllm" ? 3000 : cfg().provider === "gemini" ? 40000 : 6000) }]
       : [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco), cache_control: { type: "ephemeral" } }],
@@ -3298,6 +3341,7 @@ function audioGemini(texto, lang) {
       try {
         const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voz } } } } });
         const r = await prazo(m.generateContent(texto), 20000);
+        registrarIA("narracao", nome, r.response.usageMetadata, { est: !r.response.usageMetadata });
         const part = r.response.candidates?.[0]?.content?.parts?.find(x => x.inlineData);
         if (part) {
           const bytes = Uint8Array.from(atob(part.inlineData.data), ch => ch.charCodeAt(0));
@@ -3539,6 +3583,7 @@ async function transcreverAudio(blob, lang) {
     try {
       const m = AI.getGenerativeModel(ai, { model: nome, generationConfig: { temperature: 0 } });
       const r = await prazo(m.generateContent([{ inlineData: { mimeType, data } }, { text: `Transcreva fielmente, palavra por palavra, SOMENTE o que for realmente falado neste áudio (português ou espanhol). Escreva exatamente no idioma falado: NUNCA traduza. NUNCA invente, complete ou adivinhe frases: se o áudio estiver mudo, só com ruído ou sem fala clara, responda exatamente [SEM_FALA]. Responda SOMENTE com o texto transcrito, sem comentários.` }]), 25000);
+      registrarIA("ateneo", nome, r.response.usageMetadata, { est: !r.response.usageMetadata });
       const txt = (r.response.text?.() || "").trim().replace(/^["“]|["”]$/g, "");
       return /\[?SEM_FALA\]?/i.test(txt) && txt.length < 20 ? "" : txt.replace(/\[?SEM_FALA\]?/gi, "").trim();
     } catch (e) { erro = e; if (ERRO_PULAR.test(String(e?.message || e))) GEM_PAUSA[nome] = Date.now() + 5 * 60000; }
@@ -3551,7 +3596,7 @@ async function identificarCapitulos(c, forcar = false) {
   if ((c.capitulos?.length && !forcar) || S.buscandoCaps) return;
   S.buscandoCaps = true; render();
   try {
-    const r = await gerarJSON(c, `Liste os CAPÍTULOS (ou grandes temas, se não houver capítulos numerados) que aparecem nos materiais, na ordem em que aparecem. Para cada um: "numero" (ex.: "25"; vazio se não houver) e "titulo" (o título do capítulo, curto). Não invente capítulos que não estão no material.`,
+    const r = await gerarPara("ateneo")(c, `Liste os CAPÍTULOS (ou grandes temas, se não houver capítulos numerados) que aparecem nos materiais, na ordem em que aparecem. Para cada um: "numero" (ex.: "25"; vazio se não houver) e "titulo" (o título do capítulo, curto). Não invente capítulos que não estão no material.`,
       SCH.capitulos, "", { maxTokens: cfg().provider === "anthropic" ? 8000 : 2000, rotulo: "Identificando os capítulos", urgente: true });
     c.capitulos = (r.capitulos || []).filter(x => x?.titulo).map(x => ({ numero: String(x.numero || "").trim(), titulo: String(x.titulo).trim() })).slice(0, 60);
     await salvar(c);
@@ -3717,7 +3762,7 @@ async function enviarOral(c) {
   const cap = nomeCap(p.cap) + (p.cap.faltando ? " (este capítulo não está nos materiais: use o conhecimento do livro-texto de referência da matéria, como o Guyton & Hall, e informe isso no comentário)" : ""), es = idiomaCaderno(c) === "es";
   try {
     if (p.etapa === "exposicao") {
-      const r = await gerarJSON(c, `${linhaPronome().trim()}
+      const r = await gerarPara("ateneo")(c, `${linhaPronome().trim()}
 Você é o professor de um ATENEO (exame oral). O estudante tirou o capítulo "${cap}" e fez a exposição abaixo (transcrita da fala; ignore erros de reconhecimento de voz e de gramática).
 Exposição do estudante: ${resp}
 
@@ -3735,7 +3780,7 @@ Com base no conteúdo desse capítulo nos materiais:
       p.etapa = "avaliacao";
     } else if (p.etapa === "pergunta") {
       const perg = p.perguntas[p.k];
-      const r = await gerarJSON(c, `${linhaPronome().trim()}
+      const r = await gerarPara("ateneo")(c, `${linhaPronome().trim()}
 Você é o professor de um ATENEO (exame oral) sobre o capítulo "${cap}".
 Pergunta do professor: ${perg}
 Resposta do estudante (transcrita da fala; ignore erros de reconhecimento de voz): ${resp}
@@ -3849,7 +3894,7 @@ async function perguntar(txt) {
   c.chat.push({ role: "user", content: txt });
   S.ocupado = "tutor"; render(); window.scrollTo(0, document.body.scrollHeight);
   try {
-    const resposta = await chamar({
+    const resposta = await chamar({ ferr: "tutor",
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. ORGANIZE para leitura rápida: comece com uma citação Markdown (linha iniciada por >) e a resposta direta em 1 ou 2 frases; depois títulos curtos (##), listas, tabela quando comparar coisas, termos-chave em **negrito** e, no fim, a seção ### Para lembrar com até 3 pontos. Pergunta simples pede resposta curta, sem encher. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." + linhaPronome() }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
       messages: c.chat.map(m => ({ role: m.role, content: m.content })),
       maxTokens: 16000
@@ -4663,7 +4708,7 @@ async function abrirAdmin(alvo = null) {
   const nPed = pedidos.length;
   // a notificação escolhe a aba; pelo menu, abre onde há algo novo; depois de uma ação, fica na mesma aba
   S.admAba = alvo?.feedback ? "feedback" : alvo?.email ? "pedidos" : S.admAba || (!nPed && novosFb && !ped.erro ? "feedback" : "pedidos");
-  const abas = [["pedidos", "Pedidos", nPed], ["feedback", TT("Feedbacks", "Comentarios"), novosFb], ["vendas", TT("Vendas", "Ventas"), 0], ["membros", TT("Membros", "Miembros"), 0], ["pagamento", TT("Ajustes", "Ajustes"), 0]];
+  const abas = [["pedidos", "Pedidos", nPed], ["feedback", TT("Feedbacks", "Comentarios"), novosFb], ["vendas", TT("Vendas", "Ventas"), 0], ["custos", TT("Custos", "Costos"), 0], ["membros", TT("Membros", "Miembros"), 0], ["pagamento", TT("Ajustes", "Ajustes"), 0]];
   const on = k => S.admAba === k ? " on" : "";
   const rotFb = { problema: "🐞 Problema", ideia: "💡 Ideia", outro: "✉️ Outro" };
   const cartaoFeedback = `<div class="card" id="admFeedbacks" style="margin:0;${novosFb ? "border-color:var(--accent)" : ""}"><h3 style="margin:0 0 4px">💬 Feedbacks${novosFb ? ` (${novosFb} novo${novosFb > 1 ? "s" : ""})` : ""}</h3>
@@ -4676,6 +4721,7 @@ async function abrirAdmin(alvo = null) {
     <div class="adm-aba${on("pedidos")}" data-aba="pedidos">${avisoAlvo}${cartaoPedidos}</div>
     <div class="adm-aba${on("feedback")}" data-aba="feedback">${cartaoFeedback}</div>
     <div class="adm-aba${on("vendas")}" data-aba="vendas"><div class="card stack" id="admVendas" style="margin:0"></div></div>
+    <div class="adm-aba${on("custos")}" data-aba="custos"><div class="card stack" id="admCustos" style="margin:0"></div></div>
     <div class="adm-aba${on("membros")}" data-aba="membros">
     <div class="card stack" style="margin:0"><h3 style="margin:0">Liberar um e-mail manualmente</h3>
       <div class="muted" style="font-size:13px">Se a pessoa te mandou o e-mail direto, digite o Gmail que ela usa para entrar.</div>
@@ -4709,7 +4755,7 @@ async function abrirAdmin(alvo = null) {
     </div>
     ${fechar}`;
   ADM_VENDAS = { docs: fun.docs.map(x => ({ ...x.data(), id: x.id })), lista, erro: fun.erro || ped.erroMembros, aviso: avisoErro };
-  desenharVendas();
+  desenharVendas(); if (S.admAba === "custos") carregarCustos();
   // rola até a pessoa que a notificação apontou
   if (alvo) setTimeout(() => {
     if (vez !== ADM_VEZ) return;
@@ -4752,6 +4798,89 @@ function desenharVendas() {
     ${barra(TT("Pagaram (confirmado)", "Pagaron (confirmado)"), r.pagaram, r.liberados ? TT(`Mais ${r.liberados} liberado(s) por você à mão.`, `Más ${r.liberados} liberado(s) por ti a mano.`) : "", "var(--ok)")}
     <div class="row" style="justify-content:space-between;align-items:center;gap:6px;margin-top:4px"><b>${TT("Pessoas com conta", "Personas con cuenta")} (${nomes.length})</b><button class="btn small ghost" data-act="vendasFiltro">${S.vendasFiltro === "nao" ? TT("Mostrar todas", "Mostrar todas") : TT("Só quem não pagou", "Solo quien no pagó")}</button></div>
     ${nomes.map(x => { const [t, cor] = etapa(x); return `<div class="mrow adm-ped" style="margin:0"><span class="nm">${esc(x.nome || x.email)}${x.nome ? `<small>${esc(x.email)}</small>` : ""}<small>${fmtData(x.ultimo)} · ${TT(`abriu ${x.viu || 1} vez(es)`, `abrió ${x.viu || 1} vez(ces)`)}${x.falhou ? ` · <span style="color:var(--bad)">${TT("o Pix automático falhou", "el Pix automático falló")}</span>` : ""}</small></span><b style="color:${cor};font-size:13px;text-align:right">${t}</b></div>`; }).join("") || `<p class="muted" style="margin:0">${TT("Ninguém com conta nesse filtro.", "Nadie con cuenta en este filtro.")}</p>`}`}`;
+}
+/* ---------- aba Custos da IA (só administrador; as regras do Firestore também impedem a leitura) ---------- */
+// preço em US$ por 1 milhão de tokens [entrada, saída] (conferido em 25/11/2026 na página de preços do Google); null = sem preço conhecido
+const PRECOS_IA = { "gemini-3.5-flash-lite": [.30, 2.50], "gemini-3.8-flash": [.75, 3.75], "gemini-4-hydrogen": null };
+const FERR_NOME = { tutor: "Tutor", inteligente: "Estudo inteligente", quiz: "Quiz", teste: "Teste", flash: "Flashcards", mapa: "Mapa mental", guia: "Guia de estudo", pdf: "Guia em PDF", louco: "Quiz louco", audio: "Resumo em áudio (roteiro)", narracao: "Narração na nuvem", ateneo: "Ateneo", duelo: "Duelo", explicacao: "Explicar melhor", traducao: "Tradutor", leitura: "Leitura de arquivos", plano: "Plano da prova", outros: "Outros" };
+let ADM_CUSTOS = null;
+function precoDoModelo(m, cfgC, dia = "") {
+  if (/^reserva /.test(m)) return [0, 0]; // Groq, Cloudflare e OpenRouter nos planos grátis
+  const x = cfgC?.precos?.[m]; if (Array.isArray(x) && x.every(Number.isFinite)) return x;
+  if (m === "gemini-3.8-flash" && dia >= "2027-01-01") return [1.50, 7.50];
+  return PRECOS_IA[m] || null;
+}
+function resumoCustos(docs, cfgC = {}) {
+  const r = { n: 0, e: 0, s: 0, c: 0, f: 0, est: 0, usd: 0, semPreco: 0, ferr: {}, mod: {}, pes: {}, dias: {} }, num = v => Number.isFinite(v) && v > 0 ? v : 0;
+  const soma = (o, v, usd) => { for (const k of ["n", "e", "s", "c", "f", "est"]) o[k] = (o[k] || 0) + num(v[k]); o.usd = (o.usd || 0) + usd; };
+  for (const x of docs) {
+    const pid = String(x.id || "").slice(11) || "?", p = r.pes[pid] ||= { id: pid, email: x.email || "", nome: x.nome || "", dias: {}, ferr: {} }; if (x.email) { p.email = x.email; p.nome = x.nome || p.nome; }
+    for (const f in x.u || {}) for (const m in x.u[f] || {}) {
+      const v = x.u[f][m] || {}, pr = precoDoModelo(m, cfgC, x.dia), usd = pr ? (num(v.e) * pr[0] + num(v.s) * pr[1]) / 1e6 : 0;
+      if (!pr) r.semPreco += num(v.n);
+      for (const o of [r, r.ferr[f] ||= {}, r.mod[m] ||= {}, p, r.dias[x.dia] ||= {}]) soma(o, v, usd);
+      soma(p.ferr[f] ||= {}, v, usd);
+    }
+    p.dias[x.dia] = 1;
+  }
+  const pes = Object.values(r.pes).filter(p => p.n); r.pessoas = pes.length; r.pessoasDia = pes.reduce((a, p) => a + Object.keys(p.dias).length, 0);
+  r.mediaPessoaDia = r.pessoasDia ? r.usd / r.pessoasDia : 0; r.mediaPedidos = r.pessoasDia ? r.n / r.pessoasDia : 0;
+  // fora da curva: bem acima da mediana de pedidos por dia de uso (só com gente suficiente para comparar)
+  for (const p of pes) p.porDia = p.n / Math.max(1, Object.keys(p.dias).length);
+  const ord = pes.map(p => p.porDia).sort((a, b) => a - b), med = ord.length ? ord[Math.floor(ord.length / 2)] : 0; r.mediana = med;
+  for (const p of pes) p.fora = pes.length >= 5 && p.porDia >= Math.max(30, med * 3);
+  r.lista = pes.sort((a, b) => b.usd - a.usd || b.n - a.n);
+  return r;
+}
+async function carregarCustos() {
+  const dias = S.custosDias ?? 7, F = NUVEM.F, el = $("#admCustos"); if (!el) return;
+  el.innerHTML = `<p class="muted"><span class="spin"></span> Carregando…</p>`;
+  const vez = ADM_VEZ, pedido = S.custosPedido = Date.now() + Math.random();
+  try {
+    const desde = diaHoje(new Date(Date.now() - (dias - 1) * DIA_MS));
+    const [q, cf] = await Promise.all([lerServidor(F.query(F.collection(NUVEM.db, "usoIA"), F.where("dia", ">=", desde), F.limit(4000))), F.getDoc(F.doc(NUVEM.db, "custosIA/config")).catch(() => null)]);
+    if (vez !== ADM_VEZ || pedido !== S.custosPedido) return;
+    ADM_CUSTOS = { docs: q.docs.map(x => ({ ...x.data(), id: x.id })), cfg: cf?.exists?.() ? cf.data() : {} };
+  } catch (e) { ADM_CUSTOS = { erro: msgErro(e) }; }
+  desenharCustos();
+}
+function desenharCustos() {
+  const el = $("#admCustos"), v = ADM_CUSTOS; if (!el || !v) return;
+  if (v.erro) { el.innerHTML = `<h3 style="margin:0">Custos da IA</h3><p>Não consegui ler: ${esc(v.erro)}</p><button class="btn small" data-act="custosDias" data-id="${S.custosDias ?? 7}">Tentar de novo</button>`; return; }
+  const dias = S.custosDias ?? 7, c = v.cfg || {}, r = resumoCustos(v.docs, c), dol = c.dolar > 0 ? c.dolar : 0, din = u => dol ? "R$ " + (u * dol).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: u * dol < 1 ? 4 : 2 }) : "US$ " + u.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: u < 1 ? 4 : 2 });
+  const n = x => Math.round(x || 0).toLocaleString("pt-BR"), real = c.pago ? r.usd : 0;
+  const cx = (t, x, s = "") => `<div class="cst"><small>${t}</small><b>${x}</b>${s ? `<small>${s}</small>` : ""}</div>`;
+  const tab = (tit, obj, nome) => { const l = Object.entries(obj).sort((a, b) => b[1].usd - a[1].usd || b[1].n - a[1].n); return `<h4>${tit}</h4><div class="cst-tab"><table><thead><tr><th></th><th>Pedidos</th><th>Entrada</th><th>Saída</th><th>Estimado</th><th>%</th></tr></thead><tbody>${l.map(([k, x]) => `<tr><td>${esc(nome(k))}</td><td>${n(x.n)}${x.f ? ` <small>(${n(x.f)} falha)</small>` : ""}</td><td>${n(x.e)}</td><td>${n(x.s)}</td><td>${nome === nomeMod && !precoDoModelo(k, c) ? "sem preço" : din(x.usd)}</td><td>${r.usd ? Math.round(x.usd / r.usd * 100) : r.n ? Math.round(x.n / r.n * 100) : 0}%</td></tr>`).join("")}</tbody></table></div>`; };
+  const nomeMod = k => k;
+  // receita: só pagamentos confirmados automaticamente; o valor vem do preço atual (estimativa)
+  const ini = Date.now() - dias * DIA_MS, pagos = (ADM_VENDAS?.lista || []).filter(x => x.nota !== "administrador" && (x.data || 0) >= ini && (x.por === "pagamento automático" || x.pedidosPagos?.length)), preco = Number(ACESSO.pag.preco) || 0, receita = pagos.length * preco, custoBRL = dol ? real * dol : real === 0 ? 0 : null, estBRL = dol ? r.usd * dol : null;
+  const mg = custo => receita ? Math.round((receita - custo) / receita * 100) + "%" : "sem receita";
+  el.innerHTML = `<h3 style="margin:0">Custos da IA</h3>
+    <div class="row" style="gap:6px">${[[1, "Hoje"], [7, "7 dias"], [30, "30 dias"]].map(([k, t]) => `<button class="btn small${k === dias ? "" : " ghost"}" data-act="custosDias" data-id="${k}" aria-pressed="${k === dias}">${t}</button>`).join("")}</div>
+    ${!r.n ? `<p class="muted">Nenhum uso registrado nesse período. A contagem começa quando esta versão for publicada.</p>` : `<div class="cst-grade">
+      ${cx("Custo real", c.pago ? din(real) : "R$ 0,00", c.pago ? "cobrança ativa" : "plano grátis do Google")}
+      ${cx("Se fosse pago", din(r.usd), `${n(r.e)} tokens de entrada · ${n(r.s)} de saída`)}
+      ${cx("Por pessoa, por dia", din(r.mediaPessoaDia), `${r.mediaPedidos.toFixed(1).replace(".", ",")} pedidos`)}
+      ${cx("Pessoas · pedidos", `${n(r.pessoas)} · ${n(r.n)}`, r.f ? `${n(r.f)} falharam` : "")}
+      ${cx("Receita (estimada)", "R$ " + receita.toLocaleString("pt-BR", { minimumFractionDigits: 2 }), `${pagos.length} pagamento(s) × preço atual`)}
+      ${cx("Margem", custoBRL === null ? "informe o dólar" : mg(custoBRL), estBRL === null ? "" : `se fosse pago: ${mg(estBRL)}`)}
+    </div>
+    ${r.semPreco ? `<div class="adm-aviso">${n(r.semPreco)} pedido(s) em modelo sem preço cadastrado: não entram no valor estimado. Preencha o preço abaixo.</div>` : ""}
+    ${r.est ? `<small class="muted">${n(r.est)} pedido(s) sem a contagem oficial da IA: tokens estimados pelo tamanho do texto.</small>` : ""}
+    ${tab("Por ferramenta", r.ferr, k => FERR_NOME[k] || k)}${tab("Por modelo", r.mod, nomeMod)}${dias > 1 ? `<h4>Por dia</h4><div class="cst-tab"><table><tbody>${Object.entries(r.dias).sort().reverse().map(([k, x]) => `<tr><td>${k.split("-").reverse().join("/")}</td><td>${n(x.n)} pedidos</td><td>${din(x.usd)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+    <h4>Por pessoa</h4>${r.lista.slice(0, 60).map(p => `<div class="mrow adm-ped" style="margin:0"><span class="nm">${esc(p.nome || p.email || "Sem login (" + p.id.slice(3, 9) + ")")}${p.email && p.nome ? `<small>${esc(p.email)}</small>` : ""}<small>${n(p.n)} pedidos em ${Object.keys(p.dias).length} dia(s) · mais usa: ${esc(FERR_NOME[Object.entries(p.ferr).sort((a, b) => b[1].n - a[1].n)[0][0]] || "")}${p.fora ? ` · <b style="color:var(--warn)">uso fora do normal</b>` : ""}</small></span><b>${din(p.usd)}</b></div>`).join("")}`}
+    <details><summary class="muted" style="cursor:pointer">Preços e dólar</summary><div class="stack" style="margin-top:8px">
+      <small class="muted">US$ por 1 milhão de tokens. A voz do professor roda no aparelho do aluno e não custa nada.</small>
+      ${[...new Set([...Object.keys(PRECOS_IA), ...Object.keys(r.mod).filter(m => !/^reserva /.test(m))])].map(m => { const p = precoDoModelo(m, c, diaHoje()); return `<div class="row" style="gap:6px;align-items:center"><span style="flex:1;min-width:150px">${esc(m)}</span><input type="number" min="0" step="0.01" class="cstP" data-m="${esc(m)}" data-k="0" value="${p?.[0] ?? ""}" placeholder="entrada" style="width:90px"><input type="number" min="0" step="0.01" class="cstP" data-m="${esc(m)}" data-k="1" value="${p?.[1] ?? ""}" placeholder="saída" style="width:90px"></div>`; }).join("")}
+      <label>Dólar em reais <input type="number" min="0" step="0.01" id="cstDolar" value="${dol || ""}" placeholder="ex.: cotação de hoje" style="width:140px"></label>
+      <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="cstPago" ${c.pago ? "checked" : ""}> A cobrança do Google está ativa (conta como custo real)</label>
+      <div><button class="pill" data-act="custosSalvar">Salvar</button></div></div></details>`;
+}
+async function salvarCustos() {
+  const precos = {}; document.querySelectorAll(".cstP").forEach(i => { (precos[i.dataset.m] ||= [])[+i.dataset.k] = i.value === "" ? NaN : +i.value; });
+  for (const m in precos) if (!precos[m].every(x => Number.isFinite(x) && x >= 0)) delete precos[m];
+  const v = { precos, dolar: Math.max(0, +$("#cstDolar").value || 0), pago: $("#cstPago").checked };
+  try { await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, "custosIA/config"), v); ADM_CUSTOS.cfg = v; desenharCustos(); toast("Preços salvos."); } catch (e) { toast("Não consegui salvar: " + msgErro(e), true); }
 }
 // lê o campo de dias ao lado do botão (pedido ou membro); vazio = 30
 function diasDoCampo(cls, email) {
@@ -5153,7 +5282,9 @@ document.addEventListener("click", async e => {
       S.admAba = id;
       document.querySelectorAll(".adm-abas button").forEach(b => { b.classList.toggle("on", b.dataset.id === id); b.setAttribute("aria-selected", b.dataset.id === id); });
       document.querySelectorAll(".adm-aba").forEach(x => x.classList.toggle("on", x.dataset.aba === id));
-      $("#dlgAdmin").scrollTop = 0; break;
+      $("#dlgAdmin").scrollTop = 0; if (id === "custos") carregarCustos(); break;
+    case "custosDias": S.custosDias = +id; carregarCustos(); break;
+    case "custosSalvar": salvarCustos(); break;
     case "vendasDias": S.vendasDias = +id; desenharVendas(); break;
     case "vendasFiltro": S.vendasFiltro = S.vendasFiltro === "nao" ? "" : "nao"; desenharVendas(); break;
     case "adminPedido": $("#dlgPerfil").close(); abrirAdmin({ email: id }); break;
@@ -6232,7 +6363,7 @@ async function traduzirSelecao() {
   if (g[k]) return mostrar(g[k]);
   el.innerHTML = `<div class="trad-card"><span class="spin"></span> Traduzindo…</div>`;
   try {
-    const r = await chamar({
+    const r = await chamar({ ferr: "traducao",
       system: "Você é um dicionário médico bilíngue português (Brasil) ↔ espanhol para estudantes de medicina. Responda curto e certo.",
       messages: [{ role: "user", content: `Termo: "${s.termo}"\nFrase onde aparece: "${s.frase}"\n\nSe o termo estiver em espanhol, traduza para português do Brasil; se estiver em português, traduza para espanhol. Use o sentido médico/fisiológico da frase e o TERMO TÉCNICO que se usa de verdade no Brasil (ou no Paraguai), não a palavra parecida (ex.: "gasto cardíaco" → "débito cardíaco"; "riñón" → "rim"; "hipófisis" → "hipófise").\n- "traducao": a tradução curta (1 a 4 palavras).\n- "explicacao": em PORTUGUÊS, 1 frase simples (até 20 palavras) dizendo o que é, no contexto de medicina.\n- "idioma": "es" ou "pt" (o idioma do termo original).` }],
       schema: obj({ traducao: str, explicacao: str, idioma: str }), maxTokens: 300, fundo: true, urgente: true
@@ -6469,7 +6600,7 @@ async function lerProvasAntigas(files) {
         if (!podeUsar()) break; gastar();
         const b64 = await new Promise((ok, erro) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.onerror = erro; fr.readAsDataURL(f); });
         const mime = r.mime || (f.type || "application/pdf");
-        texto = await chamar({
+        texto = await chamar({ ferr: "leitura",
           system: "Você transcreve provas de faculdade com fidelidade, no idioma original.",
           messages: [{ role: "user", content: [{ type: mime === "application/pdf" ? "document" : "image", source: { type: "base64", media_type: mime, data: b64 } }, { type: "text", text: "Transcreva TODAS as questões desta prova (enunciado e alternativas, e a resposta se estiver marcada), em texto simples, numeradas, sem comentários." }] }],
           maxTokens: 7000, rotulo: "Lendo a prova", urgente: true
@@ -6507,7 +6638,7 @@ async function gerarPanico() {
   const I = c.inteligente, dom = I.topicos.map(t => `- ${t}: ${c.dominio[t]?.tentativas ? Math.round(c.dominio[t].score * 100) + "% de domínio" : "não praticado"}`).join("\n") || "(sem histórico)";
   const atividades = ["estudo", "flashcards", "guia", "pausa", ...(c.oficial ? ["ateneo"] : [])];
   try {
-    const r = await chamar({
+    const r = await chamar({ ferr: "plano",
       system: SYS_BASE + linhaIdioma(c),
       messages: [{ role: "user", content: `Monte um plano de estudo de emergência para uma prova que acontece daqui a ${horas} horas.\nO que cai: ${marcados.length ? marcados.join("; ") : livre || "todo o conteúdo do caderno"}.\nDomínio atual do estudante por tópico:\n${dom}\n\nRegras:\n- Priorize o que tem MENOR domínio e o que mais cai em prova; deixe revisão rápida do que já domina no fim.\n- Use blocos de 20 a 60 minutos e inclua pausas curtas. Se faltar mais de 12 h, reserve sono (bloco "pausa" de dormir) e uma revisão final antes da prova.\n- Some no máximo ${Math.min(horas, 12) * 60} minutos de estudo ativo.\n- "atividade" é uma de: ${atividades.join(", ")}. "topico" deve ser EXATAMENTE um dos tópicos/capítulos citados acima quando houver.\n- "objetivo": 1 frase curta e concreta do que fazer no bloco.\n- "dica": 1 frase de estratégia para essa prova.${estiloProfTxt(c) ? "\n- Dê mais tempo aos assuntos que mais aparecem nos exemplos de questões abaixo." + estiloProfTxt(c) : ""}` }],
       schema: obj({ titulo: str, dica: str, blocos: arr(obj({ titulo: str, minutos: int, atividade: str, topico: str, objetivo: str })) }), maxTokens: 2500, rotulo: "Montando seu plano", urgente: true
@@ -6563,7 +6694,7 @@ async function gerarAudioResumo() {
   S.gerandoAudio = c.id; render();
   try {
     const foco = S.form?.foco || "";
-    const txt = await chamar({
+    const txt = await chamar({ ferr: "audio",
       system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: blocoMateriais(c, foco, 30000) }],
       messages: [{ role: "user", content: `Escreva o ROTEIRO FALADO de um resumo em áudio de uns 5 minutos (650 a 800 palavras) com os pontos mais importantes destes materiais${foco ? `, com foco em: ${foco}` : ""}, como um professor gravando um podcast para revisão antes da prova.${linhaPronome()}\n- Frases curtas e naturais para ouvir; nada de listas, tópicos, markdown, emojis, tabelas ou fórmulas escritas com símbolos (diga por extenso).\n- Comece direto no assunto; organize do geral para o detalhe; repita os valores e conceitos que mais caem.\n- Termine com 3 frases "para lembrar" bem curtas.` }],
       maxTokens: 2600, rotulo: "Escrevendo o roteiro", urgente: true
@@ -6628,7 +6759,7 @@ async function criarDuelo() {
   S.criandoDuelo = true; render(); hipoFala("Preparando 10 perguntas para o duelo… ⚔️", "feliz");
   try {
     const prontas = (c.inteligente?.banco || []).filter(q => q.tipo === "multipla" && !q.revisao && q.alternativas?.length === 4 && altsValidas({ ...q, alternativas: [...q.alternativas] })).slice(0, 10), falta = 10 - prontas.length;
-    const pedir = (n, parte) => emLotes(n, "questoes", "enunciado", (k, ev) => gerarJSON(c, `Crie exatamente ${k} questões de múltipla escolha para um DUELO entre estudantes: diretas, de dificuldade média, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras). ${REGRA_ACADEMICA}${parte}${REGRAS_PERGUNTA}${ev}${prontas.length ? `\nNão repita: ${prontas.map(q => q.enunciado.slice(0, 80)).join("; ")}` : ""}`, SCH.quiz, "")).then(r => r.questoes, e => { console.warn("duelo:", e.message); return []; });
+    const pedir = (n, parte) => emLotes(n, "questoes", "enunciado", (k, ev) => gerarPara("duelo")(c, `Crie exatamente ${k} questões de múltipla escolha para um DUELO entre estudantes: diretas, de dificuldade média, cada uma com 4 alternativas e apenas uma correta ("correta" é o índice 0-3). Em "explicacoes", dê 4 textos MUITO curtos (até 12 palavras). ${REGRA_ACADEMICA}${parte}${REGRAS_PERGUNTA}${ev}${prontas.length ? `\nNão repita: ${prontas.map(q => q.enunciado.slice(0, 80)).join("; ")}` : ""}`, SCH.quiz, "")).then(r => r.questoes, e => { console.warn("duelo:", e.message); return []; });
     const partes = falta > 6 ? await Promise.all([pedir(Math.ceil(falta / 2), "\nUse SÓ assuntos da PRIMEIRA metade do material."), pedir(Math.floor(falta / 2), "\nUse SÓ assuntos da SEGUNDA metade do material.")]) : falta ? [await pedir(falta, "")] : [];
     const vistos = prontas.map(fatoDe), novas = partes.flat().filter(q => { const f = fatoDe(q); if (vistos.some(v => mesmoFato(f, v))) return false; vistos.push(f); return true; });
     novas.forEach(normalizarMultipla);
@@ -7284,7 +7415,7 @@ async function gerarMapa() {
     for (let k = 0; k < partes.length; k++) {
       S.gerandoMapa = `${k + 1}/${partes.length}`; render();
       try {
-        feitas.push(await Promise.race([parar, chamar({
+        feitas.push(await Promise.race([parar, chamar({ ferr: "mapa",
           system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: partes[k] }],
           messages: [{ role: "user", content: `Crie um MAPA MENTAL de estudo do conteúdo acima${foco ? `, com foco em: ${foco}` : ""}, para revisar antes da prova.${partes.length > 1 ? `\nEste conteúdo é a parte ${k + 1} de ${partes.length} do material: faça ${partes.length > 2 ? "3" : "4"} ramos só do que está AQUI.${feitas.length ? ` Ramos já feitos (não repita): ${feitas.flatMap(f => (f.ramos || []).map(r => textoIA(r.titulo))).join("; ")}.` : ""}` : ""}${tam3D ? "\nIMPORTANTE: este mapa é em 3D e o conteúdo é grande. Seja ENXUTO: no máximo 4 itens por ramo, itens curtíssimos (até 5 palavras). Só o essencial." : ""}\n- "titulo": nome do mapa (até 6 palavras).\n- "centro": o tema central (até 4 palavras).\n- "subtitulo": um dado-chave curtíssimo do tema (ex.: um valor normal), ou "".\n- "ramos": ${partes.length > 1 ? "" : "de 4 a 7 "}ramos principais com "titulo" (até 4 palavras) e "itens": de 2 a 6 pontos curtos (até 9 palavras cada) que caem em prova, com valores e unidades quando houver.${niveis}\n- Só conteúdo acadêmico (nada de nomes de professores, agradecimentos ou avisos). Escreva com acentuação e ortografia corretas. Sem emojis, sem markdown. Não repita fatos entre ramos.` }],
           schema: tam3D ? obj({ titulo: str, centro: str, subtitulo: str, ramos: arr(obj({ titulo: str, itens: arr(str) })) }) : obj({ titulo: str, centro: str, subtitulo: str, ramos: arr(obj({ titulo: str, itens: arr(obj({ texto: str, sub: arr(obj({ texto: str, sub: arr(str) })) })) })) }), maxTokens: 8000, urgente: true
@@ -7297,7 +7428,7 @@ async function gerarMapa() {
     if (feitas.length < partes.length) toast(`O mapa saiu com ${feitas.length} de ${partes.length} partes do material.`);
     let estiloIA = null;
     if (estilo === "ia") {
-      estiloIA = await Promise.race([parar, chamar({
+      estiloIA = await Promise.race([parar, chamar({ ferr: "mapa",
         system: "Você é designer de interfaces. Transforme a descrição do estudante em parâmetros visuais de um mapa mental, com bom contraste e boa leitura.",
         messages: [{ role: "user", content: `Descrição do estilo: "${desc}"\nResponda com: "layout" (um de: galaxia, neural, radial, arvore — galaxia/neural são 3D giratórios; radial é o mapa clássico em volta do centro; arvore vai da esquerda para a direita), "fundo" e "fundo2" (cores hexadecimais do fundo, iguais se for liso), "texto" (cor das letras, com contraste com o fundo), "centro" (cor do nó central), "cores" (5 a 7 cores hexadecimais para os ramos), "forma" (circulo, pilula ou retangulo), "linha" (curva, reta ou tracejada), "fonte" (sans, serif, mono ou arredondada).` }],
         schema: obj({ layout: { type: "string", enum: ["galaxia", "neural", "radial", "arvore"] }, fundo: str, fundo2: str, texto: str, centro: str, cores: arr(str), forma: { type: "string", enum: ["circulo", "pilula", "retangulo"] }, linha: { type: "string", enum: ["curva", "reta", "tracejada"] }, fonte: { type: "string", enum: ["sans", "serif", "mono", "arredondada"] } }),
@@ -7724,14 +7855,14 @@ const LAB_REGRA_FALAS = `"falas": uma fala do Hipo para CADA alternativa, na mes
 - para cada alternativa ERRADA: no máximo 2 ou 3 frases curtas, SEM reação no começo (nada de "Porra", "Sério?", "Ops" ou xingamento logo de cara: a reação já é falada antes, separada). Comece DIRETO por UMA comparação absurda e engraçada do dia a dia que deixe clara a diferença entre o que a pessoa marcou e o certo (pode zoar no meio, no seu jeito) e termine com a regra certa numa frase simples que diga o NOME da resposta certa.
 Cada fala é sobre AQUELA alternativa específica. A zoeira nunca usa doença, transtorno ou deficiência (nada de "demência", "retardado", "autista" etc.).`;
 async function labGerarFalas(q) {
-  const r = await chamar({
+  const r = await chamar({ ferr: "louco",
     system: labSistema(), schema: obj({ falas: arr(str) }), maxTokens: 1400, rotulo: "Hipo pensando", fundo: true, zoeira: labJeito() !== "fofo",
     messages: [{ role: "user", content: `Pergunta: "${q.enunciado}"\nAlternativas:\n${q.alternativas.map((a, i) => `${i}) ${a}${i === q.correta ? "  (CERTA)" : ""}`).join("\n")}\n\n${LAB_REGRA_FALAS}` }]
   });
   return r.falas;
 }
 async function labGerarPergunta(c, L, segunda = false) {
-  const r = await chamar({
+  const r = await chamar({ ferr: "louco",
     system: [{ type: "text", text: labSistema() }, { type: "text", text: blocoMateriais(c, ""), cache_control: { type: "ephemeral" } }],
     schema: obj({ topico: str, enunciado: str, termos: arr(str), alternativas: arr(str), correta: int, falas: arr(str) }), maxTokens: 2000, rotulo: "Criando a pergunta", fundo: true, zoeira: labJeito() !== "fofo",
     messages: [{ role: "user", content: `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas sobre um ponto importante do material acima ("correta" = índice da certa, "topico" = assunto em 2-4 palavras).\n${REGRAS_PERGUNTA}\nA pergunta e as alternativas também em ${labIdioma() === "es" ? "espanhol" : "português do Brasil"}.${L.feitas.length ? `\nNão repita estas:\n${L.feitas.slice(-40).map(x => "- " + x).join("\n")}` : ""}\n\n${LAB_REGRA_FALAS}` }]

@@ -123,6 +123,20 @@ service cloud.firestore {
       allow read, delete: if admin();
     }
     // chave Pix, WhatsApp, preço e limites do plano grátis: todos leem, só o administrador muda
+    // uso da IA: cada pessoa soma só o próprio; só o administrador lê
+    match /usoIA/{id} {
+      function usoOk(dono) { return request.resource.data.keys().hasOnly(['dia', 'email', 'nome', 'ult', 'u'])
+        && request.resource.data.dia is string && request.resource.data.dia.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && id == request.resource.data.dia + '_' + dono && request.resource.data.ult is int
+        && request.resource.data.nome is string && request.resource.data.nome.size() <= 80
+        && request.resource.data.u is map && request.resource.data.u.size() <= 30; }
+      allow create, update: if (logado() && usoOk(request.auth.uid) && request.resource.data.email == request.auth.token.email.lower())
+        || (id.matches('[0-9-]{10}_ap_[A-Za-z0-9-]{4,60}') && usoOk(id[11:id.size()]) && request.resource.data.email == '' && request.resource.data.nome == '');
+      allow read, delete: if admin();
+    }
+    match /custosIA/{doc} {
+      allow read, write: if admin();
+    }
     match /config/{doc} {
       allow read: if true;
       allow write: if admin();

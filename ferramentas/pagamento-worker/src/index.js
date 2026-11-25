@@ -324,25 +324,27 @@ async function iaReserva(env, { system = "", prompt = "", json: querJSON = false
   system = String(system).slice(0, 16000); prompt = String(prompt).slice(0, 9000);
   const messages = [{ role: "system", content: system }, { role: "user", content: prompt }];
   const max = Math.min(4000, Math.max(200, Number(maxTokens) || 2500)), erros = [];
+  let ultUso = null; const usoDe = u => u && (u.prompt_tokens || u.completion_tokens) ? { promptTokenCount: u.prompt_tokens || 0, candidatesTokenCount: u.completion_tokens || 0 } : null;
   const openai = async (url, chave, model) => {
     const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, messages, max_tokens: max, temperature: 0.3, ...(querJSON ? { response_format: { type: "json_object" } } : {}) }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error((d.error?.message || "HTTP " + r.status).slice(0, 120));
+    ultUso = usoDe(d.usage);
     return d.choices?.[0]?.message?.content || "";
   };
   if (env.GROQ_KEY) for (const m of String(env.GROQ_MODELOS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",")) {
-    try { const t = await openai("https://api.groq.com/openai/v1/chat/completions", env.GROQ_KEY, m.trim()); if (t) return { texto: t, via: "groq" }; } catch (e) { erros.push("groq " + m + ": " + e.message); }
+    try { const t = await openai("https://api.groq.com/openai/v1/chat/completions", env.GROQ_KEY, m.trim()); if (t) return { texto: t, via: "groq " + m.trim(), uso: ultUso }; } catch (e) { erros.push("groq " + m + ": " + e.message); }
   }
   if (env.AI) for (const m of MODELOS_CF) {
     try {
       const r = await env.AI.run(m, { messages, max_tokens: max, temperature: 0.3 });
       let t = typeof r?.response === "string" ? r.response : r?.response ? JSON.stringify(r.response) : r?.choices?.[0]?.message?.content || r?.output_text || "";
       t = String(t).replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-      if (t) return { texto: t, via: "cloudflare " + m.split("/").pop() };
+      if (t) return { texto: t, via: "cloudflare " + m.split("/").pop(), uso: usoDe(r?.usage) };
     } catch (e) { erros.push(m + ": " + String(e?.message || e).slice(0, 120)); }
   }
   if (env.OPENROUTER_KEY) for (const m of String(env.OPENROUTER_MODELOS || "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3.5-super-vl:free").split(",")) {
-    try { const t = await openai("https://openrouter.ai/api/v1/chat/completions", env.OPENROUTER_KEY, m.trim()); if (t) return { texto: t, via: "openrouter" }; } catch (e) { erros.push("openrouter " + m + ": " + e.message); }
+    try { const t = await openai("https://openrouter.ai/api/v1/chat/completions", env.OPENROUTER_KEY, m.trim()); if (t) return { texto: t, via: "openrouter " + m.trim(), uso: ultUso }; } catch (e) { erros.push("openrouter " + m + ": " + e.message); }
   }
   console.log("IA reserva falhou:", erros.join(" | "));
   throw new Error("reservas indisponíveis agora");
