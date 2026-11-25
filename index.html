@@ -305,6 +305,20 @@ h3{font-size:16px;margin:0 0 6px}
 .duelo-linha .med,.rank-linha .med{width:28px;text-align:center;font-weight:900}
 .rank-card{background:linear-gradient(120deg,rgba(255,193,7,.10),transparent)}
 .rank-turma{color:var(--accent)}
+.tutor-resp{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:16px;background:var(--panel);box-shadow:var(--shadow);overflow:hidden;scroll-margin-top:70px}
+.tutor-resp header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--accent-soft);border-bottom:1px solid var(--line)}
+.tutor-resp header b{flex:1;min-width:0}
+.tutor-ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:var(--accent);color:#fff;flex:none}.tutor-ic svg{width:19px;height:19px}.tutor-ic svg .a{stroke:#fff}
+.tutor-corpo{padding:16px 20px;font-size:16px;line-height:1.65;overflow-wrap:anywhere}
+.tutor-corpo h1,.tutor-corpo h2,.tutor-corpo h3{margin:20px 0 8px;line-height:1.3}.tutor-corpo h2{font-size:19px;padding-bottom:5px;border-bottom:1px solid var(--line)}.tutor-corpo h3{font-size:16.5px;color:var(--accent)}
+.tutor-corpo>:first-child{margin-top:0}.tutor-corpo>:last-child{margin-bottom:0}
+.tutor-corpo li{margin:4px 0}
+.tutor-corpo blockquote{margin:0 0 14px;padding:12px 16px;border-left:4px solid var(--accent);border-radius:0 12px 12px 0;background:var(--accent-soft);font-weight:600}
+.tutor-corpo table{display:block;overflow-x:auto;max-width:100%}
+.tutor-corpo th,.tutor-corpo td{border:1px solid var(--line);padding:7px 11px;text-align:left}
+.tutor-voce{display:block;font-size:11.5px;font-weight:700;opacity:.8;margin-bottom:2px}
+@media (max-width:760px){.tutor-corpo{padding:14px;font-size:15.5px}}
+.vista-selo{font-weight:800;color:var(--accent)}
 .grupos-card{margin-bottom:16px}
 .grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
 .grupo-linha:hover{border-color:var(--accent)}
@@ -2006,6 +2020,7 @@ const NOME_CURTO = { "Estudo inteligente": "Inteligente", "Guia de estudo": "Gui
 const temExplicacao = q => !!textoIA(q?.explicacao).trim() || (Array.isArray(q?.explicacoes) && q.explicacoes.some(x => textoIA(x).trim()));
 function questaoAberta(c) {
   const p = S.player; if (!p || !c) return null;
+  const dv = donoVistas(); if (dv?.ver != null) return dv.vistas[dv.ver]?.q || null;
   if (p.tipo === "smart") return p.fila[p.i];
   if (p.tipo === "quiz") { const qz = c.quizzes.find(x => x.id === p.id); return qz?.questoes[p.ordem[p.i]]; }
   return null;
@@ -2428,13 +2443,14 @@ function playerQuiz(c) {
       <div class="row" style="justify-content:center"><button class="btn primary" data-act="fazerQuiz" data-id="${qz.id}">↻ Refazer</button>${p.erros.length ? `<button class="btn" data-act="refazerErros">Refazer só os erros (${p.erros.length})</button>` : ""}<button class="btn" data-act="sair">Voltar</button></div></div>
       ${p.erros.length ? `<h2 style="margin-top:24px">Revise o que você errou</h2>` + p.erros.map(i => { const q = qz.questoes[i]; return `<div class="card" style="margin-bottom:10px"><div class="md"><b>${md(q.enunciado)}</b></div><p class="res-ok">✔ ${esc(q.alternativas[q.correta])}</p><div class="expl md">${md(q.explicacao)}</div></div>`; }).join("") : ""}`;
   }
+  if (p.ver != null && p.vistas?.[p.ver]) return topo + cartaoAnterior(p);
   const q = qs[p.i];
   return topo + `<div class="card">
     <div class="muted" style="font-size:12px">${esc(q.topico)}</div>
     <div class="q-text md">${md(q.enunciado)}</div>
     ${altsHTML(q, p, "escolher-alt")}
     ${p.confirmado ? explicacaoHTML(q, p.escolha) : ""}
-    <div class="study-foot"><span class="l"></span>${p.confirmado ? `<button class="pill" data-act="proxima">${p.i + 1 < qs.length ? "Próxima pergunta →" : "Ver resultado"}</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
+    <div class="study-foot"><span class="l">${botaoAnterior(p)}</span>${p.confirmado ? `<button class="pill" data-act="proxima">${p.i + 1 < qs.length ? "Próxima pergunta →" : "Ver resultado"}</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
 }
 function quizResponder(c, i) {
   const p = S.player; if (p.confirmado) return;
@@ -2770,6 +2786,22 @@ function viewSmart(c) {
     </div>` : `<div class="empty">Na primeira sessão a IA identifica os tópicos dos seus materiais e faz um diagnóstico.</div>`}
   </div>`;
 }
+// ---------- voltar às perguntas anteriores (Inteligente, Quiz e Quiz louco): só consulta, a resposta fica como foi dada ----------
+const donoVistas = () => S.player?.tipo === "louco" ? S.lab : S.player;
+function guardarVista(d, q, escolha) { if (!d || !q || q.tipo === "licao" || q.tipo === "flashcard") return; (d.vistas ||= []).push({ q, escolha: escolha ?? null }); if (d.vistas.length > 100) d.vistas.shift(); }
+const botaoAnterior = d => d?.vistas?.length ? `<button class="btn" data-act="verAnterior">← ${TT("Anterior", "Anterior")}</button>` : "";
+function cartaoAnterior(d) {
+  const v = d.vistas[d.ver], n = d.vistas.length; if (!v) { d.ver = null; return ""; }
+  return `<div class="card" style="padding:22px"><div class="q-meta"><span>${esc(v.q.topico || "")}</span><span class="vista-selo">${TT("Pergunta anterior", "Pregunta anterior")} ${d.ver + 1}/${n}</span></div>
+    <div class="q-text md">${md(v.q.enunciado)}</div>${altsHTML(v.q, { confirmado: true, escolha: v.escolha }, "vista")}
+    ${v.escolha === null ? `<p class="muted">${TT("Você pulou esta pergunta.", "Omitiste esta pregunta.")}</p>` : ""}${explicacaoHTML(v.q, v.escolha)}</div>
+    <div class="study-foot"><button class="btn" data-act="verAnterior" ${d.ver ? "" : "disabled"}>← ${TT("Anterior", "Anterior")}</button><button class="pill" data-act="verSeguinte">${d.ver + 1 < n ? TT("Seguinte →", "Siguiente →") : TT("Voltar à atual →", "Volver a la actual →")}</button></div>`;
+}
+function navegarVistas(passo) {
+  const d = donoVistas(); if (!d?.vistas?.length) return;
+  if (S.player?.tipo === "louco") labParar();
+  const k = (d.ver ?? d.vistas.length) + passo; d.ver = k >= d.vistas.length ? null : Math.max(0, k); render(); window.scrollTo(0, 0);
+}
 function altsHTML(it, p, act) {
   const lista = it.alternativas.map((a, i) => {
     let cls = "";
@@ -2793,6 +2825,7 @@ function playerSmart(c) {
       <div class="row" style="justify-content:center"><button class="pill" data-act="smartIniciar">▶ Nova sessão</button><button class="btn" data-act="sair">Ver progresso</button></div></div></div>`;
   }
   if (!it) return `<div class="study">${topo}<div class="card empty"><span class="spin"></span><p>${p.sessao.total ? "Preparando a próxima pergunta…" : "Preparando a primeira pergunta…"}</p><p class="muted" style="font-size:13px">${esc(nomeIA())}</p></div></div>`;
+  if (p.ver != null && p.vistas?.[p.ver]) return `<div class="study">${topo}${cartaoAnterior(p)}</div>`;
   const dots = "●".repeat(it.dificuldade) + "○".repeat(3 - it.dificuldade);
   const meta = `<div class="q-meta"><span>${esc(it.topico)}</span><span>${it.tipo === "licao" ? "📖 Mini-lição" : it.tipo === "flashcard" ? "🃏 Lembre a resposta" : `${ses.acertos}/${ses.total} ✔${ses.combo >= 2 ? ` · 🔥 ${ses.combo}` : ""} · ${dots}`}</span></div>`;
   const avaliar = `<div class="r"><button class="thumb up" data-act="sNota" data-id="1" title="Boa questão">👍</button><button class="thumb down" data-act="sNota" data-id="0" title="Questão ruim — evitar parecidas">👎</button></div>`;
@@ -2808,8 +2841,8 @@ function playerSmart(c) {
   } else {
     corpo = `<div class="q-text md">${md(it.enunciado)}</div>${altsHTML(it, p, "sAlt")}
       ${p.confirmado ? explicacaoHTML(it, p.escolha) : ""}`;
-    pe = p.confirmado ? `<div class="study-foot"><span class="l"></span><button class="pill" data-act="sProx">Próxima pergunta →</button>${avaliar}</div>`
-      : `<div class="study-foot"><button class="pill-dark l" data-act="sMostrar">Mostrar resposta</button><button class="btn" data-act="sPular">Pular</button>${avaliar}</div>`;
+    pe = p.confirmado ? `<div class="study-foot"><span class="l">${botaoAnterior(p)}</span><button class="pill" data-act="sProx">Próxima pergunta →</button>${avaliar}</div>`
+      : `<div class="study-foot">${botaoAnterior(p)}<button class="pill-dark l" data-act="sMostrar">Mostrar resposta</button><button class="btn" data-act="sPular">Pular</button>${avaliar}</div>`;
   }
   return `<div class="study">${topo}<div class="card" style="padding:22px">${meta}${corpo}</div>${pe}
     <p class="muted dica-teclado" style="text-align:center;font-size:12px;margin-top:14px">Atalhos: 1–4 responde · Enter continua</p></div>`;
@@ -2934,7 +2967,7 @@ function registrarFato(I, it) {
   I.historico.push(`${it.enunciado.slice(0, 120)} ${resp}`.trim()); if (I.historico.length > 250) I.historico.splice(0, I.historico.length - 250);
 }
 function smartProx(c) {
-  const p = S.player, it = p.fila[p.i];
+  const p = S.player, it = p.fila[p.i]; p.ver = null; guardarVista(p, it, p.confirmado ? p.escolha : null);
   if (it && !p.confirmado && it.tipo !== "licao") registrarFato(c.inteligente, it); // pulada também não volta
   if (it?.revisao && !p.confirmado) { const f = c.inteligente.fatos?.lista?.find(x => x.t === it.fatoTxt); if (f) f.errouEm = c.inteligente.respondidas || 0; } // revisão pulada espera mais algumas respostas
   if (it?.tipo === "licao") { c.inteligente.historico.push("[lição] " + it.enunciado.slice(0, 80)); }
@@ -3656,8 +3689,8 @@ function viewTutor(c) {
   const sem = semMateriais(c); if (sem) return sem;
   const sugestoes = ["Explique o tema principal de forma simples", "O que tem mais chance de cair na prova?", "Monte um plano de estudos de 5 dias", "Quais conceitos as pessoas mais confundem aqui?"];
   return `<div class="chat">
-    ${c.chat.length ? c.chat.map(m => `<div class="msg ${m.role} ${m.role === "assistant" ? "md" : ""}">${m.role === "assistant" ? md(m.content) : esc(m.content)}</div>`).join("") : `<div class="card"><h3>Tutor dos seus materiais</h3><p class="muted">Pergunte qualquer coisa sobre o conteúdo. As respostas usam seus arquivos como base.</p><div class="chips">${sugestoes.map(s => `<button class="chip" data-act="sugestao">${esc(s)}</button>`).join("")}</div></div>`}
-    ${S.ocupado === "tutor" ? `<div class="msg assistant"><span class="spin"></span> pensando…</div>` : ""}
+    ${c.chat.length ? c.chat.map((m, i) => m.role === "assistant" ? `<article class="tutor-resp" id="tutorR${i}"><header><span class="tutor-ic">${svg("tutor")}</span><b>${TT("Resposta do Tutor", "Respuesta del Tutor")}</b><button class="btn small ghost" data-act="tutorCopiar" data-id="${i}">${TT("Copiar", "Copiar")}</button></header><div class="md tutor-corpo">${md(m.content)}</div></article>` : `<div class="msg user"><small class="tutor-voce">${TT("Você perguntou", "Preguntaste")}</small>${esc(m.content)}</div>`).join("") : `<div class="card"><h3>Tutor dos seus materiais</h3><p class="muted">Pergunte qualquer coisa sobre o conteúdo. As respostas usam seus arquivos como base.</p><div class="chips">${sugestoes.map(s => `<button class="chip" data-act="sugestao">${esc(s)}</button>`).join("")}</div></div>`}
+    ${S.ocupado === "tutor" ? `<article class="tutor-resp"><header><span class="tutor-ic">${svg("tutor")}</span><b>${TT("Resposta do Tutor", "Respuesta del Tutor")}</b></header><div class="tutor-corpo"><span class="spin"></span> ${TT("escrevendo a explicação…", "escribiendo la explicación…")}</div></article>` : ""}
   </div>
   <div class="card stack">
     <textarea id="pergunta" rows="3" placeholder="Faça uma pergunta sobre o conteúdo… (Ctrl+Enter envia)"></textarea>
@@ -3674,13 +3707,15 @@ async function perguntar(txt) {
   S.ocupado = "tutor"; render(); window.scrollTo(0, document.body.scrollHeight);
   try {
     const resposta = await chamar({
-      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." + linhaPronome() }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. ORGANIZE para leitura rápida: comece com uma citação Markdown (linha iniciada por >) e a resposta direta em 1 ou 2 frases; depois títulos curtos (##), listas, tabela quando comparar coisas, termos-chave em **negrito** e, no fim, a seção ### Para lembrar com até 3 pontos. Pergunta simples pede resposta curta, sem encher. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." + linhaPronome() }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
       messages: c.chat.map(m => ({ role: m.role, content: m.content })),
       maxTokens: 16000
     });
     c.chat.push({ role: "assistant", content: resposta });
   } catch (e) { c.chat.pop(); toast(erroMsg(e), true); }
-  S.ocupado = null; await salvar(c); render(); window.scrollTo(0, document.body.scrollHeight);
+  S.ocupado = null; await salvar(c); render();
+  if (S.atual !== c.id || S.aba !== "tutor") return;
+  const r = document.getElementById("tutorR" + (c.chat.length - 1)); if (r) r.scrollIntoView({ block: "start" }); else window.scrollTo(0, document.body.scrollHeight); // começa a ler do início da resposta
 }
 
 /* ================= conta e nuvem (Firebase) ================= */
@@ -5131,15 +5166,18 @@ document.addEventListener("click", async e => {
     case "refazerErros": iniciarQuiz(S.player.id, [...S.player.erros]); break;
     case "escolher-alt": quizResponder(c, +id); break;
     case "confirmar": { const p = S.player, q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]]; p.confirmado = true; if (p.escolha === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]); render(); break; }
+    case "verAnterior": navegarVistas(-1); break;
+    case "verSeguinte": navegarVistas(1); break;
     case "verPorque": { const q = questaoAberta(c); if (q) { q._verPorque = true; render(); } break; }
-    case "explicarMais": { const q = questaoAberta(c); if (q && podeUsar()) { gastar(); completarExplicacao(c, q, S.player.escolha); } break; }
-    case "proxima": { const p = S.player; p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
+    case "explicarMais": { const q = questaoAberta(c); if (q && podeUsar()) { gastar(); const dv = donoVistas(); completarExplicacao(c, q, dv?.ver != null ? dv.vistas[dv.ver].escolha : S.player.escolha); } break; }
+    case "proxima": { const p = S.player; guardarVista(p, c.quizzes.find(x => x.id === p.id)?.questoes[p.ordem[p.i]], p.escolha); p.i++; p.escolha = null; p.confirmado = false; if (p.i >= p.ordem.length) { const qz = c.quizzes.find(x => x.id === p.id); qz.tentativas.push({ data: Date.now(), acertos: p.acertos, total: p.ordem.length }); await salvar(c); } render(); break; }
     case "fazerProva": escolherTempoProva(id); break;
     case "tempoOp": S.tempoEscolhido = +id; document.querySelectorAll(".tempo-ops button").forEach(b => b.classList.toggle("on", b.dataset.id === id)); if ($("#tempoLivre")) $("#tempoLivre").value = ""; break;
     case "tempoComecar": comecarProvaComTempo(id); break;
     case "entregar": entregar(); break;
     case "sugestao": perguntar(el.textContent); break;
     case "enviar": perguntar($("#pergunta").value); break;
+    case "tutorCopiar": { const t = c?.chat[+id]?.content; if (t) navigator.clipboard.writeText(t).then(() => toast(TT("Resposta copiada.", "Respuesta copiada.")), () => toast(TT("Não consegui copiar.", "No pude copiar."))); break; }
     case "limparChat": if (confirm("Apagar a conversa com o tutor?")) { c.chat = []; await salvar(c); render(); } break;
     case "config": abrirConfig(); break;
     case "fecharCfg": $("#dlgConfig").close(); break;
@@ -5213,7 +5251,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && S.mapaAberto) { fecharMapa(); return; }
   if (e.target.id === "pergunta" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); perguntar(e.target.value); return; }
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
-  if (S.player?.tipo === "louco" && S.lab?.q && !document.querySelector("dialog[open]")) {
+  if (S.player?.tipo === "louco" && S.lab?.q && S.lab.ver == null && !document.querySelector("dialog[open]")) {
     if (/^[1-5]$/.test(e.key) && S.lab.escolha == null && +e.key <= S.lab.q.alternativas.length) { e.preventDefault(); labResponder(+e.key - 1); return; }
     if (e.key === "Enter" && S.lab.escolha != null) { e.preventDefault(); proxLab(); return; }
   }
@@ -7459,12 +7497,13 @@ function labMiolo() {
   const cab = pag ? "" : `<div class="lab-topo"><div><span class="lab-selo">Teste</span><h2>Quiz louco do Hipo</h2></div><button class="icon-btn" data-act="labFechar" title="Fechar">${iconeSVG("x")}</button></div>
       <label style="font-size:13px">Perguntas de<select id="labFonte"><option value="exemplos">Exemplos prontos</option>${cads.map(c => `<option value="${c.id}" ${L.fonte === c.id ? "selected" : ""}>${esc(c.nome || "Caderno")}</option>`).join("")}</select></label>`;
   const placar = !pag && (L.acertos || L.erros) ? `<div class="lab-placar"><span class="ok">${L.acertos} ${L.acertos === 1 ? "acerto" : "acertos"}</span><span class="no">${L.erros} ${L.erros === 1 ? "erro" : "erros"}</span><span>Sequência: <b>${L.seq}</b></span>${L.melhor > 1 ? `<span>Recorde: <b>${L.melhor}</b></span>` : ""}</div>` : "";
+  if (pag && L.ver != null && L.vistas?.[L.ver]) return cartaoAnterior(L);
   const pergunta = L.gerando || !q ? `<div class="card"><span class="spin"></span> Criando a pergunta…</div>` : `<div class="card">
       ${q.topico ? `<div class="muted" style="font-size:12px">${esc(q.topico)}</div>` : ""}
       <div class="q-text md">${md(q.enunciado)}</div>
       ${altsHTML(q, { confirmado: resp, escolha: L.escolha }, "labResp")}
       ${labHipoHTML()}
-      <div class="study-foot"><span class="l"></span>${resp ? `<button class="pill" data-act="labProx">Próxima pergunta →</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
+      <div class="study-foot"><span class="l">${pag ? botaoAnterior(L) : ""}</span>${resp ? `<button class="pill" data-act="labProx">Próxima pergunta →</button>` : `<span class="muted" style="font-size:12px">Clique ou tecle 1–4</span>`}<span class="r"></span></div></div>`;
   return `${cab}${labAjustes()}${placar}${pergunta}`;
 }
 function desenharLab() {
@@ -7672,6 +7711,7 @@ function labFurarFila(t) { const F = LAB_VOZFILA, k = F.fila.indexOf(t); if (k >
 
 async function proxLab() {
   const L = S.lab; if (!L) return; labParar();
+  if (L.q && L.escolha != null) guardarVista(L, L.q, L.escolha); L.ver = null;
   Object.assign(L, { escolha: null, fala: "", pensando: false, falando: false, erroFala: "" });
   if (L.fonte === "exemplos") {
     const lista = LAB_EXEMPLOS[labIdioma()];
