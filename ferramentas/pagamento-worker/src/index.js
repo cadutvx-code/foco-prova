@@ -7,8 +7,11 @@
 //         POST /assinatura { idToken }         → situação da assinatura; libera os meses já cobrados que ainda não foram somados
 //         POST /cancelar-assinatura { idToken } → cancela a renovação (o Pro vai até o fim do que já foi pago)
 //         POST /ia { idToken, system, prompt, json, maxTokens } → IA RESERVA (quando a cota grátis do Gemini acaba): Groq → Cloudflare → OpenRouter
+//         POST /grupo { idToken, acao, ... } → grupos por sala e matéria (grupos.js)
 //         POST /webhook (aviso do Mercado Pago) → confere o pedido e libera
 // Segredos (wrangler secret put): MP_TOKEN (Access Token do Mercado Pago), SA_JSON (chave da conta de serviço do Firebase)
+
+import { rotaGrupo, bancoFirestore } from "./grupos.js";
 
 const ORIGENS = ["https://hipocampo.web.app", "https://hipocampo.firebaseapp.com", "https://focoprova.web.app", "https://focoprova.firebaseapp.com", "http://localhost:47821", "http://localhost:47822"];
 
@@ -30,6 +33,7 @@ export default {
       const corpo = await req.json().catch(() => ({}));
       const email = await emailDoLogin(env, corpo.idToken);
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
+      if (rota === "/grupo") return json(req, await grupo(env, corpo));
       if (rota === "/ia") return json(req, await iaReserva(env, corpo));
       if (rota === "/criar") return json(req, await criarPix(env, email));
       if (rota === "/status") return json(req, await conferir(env, corpo.id, email));
@@ -52,6 +56,15 @@ async function emailDoLogin(env, idToken) {
   if (!r.ok) return null;
   const u = (await r.json()).users?.[0];
   return u?.email && u.emailVerified ? u.email.toLowerCase() : null;
+}
+
+// Grupos por sala e matéria: confere o uid no Google e chama a lógica de grupos.js (erros esperados voltam com código)
+async function grupo(env, corpo) {
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FB_API_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: corpo.idToken }) });
+  const u = r.ok ? (await r.json()).users?.[0] : null;
+  if (!u?.localId) return { erro: "faça login com o Google de novo", codigo: "login" };
+  try { return await rotaGrupo(bancoFirestore(env.FB_PROJETO, await tokenGoogle(env)), { uid: u.localId, nome: u.displayName || "" }, corpo); }
+  catch (e) { if (!e.codigo) { console.log("grupo", corpo.acao, e.message); return { erro: "Não consegui falar com o servidor agora.", codigo: "servidor" }; } return { erro: e.message, codigo: e.codigo }; }
 }
 
 async function mp(env, caminho, opcoes = {}) {

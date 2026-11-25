@@ -302,6 +302,16 @@ h3{font-size:16px;margin:0 0 6px}
 .duelo-linha .med,.rank-linha .med{width:28px;text-align:center;font-weight:900}
 .rank-card{background:linear-gradient(120deg,rgba(255,193,7,.10),transparent)}
 .rank-turma{color:var(--accent)}
+.grupos-card{margin-bottom:16px}
+.grupo-linha{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;margin-top:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
+.grupo-linha:hover{border-color:var(--accent)}
+.grupo-linha>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
+.grupo-linha small{display:block;color:var(--muted);font-size:12.5px}
+.grupo-linha em{font-style:normal;font-size:12px;font-weight:800;color:#fff;background:var(--accent);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.grupo-item{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line);border-radius:12px}
+.grupo-item>span{flex:1 1 120px;min-width:0;overflow-wrap:anywhere;font-weight:700}
+.grupo-senha{letter-spacing:.5em;font-weight:800;max-width:150px}
+.grupo-erro{padding:9px 12px;border-radius:12px;border:1px solid rgba(245,166,35,.55);background:rgba(245,166,35,.12);font-size:13.5px}
 .mapa-card{overflow:hidden}
 .mapa-cerebro{width:100%;max-width:560px;display:block;margin:8px auto 4px}
 .mapa-cerebro .neuronio:hover circle{stroke-width:3.5}
@@ -720,6 +730,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   </div>
 </dialog>
 <dialog id="dlgPagar"><div id="pagarCorpo" class="stack"></div></dialog>
+<dialog id="dlgGrupos" style="width:min(520px,calc(100vw - 24px))"><div id="gruposCorpo" class="stack"></div></dialog>
 <dialog id="dlgPerfil" style="width:min(480px,calc(100vw - 24px))"><div id="perfilCorpo" class="stack"></div></dialog>
 <input type="file" id="perfilFoto" accept="image/*" hidden>
 <input type="file" id="provaAntigaIn" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,.zip" multiple hidden>
@@ -849,7 +860,7 @@ function toast(msg, err = false) {
 function lsBruto(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }
 const CONTA_DONA = lsBruto("fp-dono"), CONTA_ATIVA = lsBruto("fp-conta-ativa");
 const SUFIXO_CONTA = CONTA_ATIVA && CONTA_DONA && CONTA_ATIVA !== CONTA_DONA ? CONTA_ATIVA : "";
-const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome"]);
+const POR_CONTA = new Set(["fp-xp", "fp-sequencia", "fp-uso", "fp-apagados", "fp-glossario", "fp-revdia", "fp-duelos", "fp-xp-semana", "fp-pronome", "fp-grupos", "fp-grupos-mat", "fp-grupos-pts"]);
 const chaveLS = k => POR_CONTA.has(k) && SUFIXO_CONTA ? `${k}@${SUFIXO_CONTA}` : k;
 function lsGet(k, def) { try { const v = localStorage.getItem(chaveLS(k)); return v ? JSON.parse(v) : def; } catch { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(chaveLS(k), JSON.stringify(v)); } catch {} }
@@ -2040,9 +2051,9 @@ function xpTotal() {
   return xp;
 }
 let xpTimer = null;
-function ganharXP(qtd) {
+function ganharXP(qtd, c = null) { // c = caderno da pergunta (conta no grupo da matéria)
   qtd = Math.round(qtd); if (!(qtd > 0)) return;
-  xpSemana(qtd);
+  xpSemana(qtd); pontosGrupo(qtd, c);
   const antes = nivelDoXp(xpTotal()).nivel, xp = xpTotal() + qtd;
   lsSet("fp-xp", xp);
   const depois = nivelDoXp(xp).nivel;
@@ -2177,7 +2188,7 @@ function viewHome() {
     </div>`;
   };
   const avisoEndereco = (location.hostname.endsWith("github.io") || location.hostname.startsWith("focoprova")) ? `<div class="aviso-nuvem">🐴 O Foco Prova agora se chama <b>Hipocampo Study</b> e mudou de endereço: <a href="https://hipocampo.web.app" style="color:var(--accent);font-weight:800">hipocampo.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
-  return `${avisoEndereco}${cartaoPlano()}${cartaoEntrada() || cartaoHipo() + cartaoRevisaoDia()}${cartaoMeta()}${cartaoRanking()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
+  return `${avisoEndereco}${cartaoPlano()}${cartaoEntrada() || cartaoHipo() + cartaoRevisaoDia()}${cartaoMeta()}${cartaoRanking()}${cartaoGrupos()}${ATENEO_ATIVO ? cartaoAteneos() : ""}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
   ${ordem.map(m => `<section class="materia">
       <div class="materia-head"><h2>${esc(m)}</h2>
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
@@ -2414,7 +2425,7 @@ function quizResponder(c, i) {
   const q = c.quizzes.find(x => x.id === p.id).questoes[p.ordem[p.i]];
   p.escolha = i; p.confirmado = true;
   if (i === q.correta) p.acertos++; else p.erros.push(p.ordem[p.i]);
-  ganharXP(i === q.correta ? XP_REGRAS.acerto : XP_REGRAS.erro);
+  ganharXP(i === q.correta ? XP_REGRAS.acerto : XP_REGRAS.erro, c);
   contarResposta(); render(); if (!temExplicacao(q)) completarExplicacao(c, q, i);
 }
 function iniciarQuiz(id, ordem) {
@@ -2532,7 +2543,7 @@ Corrija as respostas dissertativas abaixo como um professor justo, com base nos 
   pv.tentativas.push({ data: Date.now(), nota: p.resultado.nota });
   contarResposta(pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
   gastar("ia", pv.questoes.filter((q, i) => p.resp[i] !== undefined && p.resp[i] !== "").length);
-  ganharXP(p.resultado.nota * XP_REGRAS.pontoTeste);
+  ganharXP(p.resultado.nota * XP_REGRAS.pontoTeste, c);
   await salvar(c); render(); window.scrollTo(0, 0);
 }
 
@@ -2877,7 +2888,7 @@ async function smartResponder(c, acertou) {
   d.tentativas++; d.ultima = Date.now();
   if (acertou) { d.acertos++; d.score = d.score + (1 - d.score) * (0.12 + 0.08 * it.dificuldade); }
   else d.score = d.score * 0.65;
-  ganharXP(acertou ? XP_REGRAS.acerto : XP_REGRAS.erro);
+  ganharXP(acertou ? XP_REGRAS.acerto : XP_REGRAS.erro, c);
   p.sessao.total++; I.respondidas++; contarResposta();
   if (acertou && [3, 5, 10, 20].includes(p.sessao.combo + 1)) hipoFala(({ 3: "3 seguidas! Tá voando! 🚀", 5: "5 em sequência! 🔥 Seu cérebro tá on.", 10: "10 seguidas?! Você tá imparável! 🏆", 20: "20 seguidas. Lenda. 👑" })[p.sessao.combo + 1], "festa");
   if (acertou) { p.sessao.acertos++; p.sessao.combo++; I.acertos++; const ganho = 5 * it.dificuldade + Math.min(p.sessao.combo, 5) * 2; p.sessao.xp += ganho; I.xp += ganho; }
@@ -3547,7 +3558,7 @@ async function finalizarAteneo(c) {
   const p = S.player; p.etapa = "fim";
   const q = p.respostas.map(r => r?.nota ?? 0);
   p.final = (p.exp?.nota ?? 0) * 0.5 + (q[0] ?? 0) * 0.25 + (q[1] ?? 0) * 0.25;
-  ganharXP(p.final * XP_REGRAS.pontoAteneo);
+  ganharXP(p.final * XP_REGRAS.pontoAteneo, c);
   c.ateneos ||= [];
   c.ateneos.unshift({ id: uid(), data: Date.now(), capitulo: nomeCap(p.cap), media: p.final, exposicao: p.exp?.nota ?? 0, perguntas: q });
   // o resultado alimenta o domínio e o XP do estudo inteligente
@@ -3791,7 +3802,7 @@ async function iniciarNuvem() {
     A.onAuthStateChanged(NUVEM.auth, async u => {
       if (u && trocarDadosDaConta(u.uid)) return; // outra conta: recarrega com o progresso dela
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
-      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); }
+      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosGrupo(); }).catch(() => {}); }
       if ($("#dlgPagar").open) abrirPagamento(null);
       { let pd = ""; try { pd = sessionStorage.getItem("fp-duelo-pendente") || ""; } catch {}
         if (pd) { if (u) { try { sessionStorage.removeItem("fp-duelo-pendente"); } catch {} abrirDuelo(pd); } else abrirDuelo(pd); } }
@@ -4995,6 +5006,7 @@ document.addEventListener("click", async e => {
     case "dueloAtualizar": abrirDuelo(S.player.d.id); break;
     case "dueloAbrir": $("#dlgPerfil").close(); abrirDuelo(id); break;
     case "rankAbrir": abrirRanking(); break;
+    case "gruposAbrir": case "grupoVer": case "gruposFechar": case "grupoTela": case "grupoTelaEntrar": case "grupoBuscar": case "grupoCriar": case "grupoEntrar": case "grupoPedir": case "grupoAceitar": case "grupoRecusar": case "grupoRemover": case "grupoPassar": case "grupoSenha": case "grupoSair": case "grupoApagar": cliqueGrupo(act, id); break;
     case "rankSalvarTurma": salvarTurma(); break;
     case "gerarPanico": gerarPanico(); break;
     case "panFeito": { const b = c?.panico?.blocos[+id]; if (b) { b.feito = !b.feito; await salvar(c); render(); if (b.feito && c.panico.blocos.every(x => x.feito)) hipoFala("Plano completo! Agora é descansar e arrasar na prova. 🍀", "festa", 6000); } break; }
@@ -5925,11 +5937,12 @@ const UI_ES = {
   "Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais. Ou escolha um arquivo só em \"De onde\".": "Si quieres el 3D de todos modos, saldrá más simple: solo los puntos principales. O elige un solo archivo en \"De dónde\".",
   "Ocultar": "Ocultar", "Mostrar plano": "Mostrar plan", "Encolher o plano (não apaga)": "Contraer el plan (no lo borra)",
   "Inteligente": "Inteligente", "Guia": "Guía", "Mapa": "Mapa",
-  "A voz está demorando. O texto continua na tela.": "La voz está tardando. El texto sigue en pantalla.", "Voz demorando. Toque em Ouvir de novo.": "La voz está tardando. Toca Escuchar de nuevo."
+  "A voz está demorando. O texto continua na tela.": "La voz está tardando. El texto sigue en pantalla.", "Voz demorando. Toque em Ouvir de novo.": "La voz está tardando. Toca Escuchar de nuevo.",
+  "Grupo não encontrado.": "Grupo no encontrado.", "Só quem administra o grupo pode fazer isso.": "Solo quien administra el grupo puede hacer eso.", "Muita gente ao mesmo tempo. Tente de novo.": "Mucha gente al mismo tiempo. Inténtalo de nuevo.", "Cada pessoa pode estar em até 5 grupos.": "Cada persona puede estar en hasta 5 grupos.", "Essa pessoa já está em 5 grupos.": "Esa persona ya está en 5 grupos.", "O grupo já tem 100 pessoas.": "El grupo ya tiene 100 personas.", "Escreva o código da sala.": "Escribe el código del curso.", "Escreva a sala e a matéria.": "Escribe el curso y la materia.", "Você saiu deste grupo por decisão de quem administra. Envie um pedido de entrada.": "Quien administra te quitó de este grupo. Envía una solicitud de entrada.", "Muitas tentativas erradas. Tente de novo em até 1 hora ou envie um pedido de entrada.": "Muchos intentos fallidos. Inténtalo de nuevo en hasta 1 hora o envía una solicitud de entrada.", "Senha errada. Tente de novo em até 1 hora ou envie um pedido de entrada.": "Clave incorrecta. Inténtalo de nuevo en hasta 1 hora o envía una solicitud de entrada.", "Este grupo já tem muitos pedidos esperando.": "Este grupo ya tiene muchas solicitudes pendientes.", "Esse pedido não existe mais.": "Esa solicitud ya no existe.", "faça login com o Google de novo": "inicia sesión con Google de nuevo", "Não consegui falar com o servidor agora.": "No pude conectar con el servidor ahora."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^"(.+)" adicionado\. As próximas perguntas seguem esse estilo\.$/, "\"$1\" agregado. Las próximas preguntas siguen ese estilo."], [/^Estilo da prova \((\d+)\)$/, "Estilo del examen ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^Abrindo (.+)…$/, "Abriendo $1…"], [/^(.+): (\d+) arquivos? encontrados?(.*)\.$/, "$1: $2 archivo(s) encontrado(s)$3."], [/^(.+): não consegui abrir o zip \((.*)\)\.$/, "$1: no pude abrir el zip ($2)."], [/^(.+): tem páginas em imagem\. Lendo com IA…$/, "$1: tiene páginas en imagen. Leyendo con IA…"], [/^(.+): lido em (\d+) s\.$/, "$1: leído en $2 s."], [/^lendo (\d+)\/(\d+)$/, "leyendo $1/$2"], [/^Próximo: (.+)$/, "Siguiente: $1"], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^"(.+)" adicionado\. As próximas perguntas seguem esse estilo\.$/, "\"$1\" agregado. Las próximas preguntas siguen ese estilo."], [/^Estilo da prova \((\d+)\)$/, "Estilo del examen ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^Abrindo (.+)…$/, "Abriendo $1…"], [/^(.+): (\d+) arquivos? encontrados?(.*)\.$/, "$1: $2 archivo(s) encontrado(s)$3."], [/^(.+): não consegui abrir o zip \((.*)\)\.$/, "$1: no pude abrir el zip ($2)."], [/^(.+): tem páginas em imagem\. Lendo com IA…$/, "$1: tiene páginas en imagen. Leyendo con IA…"], [/^(.+): lido em (\d+) s\.$/, "$1: leído en $2 s."], [/^lendo (\d+)\/(\d+)$/, "leyendo $1/$2"], [/^Próximo: (.+)$/, "Siguiente: $1"], [/^Senha errada\. Restam (\d+) tentativas\.$/, "Clave incorrecta. Quedan $1 intentos."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -6520,6 +6533,185 @@ async function salvarTurma() {
   await enviarRanking(); S.ranking = null; toast(t ? `👥 Turma ${t} salva!` : "Turma removida."); abrirRanking();
 }
 
+
+/* ================= Grupos por sala e matéria =================
+   O servidor (Worker /grupo) cria, confere a senha e administra; aqui só se lê o grupo e se mandam os pontos da semana.
+   Cada pessoa escolhe qual matéria DELA conta em cada grupo (os nomes variam de pessoa para pessoa). */
+const GRUPO = { tela: "lista", id: "", achados: null, sala: "", pedidos: null, rank: null, ocupado: false, erro: "" };
+const meusGrupos = () => lsGet("fp-grupos", []);
+const materiaDoGrupo = g => lsGet("fp-grupos-mat", {})[g.id] ?? (nomesMaterias().find(m => chaveGrupo(m) === chaveGrupo(g.materia)) || "");
+const chaveGrupo = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").map(p => ({ i: "1", ii: "2", iii: "3", iv: "4", v: "5", vi: "6" })[p] || p).join("-");
+async function grupoServidor(acao, dados = {}) {
+  const idToken = await NUVEM.user.getIdToken();
+  const r = await prazo(fetch(PAG_AUTO + "/grupo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, acao, nomePessoa: nomeCurto(nomeUser()), ...dados }) }), 20000);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.erro) throw Object.assign(new Error(d.codigo ? d.erro : TT("Não consegui falar com o servidor agora.", "No pude conectar con el servidor ahora.")), { codigo: d.codigo || "" });
+  return d;
+}
+async function carregarGrupos() {
+  if (!NUVEM.user || !NUVEM.F) return meusGrupos();
+  const F = NUVEM.F, uid = NUVEM.user.uid;
+  try {
+    const l = (await F.getDocs(F.query(F.collection(NUVEM.db, "grupos"), F.where("membros", "array-contains", uid)))).docs.map(d => ({ id: d.id, ...d.data() }));
+    if (NUVEM.user?.uid !== uid) return [];
+    lsSet("fp-grupos", l.map(g => ({ id: g.id, nome: g.nome, sala: g.sala, materia: g.materia, admin: g.admin, adminNome: g.adminNome, membros: g.membros, pessoas: g.pessoas, pendentes: g.pendentes || 0 })));
+    if (!S.gruposMatLido) { S.gruposMatLido = true; const d = await F.getDoc(F.doc(NUVEM.db, `users/${uid}/conta/grupos`)); if (d.exists()) lsSet("fp-grupos-mat", { ...(d.data().materias || {}), ...lsGet("fp-grupos-mat", {}) }); }
+  } catch (e) { console.warn("grupos:", e?.message); throw e; }
+  return meusGrupos();
+}
+// ---------- pontos da semana por grupo (só respostas de cadernos da matéria escolhida) ----------
+function pontosGrupo(qtd, c) {
+  if (!c || !NUVEM.user || !c.materia) return;
+  const s = semanaAtual(), p = lsGet("fp-grupos-pts", {}), v = p.semana === s ? p : { semana: s, g: {} }; let mudou = false;
+  for (const g of meusGrupos()) if (chaveGrupo(materiaDoGrupo(g)) && chaveGrupo(materiaDoGrupo(g)) === chaveGrupo(c.materia)) { v.g[g.id] = (v.g[g.id] || 0) + qtd; mudou = true; }
+  if (!mudou) return; lsSet("fp-grupos-pts", v);
+  S.grupoT ||= setTimeout(enviarPontosGrupo, 60000); // no máximo 1 envio por minuto (cota do banco)
+}
+async function enviarPontosGrupo() {
+  clearTimeout(S.grupoT); S.grupoT = null;
+  if (!NUVEM.user || !NUVEM.F || S.grupoEnviando) return;
+  const v = lsGet("fp-grupos-pts", {}), F = NUVEM.F, uid = NUVEM.user.uid;
+  if (v.semana !== semanaAtual()) { lsSet("fp-grupos-pts", {}); return; }
+  S.grupoEnviando = true;
+  try {
+    for (const [id, total] of Object.entries(v.g || {})) {
+      const x = Math.min(3000, Math.round(total)); if (!(x > 0) || !meusGrupos().some(g => g.id === id)) continue;
+      try { // increment: dois aparelhos da mesma pessoa somam em vez de um apagar o outro
+        await F.setDoc(F.doc(NUVEM.db, `grupos/${id}/semanas/${v.semana}/pontos/${uid}`), { nome: nomeCurto(nomeUser()), av: avatarDoPerfil(), xp: F.increment(x), atualizado: Date.now() }, { merge: true });
+        if (NUVEM.user?.uid !== uid) return;
+        const a = lsGet("fp-grupos-pts", {}); if (a.semana === v.semana) { a.g[id] = Math.max(0, (a.g[id] || 0) - x); if (!a.g[id]) delete a.g[id]; lsSet("fp-grupos-pts", a); }
+      } catch (e) { console.warn("pontos do grupo:", e?.code || e?.message); if (e?.code === "permission-denied") { const a = lsGet("fp-grupos-pts", {}); if (a.g) { delete a.g[id]; lsSet("fp-grupos-pts", a); } } }
+    }
+  } finally { S.grupoEnviando = false; }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && S.grupoT) enviarPontosGrupo(); });
+async function rankingGrupo(id) {
+  await enviarPontosGrupo();
+  const F = NUVEM.F, g = meusGrupos().find(x => x.id === id); if (!g) return [];
+  const pts = new Map((await F.getDocs(F.collection(NUVEM.db, `grupos/${id}/semanas/${semanaAtual()}/pontos`))).docs.map(d => [d.id, d.data()]));
+  // só quem ainda é membro; quem não pontuou aparece com zero
+  return g.membros.map(uid => ({ uid, nome: pts.get(uid)?.nome || g.pessoas?.[uid]?.nome || TT("Alguém", "Alguien"), av: pts.get(uid)?.av || null, xp: pts.get(uid)?.xp || 0 })).sort((a, b) => b.xp - a.xp || a.nome.localeCompare(b.nome));
+}
+// ---------- telas ----------
+function cartaoGrupos() {
+  if (!NUVEM.user) return "";
+  const l = meusGrupos(), uid = NUVEM.user.uid;
+  return `<div class="card grupos-card"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><h3 style="margin:0">${TT("Meus grupos", "Mis grupos")}</h3><button class="btn small ghost" data-act="gruposAbrir">${l.length ? TT("Entrar ou criar", "Entrar o crear") : TT("Abrir", "Abrir")}</button></div>
+    ${l.length ? l.map(g => `<button class="grupo-linha" data-act="grupoVer" data-id="${esc(g.id)}"><span><b>${esc(g.nome)}</b><small>${esc(g.sala)} · ${g.membros.length} ${g.membros.length === 1 ? TT("pessoa", "persona") : TT("pessoas", "personas")}</small></span>${g.admin === uid && g.pendentes ? `<em>${g.pendentes} ${g.pendentes === 1 ? TT("pedido", "solicitud") : TT("pedidos", "solicitudes")}</em>` : ""}<span aria-hidden="true">›</span></button>`).join("")
+      : `<p class="muted" style="margin:6px 0 0;font-size:13.5px">${TT("Crie um grupo da sua sala e matéria, ou entre com a senha de 4 números, e dispute o ranking da semana.", "Crea un grupo de tu curso y materia, o entra con la clave de 4 números, y compite en el ranking de la semana.")}</p>`}</div>`;
+}
+function desenharGrupos() {
+  const el = $("#gruposCorpo"); if (!el) return;
+  const G = GRUPO, l = meusGrupos(), uid = NUVEM.user?.uid, g = l.find(x => x.id === G.id);
+  const oc = G.ocupado ? "disabled" : "", erro = G.erro ? `<div class="grupo-erro" role="alert">${esc(traduzirTexto(G.erro) && lsGet("fp-ui", "pt") === "es" ? traduzirTexto(G.erro) : G.erro)}</div>` : "";
+  const cab = (t, volta) => `<div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px"><div class="row" style="gap:8px;align-items:center;min-width:0;flex-wrap:nowrap">${volta ? `<button class="btn small ghost" data-act="grupoTela" data-id="${volta}">← ${TT("Voltar", "Volver")}</button>` : ""}<h2 style="margin:0;overflow-wrap:anywhere;min-width:0">${t}</h2></div><button class="icon-btn" data-act="gruposFechar" title="${TT("Fechar", "Cerrar")}">${iconeSVG("x")}</button></div>`;
+  const senha = (id, rot) => `<label>${rot}<input type="text" id="${id}" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="0000" class="grupo-senha"></label>`;
+  if (!uid) { el.innerHTML = cab(TT("Grupos", "Grupos")) + `<p>${TT("Entre com o Google para usar os grupos.", "Entra con Google para usar los grupos.")}</p>`; return; }
+  if (G.tela === "criar") {
+    el.innerHTML = cab(TT("Criar grupo", "Crear grupo"), "lista") + `
+      <label>${TT("Sala (com a faculdade, ex.: UNI-FISIO1-C)", "Curso (con la facultad, ej.: UNI-FISIO1-C)")}<input type="text" id="gpSala" maxlength="40" value="${esc(G.sala)}" placeholder="UNI-FISIO1-C"></label>
+      <label>${TT("Matéria", "Materia")}<input type="text" id="gpMateria" maxlength="50" list="listaMaterias" placeholder="Fisiologia 2"></label>
+      <label>${TT("Nome do grupo (opcional)", "Nombre del grupo (opcional)")}<input type="text" id="gpNome" maxlength="50"></label>
+      ${senha("gpSenha", TT("Senha de 4 números (combine com os colegas)", "Clave de 4 números (compártela con tus compañeros)"))}
+      <div class="muted" style="font-size:12.5px">${TT("Quem cria é quem administra. Só existe um grupo por sala e matéria. Quem tiver a senha entra na hora; os outros enviam um pedido.", "Quien crea administra. Solo existe un grupo por curso y materia. Quien tenga la clave entra al instante; los demás envían una solicitud.")}</div>${erro}
+      <div class="row" style="justify-content:flex-end"><button class="pill" data-act="grupoCriar" ${oc}>${G.ocupado ? `<span class="spin"></span> ` : ""}${TT("Criar grupo", "Crear grupo")}</button></div>`;
+    atualizarListaMaterias(); return;
+  }
+  if (G.tela === "entrar") {
+    const a = (G.achados || []).find(x => x.id === G.id);
+    el.innerHTML = cab(esc(a?.nome || TT("Entrar no grupo", "Entrar al grupo")), "lista") + `
+      <div class="muted">${esc(a?.sala || "")} · ${esc(a?.materia || "")} · ${TT("administração", "administración")}: ${esc(a?.adminNome || "")}</div>
+      ${senha("gpSenha", TT("Senha do grupo", "Clave del grupo"))}${erro}
+      <div class="row" style="justify-content:space-between;gap:8px"><button class="btn" data-act="grupoPedir" ${oc}>${TT("Não tenho a senha: pedir entrada", "No tengo la clave: pedir entrada")}</button><button class="pill" data-act="grupoEntrar" ${oc}>${TT("Entrar", "Entrar")}</button></div>`;
+    return;
+  }
+  if (G.tela === "ver" && g) {
+    const mats = nomesMaterias(), minha = materiaDoGrupo(g), adm = g.admin === uid;
+    el.innerHTML = cab(esc(g.nome), "lista") + `<div class="muted">${esc(g.sala)} · ${esc(g.materia)} · ${TT("administração", "administración")}: ${esc(g.adminNome)}</div>
+      <label>${TT("Qual matéria sua conta neste grupo", "Qué materia tuya cuenta en este grupo")}<select id="gpMinhaMat"><option value="">${TT("Nenhuma (não pontuar)", "Ninguna (no sumar)")}</option>${mats.map(m => `<option value="${esc(m)}" ${chaveGrupo(m) === chaveGrupo(minha) ? "selected" : ""}>${esc(m)}</option>`).join("")}</select></label>
+      ${mats.length ? "" : `<div class="muted" style="font-size:12.5px">${TT("Seus cadernos ainda não têm matéria.", "Tus cuadernos aún no tienen materia.")}</div>`}
+      ${adm ? `<button class="btn" data-act="grupoTela" data-id="painel">${TT("Painel do grupo", "Panel del grupo")}${g.pendentes ? ` (${g.pendentes})` : ""}</button>` : ""}
+      <h3 style="margin:4px 0 0">${TT("Ranking da semana", "Ranking de la semana")}</h3>
+      ${G.rank === null ? `<p class="muted"><span class="spin"></span> ${TT("Carregando…", "Cargando…")}</p>` : G.rank === false ? `<p class="muted">${TT("Não consegui carregar o ranking agora.", "No pude cargar el ranking ahora.")}</p>`
+        : `<div>${G.rank.map((x, i) => `<div class="rank-linha ${x.uid === uid ? "eu" : ""}"><span class="med">${i + 1}º</span><span class="avatar" style="width:30px;height:30px;cursor:default;flex:none">${x.av ? avatarHTML(30, x.av) : `<span style="font-size:13px">${esc((x.nome || "?")[0])}</span>`}</span><span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(x.nome)}${x.uid === g.admin ? ` <small class="muted">· ${TT("administra", "administra")}</small>` : ""}</span><b>${x.xp} XP</b></div>`).join("")}</div>`}
+      <div class="muted" style="font-size:12.5px">${TT("Zera toda segunda-feira. Os pontos podem levar até 1 minuto para aparecer.", "Se reinicia cada lunes. Los puntos pueden tardar hasta 1 minuto en aparecer.")}</div>${erro}
+      ${adm ? "" : `<div class="row" style="justify-content:flex-end"><button class="btn small danger" data-act="grupoSair" ${oc}>${TT("Sair do grupo", "Salir del grupo")}</button></div>`}`;
+    return;
+  }
+  if (G.tela === "painel" && g && g.admin === uid) {
+    const outros = g.membros.filter(m => m !== uid), nome = m => esc(g.pessoas?.[m]?.nome || "?");
+    el.innerHTML = cab(TT("Painel do grupo", "Panel del grupo"), "ver") + `${erro}
+      <h3 style="margin:0">${TT("Pedidos de entrada", "Solicitudes de entrada")}</h3>
+      ${G.pedidos === null ? `<p class="muted"><span class="spin"></span> ${TT("Carregando…", "Cargando…")}</p>` : G.pedidos.length ? G.pedidos.map(p => `<div class="grupo-item"><span>${esc(p.nome)}</span><div class="row" style="gap:6px"><button class="btn small" data-act="grupoRecusar" data-id="${esc(p.uid)}" ${oc}>${TT("Recusar", "Rechazar")}</button><button class="btn small primary" data-act="grupoAceitar" data-id="${esc(p.uid)}" ${oc}>${TT("Aceitar", "Aceptar")}</button></div></div>`).join("") : `<p class="muted" style="margin:0">${TT("Nenhum pedido esperando.", "Ninguna solicitud pendiente.")}</p>`}
+      <h3 style="margin:6px 0 0">${TT("Membros", "Miembros")} (${g.membros.length})</h3>
+      ${outros.length ? outros.map(m => `<div class="grupo-item"><span>${nome(m)}</span><div class="row" style="gap:6px"><button class="btn small ghost" data-act="grupoPassar" data-id="${esc(m)}" ${oc}>${TT("Passar administração", "Pasar administración")}</button><button class="btn small danger" data-act="grupoRemover" data-id="${esc(m)}" ${oc}>${TT("Remover", "Quitar")}</button></div></div>`).join("") : `<p class="muted" style="margin:0">${TT("Só você por enquanto.", "Solo tú por ahora.")}</p>`}
+      <h3 style="margin:6px 0 0">${TT("Trocar a senha", "Cambiar la clave")}</h3>
+      <div class="row" style="gap:8px;align-items:flex-end;flex-wrap:nowrap">${senha("gpNovaSenha", TT("Nova senha de 4 números", "Nueva clave de 4 números"))}<button class="btn" data-act="grupoSenha" ${oc}>${TT("Salvar", "Guardar")}</button></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn small danger" data-act="grupoApagar" ${oc}>${TT("Apagar o grupo", "Borrar el grupo")}</button></div>`;
+    return;
+  }
+  G.tela = "lista";
+  el.innerHTML = cab(TT("Grupos", "Grupos")) + `
+    ${l.map(x => `<button class="grupo-linha" data-act="grupoVer" data-id="${esc(x.id)}"><span><b>${esc(x.nome)}</b><small>${esc(x.sala)} · ${esc(x.materia)}</small></span><span aria-hidden="true">›</span></button>`).join("")}
+    <label>${TT("Procurar pela sala", "Buscar por curso")}<div class="row" style="flex-wrap:nowrap;gap:6px"><input type="text" id="gpBusca" maxlength="40" value="${esc(G.sala)}" placeholder="UNI-FISIO1-C"><button class="btn primary" data-act="grupoBuscar" ${oc}>${TT("Procurar", "Buscar")}</button></div></label>${erro}
+    ${G.achados ? (G.achados.length ? G.achados.map(x => `<button class="grupo-linha" data-act="${x.souMembro ? "grupoVer" : "grupoTelaEntrar"}" data-id="${esc(x.id)}"><span><b>${esc(x.nome)}</b><small>${esc(x.materia)} · ${x.membros} ${x.membros === 1 ? TT("pessoa", "persona") : TT("pessoas", "personas")}</small></span><span>${x.souMembro ? TT("Abrir", "Abrir") : TT("Entrar", "Entrar")} ›</span></button>`).join("") : `<p class="muted" style="margin:0">${TT("Nenhum grupo nessa sala ainda.", "Ningún grupo en ese curso todavía.")}</p>`) : ""}
+    <div class="row" style="justify-content:flex-end"><button class="pill" data-act="grupoTela" data-id="criar">${TT("Criar grupo", "Crear grupo")}</button></div>`;
+}
+function gruposTela(tela, id = GRUPO.id) {
+  Object.assign(GRUPO, { tela, id, erro: "" });
+  if (tela === "ver") { GRUPO.rank = null; rankingGrupo(id).then(r => { if (GRUPO.tela === "ver" && GRUPO.id === id) { GRUPO.rank = r; desenharGrupos(); } }).catch(e => { console.warn("ranking do grupo:", e?.message); if (GRUPO.id === id) { GRUPO.rank = false; desenharGrupos(); } }); }
+  if (tela === "painel") { GRUPO.pedidos = null; grupoServidor("painel", { id }).then(r => { if (GRUPO.tela === "painel" && GRUPO.id === id) { GRUPO.pedidos = r.pedidos; desenharGrupos(); } }).catch(e => { GRUPO.pedidos = []; GRUPO.erro = e.message; desenharGrupos(); }); }
+  desenharGrupos();
+}
+async function abrirGrupos(id) {
+  Object.assign(GRUPO, { tela: "lista", id: "", achados: null, erro: "", ocupado: false });
+  const d = $("#dlgGrupos"); if (!d.open) d.showModal();
+  if (id) gruposTela("ver", id); else desenharGrupos();
+  if (!NUVEM.user) return;
+  try { await carregarGrupos(); } catch { GRUPO.erro = TT("Não consegui atualizar os grupos agora.", "No pude actualizar los grupos ahora."); }
+  if (!d.open) return;
+  if (GRUPO.tela === "lista") desenharGrupos(); else if (GRUPO.tela === "ver") gruposTela(meusGrupos().some(g => g.id === GRUPO.id) ? "ver" : "lista", GRUPO.id);
+}
+// faz uma ação no servidor mostrando espera e erro na própria janela
+async function grupoFazer(acao, dados, depois) {
+  if (GRUPO.ocupado || !NUVEM.user) return;
+  // redesenhar apaga o que a pessoa digitou: guarda e devolve
+  const campos = [...$("#gruposCorpo").querySelectorAll("input")].map(i => [i.id, i.value]), volta = () => campos.forEach(([k, v]) => { const i = document.getElementById(k); if (i) i.value = v; });
+  GRUPO.ocupado = true; GRUPO.erro = ""; desenharGrupos(); volta();
+  try { const r = await grupoServidor(acao, dados); GRUPO.ocupado = false; await depois?.(r); }
+  catch (e) { GRUPO.ocupado = false; GRUPO.erro = e.message; desenharGrupos(); volta(); }
+}
+async function grupoRecarregar(tela, id) { try { await carregarGrupos(); } catch {} gruposTela(tela, id); if (!atual() && !S.player) render(); }
+async function cliqueGrupo(act, id) {
+  const G = GRUPO, v = k => ($("#" + k)?.value || "").trim(), quatro = s => /^[0-9]{4}$/.test(s);
+  const semSenha = () => { G.erro = TT("A senha precisa ter exatamente 4 números.", "La clave debe tener exactamente 4 números."); const sala = v("gpSala"), mat = v("gpMateria"), nome = v("gpNome"); desenharGrupos(); if ($("#gpSala")) { $("#gpSala").value = sala; $("#gpMateria").value = mat; $("#gpNome").value = nome; } };
+  switch (act) {
+    case "gruposAbrir": return abrirGrupos();
+    case "grupoVer": return $("#dlgGrupos").open ? gruposTela("ver", id) : abrirGrupos(id);
+    case "gruposFechar": return $("#dlgGrupos").close();
+    case "grupoTela": return gruposTela(id);
+    case "grupoTelaEntrar": return gruposTela("entrar", id);
+    case "grupoBuscar": G.sala = v("gpBusca"); return grupoFazer("buscar", { sala: G.sala }, r => { G.achados = r.grupos; desenharGrupos(); });
+    case "grupoCriar": { G.sala = v("gpSala"); if (!quatro(v("gpSenha"))) return semSenha();
+      return grupoFazer("criar", { sala: G.sala, materia: v("gpMateria"), nome: v("gpNome"), senha: v("gpSenha") }, async r => {
+        if (r.jaExiste) { G.achados = [r.grupo]; if (r.grupo.souMembro) return grupoRecarregar("ver", r.grupo.id); gruposTela("entrar", r.grupo.id); toast(TT("Esse grupo já existe. Entre com a senha ou peça entrada.", "Ese grupo ya existe. Entra con la clave o pide entrada.")); return; }
+        toast(TT("Grupo criado!", "¡Grupo creado!")); await grupoRecarregar("ver", r.id); }); }
+    case "grupoEntrar": if (!quatro(v("gpSenha"))) return semSenha(); return grupoFazer("entrar", { id: G.id, senha: v("gpSenha") }, async r => { toast(TT("Você entrou no grupo!", "¡Entraste al grupo!")); await grupoRecarregar("ver", r.id); });
+    case "grupoPedir": return grupoFazer("pedir", { id: G.id }, async r => { if (r.membro) return grupoRecarregar("ver", r.id); toast(TT("Pedido enviado. Quem administra vai responder.", "Solicitud enviada. Quien administra responderá.")); gruposTela("lista", ""); });
+    case "grupoAceitar": case "grupoRecusar": return grupoFazer("decidir", { id: G.id, alvo: id, aceitar: act === "grupoAceitar" }, () => grupoRecarregar("painel", G.id));
+    case "grupoRemover": if (!confirm(TT("Remover esta pessoa do grupo?", "¿Quitar a esta persona del grupo?"))) return; return grupoFazer("remover", { id: G.id, alvo: id }, () => grupoRecarregar("painel", G.id));
+    case "grupoPassar": if (!confirm(TT("Passar a administração para esta pessoa? Você deixa de administrar o grupo.", "¿Pasar la administración a esta persona? Dejarás de administrar el grupo."))) return; return grupoFazer("passar", { id: G.id, alvo: id }, () => grupoRecarregar("ver", G.id));
+    case "grupoSenha": if (!quatro(v("gpNovaSenha"))) return semSenha(); return grupoFazer("senha", { id: G.id, senha: v("gpNovaSenha") }, () => { toast(TT("Senha trocada.", "Clave cambiada.")); gruposTela("painel"); });
+    case "grupoSair": if (!confirm(TT("Sair deste grupo?", "¿Salir de este grupo?"))) return; return grupoFazer("sair", { id: G.id }, () => grupoRecarregar("lista", ""));
+    case "grupoApagar": if (!confirm(TT("Apagar o grupo para todas as pessoas? Não dá para desfazer.", "¿Borrar el grupo para todas las personas? No se puede deshacer."))) return; return grupoFazer("apagar", { id: G.id }, () => grupoRecarregar("lista", ""));
+  }
+}
+document.addEventListener("change", e => {
+  if (e.target.id !== "gpMinhaMat") return;
+  const m = { ...lsGet("fp-grupos-mat", {}), [GRUPO.id]: e.target.value }; lsSet("fp-grupos-mat", m);
+  NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `users/${NUVEM.user.uid}/conta/grupos`), { materias: m }).catch(x => console.warn("grupos:", x?.message));
+});
+document.addEventListener("input", e => { if (e.target.classList?.contains("grupo-senha")) e.target.value = e.target.value.replace(/[^0-9]/g, "").slice(0, 4); });
 
 /* ================= 🚪 Página de entrada (visitante sem conta e sem cadernos) ================= */
 function cartaoEntrada() {
@@ -7391,7 +7583,7 @@ async function labResponder(i) {
   const L = S.lab, q = L?.q; if (!q || L.escolha != null || L.gerando) return;
   L.escolha = i; const certo = i === q.correta;
   if (certo) { L.acertos++; L.seq++; L.melhor = Math.max(L.melhor, L.seq); } else { L.erros++; L.seq = 0; }
-  try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro); contarResposta(); } catch {}
+  try { ganharXP(certo ? XP_REGRAS.acerto : XP_REGRAS.erro, labCad()); contarResposta(); } catch {}
   // a reação sai NA HORA (banco pronto); a explicação daquela pergunta vem logo em seguida
   LAB_VOZFILA.fila = []; // as falas das outras alternativas não servem mais
   L.certo = certo; L.reacao = labEscolherReacao(certo); L.explic = null; L.explicFim = false; L.fala = L.reacao;
