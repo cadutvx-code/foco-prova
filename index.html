@@ -4448,7 +4448,7 @@ async function verificarAcesso() {
     try {
       const d = await F.getDoc(F.doc(db, "liberados/" + emailUser()));
       if (d.exists()) { ACESSO.precoFundador = Number(d.data().precoFundador) || 0; expira = expiraDe(d.data()); lib = expira > Date.now(); vencido = !lib; }
-    } catch { lib = false; }
+    } catch { const g = lsGet("fp-acesso", null); lib = false; if (g?.email === emailUser() && g.expira) { expira = g.expira; lib = !!g.liberado && expira > Date.now(); vencido = !lib; } } // o banco não respondeu: vale o último Pro conferido neste aparelho
   }
   ACESSO.liberado = lib; ACESSO.expira = expira; ACESSO.vencido = vencido; ACESSO.verificado = true;
   lsSet("fp-acesso", { email: emailUser(), liberado: lib, expira });
