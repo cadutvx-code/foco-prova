@@ -178,7 +178,7 @@ export function bancoFirestore(projeto, token, buscar = fetch) {
   const campos = f => Object.fromEntries(Object.entries(f || {}).map(([k, v]) => [k, deFS(v)]));
   return {
     async ler(caminho) {
-      const r = await chamar(`${raiz}/${caminho}`); if (r.status === 404) return null;
+      const r = await chamar(`${raiz}/${caminho.split("/").map(encodeURIComponent).join("/")}`); if (r.status === 404) return null;
       if (!r.ok) throw new Error("banco indisponível (" + r.status + ")");
       const d = await r.json(); return { dados: campos(d.fields), versao: d.updateTime };
     },
@@ -187,8 +187,13 @@ export function bancoFirestore(projeto, token, buscar = fetch) {
       if (!r.ok) throw new Error("banco indisponível (" + r.status + ")");
       return (await r.json()).filter(x => x.document).map(x => ({ id: x.document.name.split("/").pop(), dados: campos(x.document.fields) }));
     },
+    async somar(caminho, campo) {
+      const r = await chamar(`${raiz}:commit`, { method: "POST", body: JSON.stringify({ writes: [{ transform: { document: `${raiz}/${caminho}`, fieldTransforms: [{ fieldPath: campo, increment: { integerValue: "1" } }] } }] }) });
+      if (!r.ok) throw new Error("banco indisponível (" + r.status + ")");
+      return Number((await r.json()).writeResults?.[0]?.transformResults?.[0]?.integerValue || 0);
+    },
     async gravar(itens) {
-      const writes = itens.map(i => ({ ...(i.apagar ? { delete: `${raiz}/${i.caminho}` } : { update: { name: `${raiz}/${i.caminho}`, fields: paraFS(i.dados).mapValue.fields } }), currentDocument: i.versao ? { updateTime: i.versao } : { exists: false } }));
+      const writes = itens.map(i => ({ ...(i.apagar ? { delete: `${raiz}/${i.caminho}` } : { update: { name: `${raiz}/${i.caminho}`, fields: paraFS(i.dados).mapValue.fields }, ...(i.campos ? { updateMask: { fieldPaths: i.campos } } : {}) }), currentDocument: i.versao ? { updateTime: i.versao } : { exists: false } }));
       const r = await chamar(`${raiz}:commit`, { method: "POST", body: JSON.stringify({ writes }) });
       if (r.ok) return;
       const t = await r.text();

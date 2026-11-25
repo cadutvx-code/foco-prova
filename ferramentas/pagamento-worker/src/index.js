@@ -12,6 +12,7 @@
 // Segredos (wrangler secret put): MP_TOKEN (Access Token do Mercado Pago), SA_JSON (chave da conta de serviço do Firebase)
 
 import { rotaGrupo, bancoFirestore } from "./grupos.js";
+import { liberarPro, estornarPro, precoDe, podeIA } from "./pro.js";
 
 const ORIGENS = ["https://hipocampo.web.app", "https://hipocampo.firebaseapp.com", "https://focoprova.web.app", "https://focoprova.firebaseapp.com", "http://localhost:47821", "http://localhost:47822"];
 
@@ -34,7 +35,7 @@ export default {
       const email = await emailDoLogin(env, corpo.idToken);
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
       if (rota === "/grupo") return json(req, await grupo(env, corpo));
-      if (rota === "/ia") return json(req, await iaReserva(env, corpo));
+      if (rota === "/ia") return await iaComLimite(req, env, email, corpo);
       if (rota === "/pdf-cota") return json(req, await cotaPDF(env, email, corpo.acao));
       if (rota === "/criar") return json(req, await criarPix(env, email));
       if (rota === "/status") return json(req, await conferir(env, corpo.id, email));
@@ -66,6 +67,15 @@ async function grupo(env, corpo) {
   if (!u?.localId) return { erro: "faça login com o Google de novo", codigo: "login" };
   try { return await rotaGrupo(bancoFirestore(env.FB_PROJETO, await tokenGoogle(env)), { uid: u.localId, nome: u.displayName || "" }, corpo); }
   catch (e) { if (!e.codigo) { console.log("grupo", corpo.acao, e.message); return { erro: "Não consegui falar com o servidor agora.", codigo: "servidor" }; } return { erro: e.message, codigo: e.codigo }; }
+}
+
+const banco = async env => bancoFirestore(env.FB_PROJETO, await tokenGoogle(env));
+const precoAtual = async (env, email) => precoDe(await banco(env), email, Number(env.PRECO || "9.99"));
+async function iaComLimite(req, env, email, corpo) {
+  let ok = true;
+  try { ok = await podeIA(await banco(env), email, email === ADMIN_EMAIL); } catch (e) { console.log("limite da IA reserva:", e.message); } // banco fora do ar: não deixa a pessoa sem estudar
+  if (!ok) return json(req, { erro: "limite diário da IA reserva", codigo: "limite" }, 429);
+  return json(req, await iaReserva(env, corpo));
 }
 
 async function mp(env, caminho, opcoes = {}) {
@@ -100,7 +110,7 @@ async function criarPix(env, email) {
   catch (e) { console.log("Orders recusou, tentando Pagamentos:", e.message); return await criarPixPagamento(env, email); }
 }
 async function criarPixPagamento(env, email) {
-  const preco = Math.round(Number(env.PRECO || "9.99") * 100) / 100;
+  const preco = await precoAtual(env, email);
   const vence = new Date(Date.now() + 30 * 60000).toISOString().replace("Z", "-00:00");
   const p = await mp(env, "/v1/payments", {
     method: "POST",
@@ -114,7 +124,7 @@ async function criarPixPagamento(env, email) {
   return { id: "pay_" + p.id, status: p.status, qr_code: td.qr_code, qr_code_base64: td.qr_code_base64, ticket_url: td.ticket_url, valor: preco.toFixed(2) };
 }
 async function criarPixOrders(env, email) {
-  const preco = Number(env.PRECO || "9.99").toFixed(2);
+  const preco = (await precoAtual(env, email)).toFixed(2);
   const pedido = await mp(env, "/v1/orders", {
     method: "POST",
     headers: { "X-Idempotency-Key": crypto.randomUUID() },
@@ -133,7 +143,7 @@ async function criarPixOrders(env, email) {
 const SITE = "https://hipocampo.web.app";
 async function criarCheckout(env, email) {
   if (await contaDeTeste(env)) throw new Error("pagamento automático em manutenção");
-  const preco = Math.round(Number(env.PRECO || "9.99") * 100) / 100;
+  const preco = await precoAtual(env, email);
   const pref = await mp(env, "/checkout/preferences", {
     method: "POST",
     body: JSON.stringify({
@@ -161,6 +171,13 @@ async function conferirCheckout(env, email) {
   return { pago: true, expira };
 }
 
+const devolvido = s => s === "refunded" || s === "charged_back";
+// dinheiro devolvido: tira os dias daquele pagamento (vale também para cobrança de assinatura)
+async function tratarEstorno(env, email, emailPedido, id, status) {
+  if (emailPedido && email !== emailPedido) throw new Error("este pagamento é de outra conta");
+  if (email.includes("@")) await estornarPro(await banco(env), email, id, { dias: Number(env.DIAS || 30) });
+  return { pago: false, status };
+}
 const pago = p => p?.status === "processed" || p?.status_detail === "accredited" || p?.transactions?.payments?.[0]?.status === "processed";
 
 async function conferir(env, id, emailPedido) {
@@ -168,10 +185,12 @@ async function conferir(env, id, emailPedido) {
   let email, ok, status, ref = id;
   if (id.startsWith("pay_")) {
     const p = await mp(env, "/v1/payments/" + encodeURIComponent(id.slice(4)));
+    if (devolvido(p.status)) return tratarEstorno(env, emailDaRef(p.external_reference), emailPedido, id, p.status);
     if (!["checkout", "pix-pagamento"].includes(p.metadata?.origem)) return { pago: false, status: "contado pelo pedido" };
     email = emailDaRef(p.external_reference); ok = p.status === "approved"; status = p.status;
   } else {
     const pedido = await mp(env, "/v1/orders/" + encodeURIComponent(id));
+    if (devolvido(pedido.status)) return tratarEstorno(env, emailDaRef(pedido.external_reference), emailPedido, pedido.id, pedido.status);
     email = emailDaRef(pedido.external_reference); ok = pago(pedido); status = pedido.status; ref = pedido.id;
   }
   if (emailPedido && email !== emailPedido) throw new Error("este pagamento é de outra conta");
@@ -218,25 +237,9 @@ const int = v => ({ integerValue: String(Math.round(v)) });
 const txt = v => ({ stringValue: String(v) });
 
 async function liberar(env, email, pedidoId, nota = "pago pelo Pix (automático)") {
-  const tok = await tokenGoogle(env), H = { Authorization: "Bearer " + tok, "Content-Type": "application/json" };
-  const url = `${DOCS(env)}/liberados/${encodeURIComponent(email)}`;
-  const r = await fetch(url, { headers: H });
-  const atual = r.ok ? (await r.json()).fields || {} : {};
-  const pagos = (atual.pedidosPagos?.arrayValue?.values || []).map(v => v.stringValue);
-  const expiraAtual = Number(atual.expira?.integerValue || 0);
-  if (pagos.includes(pedidoId)) return expiraAtual; // esse pagamento já foi contado
-  const agora = Date.now(), dias = Number(env.DIAS || 30);
-  const expira = Math.max(agora, expiraAtual) + dias * 86400000;
-  const campos = {
-    inicio: atual.inicio || int(Number(atual.data?.integerValue) || agora), data: int(agora), expira: int(expira),
-    renovacoes: int(Number(atual.renovacoes?.integerValue || 0) + (r.ok ? 1 : 0)),
-    nota: txt(nota), por: txt("pagamento automático"),
-    precoFundador: atual.precoFundador || { doubleValue: Number(env.PRECO || "9.99") }, fundadorDesde: atual.fundadorDesde || int(agora),
-    pedidosPagos: { arrayValue: { values: [...pagos.slice(-30), pedidoId].map(txt) } }
-  };
-  const w = await fetch(url, { method: "PATCH", headers: H, body: JSON.stringify({ fields: campos }) });
-  if (!w.ok) throw new Error("não consegui gravar o Pro: " + (await w.text()).slice(0, 150));
-  await fetch(`${DOCS(env)}/solicitacoes/${encodeURIComponent(email)}`, { method: "DELETE", headers: H }).catch(() => {});
+  const expira = await liberarPro(await banco(env), email, pedidoId, { nota, dias: Number(env.DIAS || 30), preco: Number(env.PRECO || "9.99") });
+  const tok = await tokenGoogle(env);
+  await fetch(`${DOCS(env)}/solicitacoes/${encodeURIComponent(email)}`, { method: "DELETE", headers: { Authorization: "Bearer " + tok } }).catch(() => {});
   return expira;
 }
 
@@ -245,7 +248,8 @@ async function liberar(env, email, pedidoId, nota = "pago pelo Pix (automático)
 async function idsAssinatura(env, email) {
   const tok = await tokenGoogle(env);
   const r = await fetch(`${DOCS(env)}/assinaturas/${encodeURIComponent(email)}`, { headers: { Authorization: "Bearer " + tok } });
-  if (!r.ok) return [];
+  if (r.status === 404) return [];
+  if (!r.ok) throw new Error("não consegui ler a assinatura"); // lista vazia por engano apagaria os ids guardados
   return ((await r.json()).fields?.ids?.arrayValue?.values || []).map(v => v.stringValue);
 }
 async function guardarIdAssinatura(env, email, id) {
@@ -259,7 +263,7 @@ async function criarAssinatura(env, email) {
   // se já tem uma ativa, não cria outra (evita cobrar 2 vezes por mês)
   const sit = await situacaoAssinatura(env, email);
   if (sit.ativa) return { jaAtiva: true, ...sit };
-  const preco = Math.round(Number(env.PRECO || "9.99") * 100) / 100;
+  const preco = await precoAtual(env, email);
   const a = await mp(env, "/preapproval", {
     method: "POST",
     body: JSON.stringify({
@@ -296,7 +300,8 @@ async function situacaoAssinatura(env, email) {
 async function cancelarAssinatura(env, email) {
   let n = 0;
   for (const id of await idsAssinatura(env, email)) {
-    const a = await mp(env, "/preapproval/" + encodeURIComponent(id)).catch(() => null);
+    // só ignora a que não existe mais; outra falha vira erro (não dizer "cancelada" com a cobrança ainda ativa)
+    const a = await mp(env, "/preapproval/" + encodeURIComponent(id)).catch(e => { if (/Mercado Pago 404/.test(e.message)) return null; throw e; });
     if (!a || emailDaRef(a.external_reference) !== email || !["authorized", "paused", "pending"].includes(a.status)) continue;
     await mp(env, "/preapproval/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) });
     n++;

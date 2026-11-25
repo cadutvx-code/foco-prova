@@ -96,11 +96,28 @@ casos = [
     ("sem login não grava e-mail no funil", "DENY", {"auth": None, "path": P + "/funil/ap_abc123", "method": "create", "resource": {"data": {"email": "x@gmail.com", "nome": "", "ap": "ap_abc123", "ultimo": 5}}}),
     ("campo extra no funil", "DENY", {"auth": auth, "path": P + "/funil/u1", "method": "create", "resource": {"data": {"email": "aluno@gmail.com", "nome": "", "ap": "ap_abc123", "ultimo": 5, "pagou": 5}}}),
     ("aluno não lê o funil", "DENY", {"auth": auth, "path": P + "/funil/u1", "method": "get"}),
+    ("feedback com página gigante", "DENY", {"auth": None, "path": P + "/feedback/f", "method": "create", "resource": {"data": fb(pagina="x" * 5000)}}),
+    ("visita de hoje", "ALLOW", {"auth": None, "time": "2026-11-25T12:00:00Z", "path": P + "/acessos/2026-11-25/aparelhos/a1", "method": "create", "resource": {"data": {"aberturas": 1, "ultimo": 5, "logado": False}}}),
+    ("visita no fuso do Paraguai", "ALLOW", {"auth": None, "time": "2026-11-26T02:00:00Z", "path": P + "/acessos/2026-11-25/aparelhos/a1", "method": "create", "resource": {"data": {"aberturas": 1, "ultimo": 5, "logado": False}}}),
+    ("visita com data inventada", "DENY", {"auth": None, "time": "2026-11-25T12:00:00Z", "path": P + "/acessos/2031-01-01/aparelhos/a1", "method": "create", "resource": {"data": {"aberturas": 1, "ultimo": 5, "logado": False}}}),
+    ("uso da IA com data antiga", "DENY", {"auth": auth, "time": "2026-11-25T12:00:00Z", "path": P + "/usoIA/2026-01-01_u1", "method": "create", "resource": {"data": {"dia": "2026-01-01", "email": "aluno@gmail.com", "nome": "A", "ult": 1, "u": {}}}}),
+    ("grava a própria conta", "ALLOW", {"auth": auth, "path": P + "/contas/u1", "method": "create", "resource": {"data": {"nome": "A", "email": "aluno@gmail.com", "foto": "", "primeiro": 1, "ultimo": 1, "acessos": 1}}}),
+    ("apaga a própria conta", "ALLOW", {"auth": auth, "path": P + "/contas/u1", "method": "delete", "_antes": {"data": {"nome": "A"}}}),
+    ("não apaga conta de outro", "DENY", {"auth": auth, "path": P + "/contas/u2", "method": "delete", "_antes": {"data": {"nome": "A"}}}),
+    ("apaga o próprio funil", "ALLOW", {"auth": auth, "path": P + "/funil/u1", "method": "delete", "_antes": {"data": {"nome": "A"}}}),
+    ("não apaga funil de outro", "DENY", {"auth": auth, "path": P + "/funil/u2", "method": "delete", "_antes": {"data": {"nome": "A"}}}),
+    ("sem login não apaga funil", "DENY", {"auth": None, "path": P + "/funil/ap_abc123", "method": "delete", "_antes": {"data": {"nome": ""}}}),
+    ("apaga o próprio pedido", "ALLOW", {"auth": auth, "path": P + "/solicitacoes/aluno@gmail.com", "method": "delete", "_antes": {"data": {"email": "aluno@gmail.com"}}}),
+    ("não apaga pedido de outro", "DENY", {"auth": auth, "path": P + "/solicitacoes/outro@gmail.com", "method": "delete", "_antes": {"data": {"email": "x"}}}),
+    ("não apaga o registro do Pro", "DENY", {"auth": auth, "path": P + "/liberados/aluno@gmail.com", "method": "delete", "_antes": {"data": {"expira": 1}}}),
+    ("lista os próprios duelos", "ALLOW", {"auth": auth, "path": P + "/duelos/d1", "method": "list", "_antes": {"data": {"criador": "u1"}}}),
+    ("não lista duelos de outros", "DENY", {"auth": auth, "path": P + "/duelos/d1", "method": "list", "_antes": {"data": {"criador": "u2"}}}),
+    ("aluno não mexe na contagem da IA reserva", "DENY", {"auth": auth, "path": P + "/iareserva/2026-11-25/alunos/aluno@gmail.com", "method": "create", "resource": {"data": {"n": 0}}}),
     *casos_grupo,
     ("sem login não vê ranking", "DENY", {"path": P + "/ranking/2026-S47/pessoas/u1", "method": "get"}),
 ]
 # na API de teste, os dados novos (request.resource) vão dentro de "request"
-suite = {"testCases": [{"expectation": e, "request": {k: v for k, v in r.items() if v is not None and not k.startswith("_")}, **({"functionMocks": r["_mocks"]} if r.get("_mocks") else {}), **({"resource": r["_antes"]} if r.get("_antes") else {})} for _, e, r in casos]}
+suite = {"testCases": [{"expectation": e, "request": {"time": "2026-11-25T12:00:00Z", **{k: v for k, v in r.items() if v is not None and not k.startswith("_")}}, **({"functionMocks": r["_mocks"]} if r.get("_mocks") else {}), **({"resource": r["_antes"]} if r.get("_antes") else {})} for _, e, r in casos]}
 res = req("POST", f"{API}/projects/{PROJ}:test", {"source": src, "testSuite": suite})
 ok = True
 for (nome, esp, _), r in zip(casos, res.get("testResults", [])):

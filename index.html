@@ -2452,6 +2452,7 @@ function viewHome() {
     <p class="muted" style="font-size:13px;margin-bottom:0"><span class="ia-ok"></span> <b>IA ON</b>: várias IAs trabalhando juntas.</p></div>`}
   <div class="rodape-contato"><span class="muted" style="font-size:13px">Dúvidas, sugestões ou problemas? Fale com a gente:</span>
     <button class="btn small" data-act="feedback">💬 Enviar feedback</button>
+    <a class="muted" style="font-size:13px" href="privacidade.html" target="_blank" rel="noopener">Privacidade e termos</a>
     <a class="ig-link" href="https://www.instagram.com/hipocampostudy?utm_source=ig_web_button_share_sheet&avpt=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>@hipocampostudy</a></div>`;
 }
 
@@ -4053,6 +4054,8 @@ function desenharConta() {
       ${!ACESSO.admin && (!pro || (ACESSO.expira && diasRestam(ACESSO.expira) <= AVISO_DIAS)) ? `<button class="cm-item" data-act="pagar">${icm("coroa")}${pro ? "Renovar o Pro" : "Quero o Pro"}</button>` : ""}
       <button class="cm-item" data-act="syncAgora">${icm("sync")}Sincronizar agora</button>
       <a class="cm-item" href="https://www.instagram.com/hipocampostudy?utm_source=ig_web_button_share_sheet&avpt=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>Contato (Instagram)</a>
+      <a class="cm-item" href="privacidade.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">${icm("escudo")}Privacidade e termos</a>
+      <button class="cm-item" data-act="excluirConta">Excluir minha conta</button>
       <button class="cm-item" data-act="sairConta">Sair</button></div>` : ""}`;
 }
 // Conquistas (calculadas a partir do que a pessoa já fez)
@@ -4105,6 +4108,7 @@ async function iniciarNuvem() {
     A.getRedirectResult(NUVEM.auth).catch(() => {});
     carregarPagamento(); registrarVisita();
     A.onAuthStateChanged(NUVEM.auth, async u => {
+      if (S.excluindo) return; // a conta está sendo apagada: excluirConta cuida do resto
       if (u && trocarDadosDaConta(u.uid)) return; // outra conta: recarrega com o progresso dela
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
       await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosRank(); }).catch(() => {}); lerOcultos(); lerOrdemKits(); }
@@ -4114,6 +4118,7 @@ async function iniciarNuvem() {
         if (pd) { if (u) { try { sessionStorage.removeItem("fp-duelo-pendente"); } catch {} abrirDuelo(pd); } else abrirDuelo(pd); } }
       if (u) await sincronizarTudo();
     });
+    window.addEventListener("online", () => { if (NUVEM.user && NUVEM.pendentes.size) enviarPendentes(); });
     window.addEventListener("focus", () => { if (NUVEM.user && Date.now() - NUVEM.ultimaBaixa > 60000) sincronizarTudo(); });
   } catch (e) { console.warn("Nuvem indisponível", e); }
 }
@@ -4137,6 +4142,8 @@ async function sairConta() {
 /* ================= acesso: plano grátis com limite + liberação manual (Pix) ================= */
 // liberados/{email} = acesso completo (só o administrador grava) · config/pagamento = chave Pix, WhatsApp, preço e limites
 const ACESSO = { liberado: false, admin: false, verificado: false, expira: null, vencido: false, pag: { pix: "", whats: "", preco: 9.99, limite: 30, ateneos: 2, ...lsGet("fp-pag", {}) } };
+// quem já pagou continua no preço de quando entrou (o servidor cobra assim também)
+const precoMeu = () => ACESSO.precoFundador > 0 && ACESSO.precoFundador < ACESSO.pag.preco ? ACESSO.precoFundador : ACESSO.pag.preco;
 const reais = v => (Math.round(+v * 100) / 100).toLocaleString("pt-BR", { minimumFractionDigits: Number.isInteger(+v) ? 0 : 2, maximumFractionDigits: 2 });
 const emailUser = () => (NUVEM.user?.email || "").trim().toLowerCase();
 // O Pro dura 30 dias a partir da aprovação; depois sai sozinho e a pessoa renova
@@ -4431,16 +4438,16 @@ async function carregarPagamento() {
 }
 async function verificarAcesso() {
   const u = NUVEM.user;
-  if (!u) { ACESSO.liberado = ACESSO.admin = ACESSO.pedido = false; zerarAvisosAdm(); PERFIL = {}; lsSet("fp-perfil", {}); lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
+  if (!u) { ACESSO.precoFundador = 0; ACESSO.liberado = ACESSO.admin = ACESSO.pedido = false; zerarAvisosAdm(); PERFIL = {}; lsSet("fp-perfil", {}); lsSet("fp-acesso", null); ACESSO.verificado = true; return; }
   if (PERFIL.uid && PERFIL.uid !== u.uid) PERFIL = {};
   const F = NUVEM.F, db = NUVEM.db;
   // administradores ficam numa lista própria (admins/), separada dos membros Pro (liberados/)
   try { ACESSO.admin = (await F.getDoc(F.doc(db, "admins/" + emailUser()))).exists(); } catch (e) { ACESSO.admin = false; if (!/permission/i.test(e?.code + e?.message)) console.warn("verificar admin", e); }
-  let lib = ACESSO.admin, expira = null, vencido = false;
+  let lib = ACESSO.admin, expira = null, vencido = false; ACESSO.precoFundador = 0;
   if (!lib) {
     try {
       const d = await F.getDoc(F.doc(db, "liberados/" + emailUser()));
-      if (d.exists()) { expira = expiraDe(d.data()); lib = expira > Date.now(); vencido = !lib; }
+      if (d.exists()) { ACESSO.precoFundador = Number(d.data().precoFundador) || 0; expira = expiraDe(d.data()); lib = expira > Date.now(); vencido = !lib; }
     } catch { lib = false; }
   }
   ACESSO.liberado = lib; ACESSO.expira = expira; ACESSO.vencido = vencido; ACESSO.verificado = true;
@@ -4555,7 +4562,7 @@ async function iniciarPixAuto() {
     console.warn("Pix automático indisponível:", e.message); registrarFunil("qr", "falhou");
     caixa.innerHTML = `<small class="muted">O pagamento automático não funcionou agora (${esc(String(e.message).slice(0, 140))}). Pague pelo QR abaixo e envie o comprovante pelo WhatsApp (passo 3) que faremos a liberação.</small>`;
     $("#pixChaveFixa")?.removeAttribute("hidden"); // automático falhou: mostra também a chave (liberação manual)
-    const p = ACESSO.pag; if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: p.preco, txid: txidDe(emailUser()) }); desenharQRPix(S.pixCodigo); }
+    const p = ACESSO.pag; if (p.pix) { S.pixCodigo = codigoPix({ chave: p.pix, nome: p.pixNome, cidade: p.pixCidade, valor: precoMeu(), txid: txidDe(emailUser()) }); desenharQRPix(S.pixCodigo); }
   }
 }
 async function pixConfirmado(expira, id) {
@@ -4668,7 +4675,7 @@ async function desenharQRPix(codigo) {
   } catch { el.innerHTML = `<small class="muted" style="text-align:center">Não consegui desenhar o QR Code. Use o "copia e cola".</small>`; }
 }
 function abrirPagamento(tipo) {
-  const p = ACESSO.pag, email = emailUser();
+  const p = { ...ACESSO.pag, preco: precoMeu() }, email = emailUser();
   const acabou = tipo ? `<div class="pro-acabou">${hipoSVG("dormindo", 52)}<div><b>${tipo === "ateneo" ? `Você já fez os ${p.ateneos} Ateneos grátis.` : "Você atingiu o limite grátis."}</b><br>Volta em <b>${tempoParaVoltar() || "algumas horas"}</b>, ou continue agora sem limite com o Pro.</div></div>` : "";
   const renovar = ACESSO.liberado || ACESSO.vencido;
   const msg = `Olá! Quero ${renovar ? "renovar" : "ativar"} o Pro do Hipocampo Study (R$ ${reais(p.preco)}/mês)\nMeu e-mail: ${email || "(coloque aqui o seu Gmail)"}\nSegue o comprovante do Pix:`;
@@ -5055,12 +5062,63 @@ async function admSalvarPag() {
   catch (e) { toast("Não consegui salvar: " + e.message, true); }
 }
 
+/* ---------- excluir a conta: apaga os dados da nuvem e deste aparelho ---------- */
+function telaExcluirConta() {
+  if (ACESSO.admin) return toast(TT("A conta do administrador não pode ser excluída por aqui.", "La cuenta del administrador no se puede eliminar desde aquí."), true);
+  $("#perfilCorpo").innerHTML = `<h2 style="margin:0">${TT("Excluir minha conta", "Eliminar mi cuenta")}</h2>
+    <p style="margin:0">${TT("Apaga para sempre seus cadernos, materiais, progresso, perfil, links e duelos, na nuvem e neste aparelho. Não dá para desfazer. Se quiser guardar algo, baixe antes em Ajustes → Exportar backup.", "Borra para siempre tus cuadernos, materiales, progreso, perfil, enlaces y duelos, en la nube y en este dispositivo. No se puede deshacer. Si quieres guardar algo, descárgalo antes en Ajustes → Exportar copia.")}</p>
+    <p class="muted" style="margin:0">${TT("A assinatura no cartão, se houver, é cancelada. O tempo de Pro que resta se perde. Os registros de pagamento são guardados.", "La suscripción con tarjeta, si hay, se cancela. El tiempo de Pro que queda se pierde. Los registros de pago se conservan.")}</p>
+    <label>${TT("Para confirmar, escreva EXCLUIR", "Para confirmar, escribe EXCLUIR")}<input id="excluirTxt" autocomplete="off"></label><div id="excluirMsg"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="perfilCancelar">${TT("Cancelar", "Cancelar")}</button><button class="btn danger" data-act="excluirContaOk">${TT("Excluir para sempre", "Eliminar para siempre")}</button></div>`;
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+async function excluirConta() {
+  const msg = t => { const el = $("#excluirMsg"); if (el) el.innerHTML = t; }, { F, A, db, user: u } = NUVEM;
+  if (S.excluindo || !u || ACESSO.admin) return;
+  if (($("#excluirTxt")?.value || "").trim().toUpperCase() !== "EXCLUIR") return msg(TT("Escreva EXCLUIR para confirmar.", "Escribe EXCLUIR para confirmar."));
+  S.excluindo = true;
+  try {
+    // o Google pede para entrar de novo; sem isso nada é apagado
+    await A.reauthenticateWithPopup(u, new A.GoogleAuthProvider());
+    msg(`<span class="spin"></span> ${TT("Apagando… não feche esta tela.", "Borrando… no cierres esta pantalla.")}`);
+    await pagAuto("/cancelar-assinatura"); // se falhar, para aqui: ninguém fica pagando por uma conta apagada
+    const gs = (await F.getDocs(F.query(F.collection(db, "grupos"), F.where("membros", "array-contains", u.uid)))).docs.map(d => ({ id: d.id, ...d.data() }));
+    for (const g of gs) {
+      if (g.admin === u.uid) { const outro = (g.membros || []).find(m => m !== u.uid); if (!outro) { await grupoServidor("apagar", { id: g.id }); continue; } await grupoServidor("passar", { id: g.id, alvo: outro }); }
+      await grupoServidor("sair", { id: g.id });
+    }
+    clearTimeout(NUVEM.timer); clearTimeout(S.rankPT); NUVEM.pendentes.clear(); NUVEM.ocupada = true;
+    const apagar = async q => { const ds = (await F.getDocs(q)).docs; for (const d of ds) await F.deleteDoc(d.ref); return ds; };
+    const base = caminhoUser(), col = x => F.collection(db, x), meus = (x, campo) => F.query(col(x), F.where(campo, "==", u.uid));
+    const tentar = async p => { try { await p; } catch (e) { if (!/permission/i.test(e?.code || "")) throw e; } };
+    for (const m of (await F.getDocs(col(`${base}/materiais`))).docs) { await apagar(col(`${base}/materiais/${m.id}/partes`)); await F.deleteDoc(m.ref); }
+    for (const x of (await F.getDocs(meus("compartilhados", "dono"))).docs) { for (let i = 0; i < (x.data().partes || 0); i++) await tentar(F.deleteDoc(F.doc(db, `compartilhados/${x.id}/partes/${u.uid}_${i}`))); await F.deleteDoc(x.ref); }
+    await apagar(meus("duelos", "criador"));
+    const listas = ["geral", ...minhasMaterias().map(([k]) => "m:" + k)];
+    for (let i = 0; i < 8; i++) { const sem = semanaAtual(new Date(Date.now() - i * 7 * DIA_MS)); await tentar(F.deleteDoc(F.doc(db, `ranking/${sem}/pessoas/${u.uid}`))); for (const k of listas) await tentar(F.deleteDoc(F.doc(db, `${caminhoRank(k, sem)}/${u.uid}`))); for (const g of gs) await tentar(F.deleteDoc(F.doc(db, `grupos/${g.id}/semanas/${sem}/pontos/${u.uid}`))); }
+    for (const x of ["cadernos", "conta"]) await apagar(col(`${base}/${x}`));
+    for (const x of ["contas/" + u.uid, "funil/" + u.uid, "solicitacoes/" + emailUser()]) await tentar(F.deleteDoc(F.doc(db, x)));
+    await A.deleteUser(u);
+  } catch (e) {
+    console.warn("excluir conta", e); S.excluindo = false; NUVEM.ocupada = false;
+    return msg(/popup-closed|cancelled-popup/.test(e?.code || "") ? TT("Nada foi apagado.", "No se borró nada.") : /user-mismatch/.test(e?.code || "") ? TT("Essa é outra conta do Google. Nada foi apagado.", "Es otra cuenta de Google. No se borró nada.") : TT("Não consegui terminar. Verifique a internet e toque de novo para continuar.", "No pude terminar. Revisa la conexión y toca de nuevo para continuar."));
+  }
+  // só os dados desta conta neste aparelho
+  try {
+    db0Fechar();
+    for (const n of ["foco-prova", "foco-prova-originais"]) indexedDB.deleteDatabase(SUFIXO_CONTA ? `${n}-${SUFIXO_CONTA}` : n);
+    for (const k of POR_CONTA) localStorage.removeItem(chaveLS(k));
+    for (const k of ["fp-perfil", "fp-acesso", "fp-conta-ativa", "fp-pix-pendentes", "fp-cartao-pendente", "fp-assinante", ...(SUFIXO_CONTA ? [] : ["fp-dono"])]) localStorage.removeItem(k);
+  } catch {}
+  location.reload();
+}
+const db0Fechar = () => { try { db?.close(); } catch {} db = null; }; // solta o banco local para poder ser apagado
 const caminhoUser = () => `users/${NUVEM.user.uid}`;
 const assinaturaMat = m => `${(m.texto || "").length}|${m.ativo !== false}|${m.nome}|${!!m.poucoTexto}|${m.extra || ""}`;
 // O que vai para a nuvem: o caderno sem os textos (que vão separados) e sem arquivos brutos
 function cadernoLeve(c) {
   const leve = { ...c, materiais: c.materiais.map(m => m.id) };
-  delete leve._idsSync;
+  delete leve._idsSync; delete leve._nuvem;
   let dados = JSON.stringify(leve);
   if (dados.length > 900000) { leve.chat = (c.chat || []).slice(-20); if (leve.resumosPdf) leve.resumosPdf = leve.resumosPdf.slice(0, 2); if (leve.inteligente) leve.inteligente = { ...leve.inteligente, banco: [] }; dados = JSON.stringify(leve); }
   return dados;
@@ -5073,21 +5131,75 @@ function agendarSync(c) {
   NUVEM.timer = setTimeout(enviarPendentes, 2500);
 }
 async function enviarPendentes() {
-  if (!NUVEM.user) return;
+  if (!NUVEM.user || S.excluindo) return;
   if (NUVEM.ocupada) { NUVEM.timer = setTimeout(enviarPendentes, 1500); return; }
   NUVEM.ocupada = true;
   try {
+    let erro = null;
     for (const id of [...NUVEM.pendentes]) {
       NUVEM.pendentes.delete(id);
       const c = S.cadernos.find(x => x.id === id);
-      if (c) await subirCaderno(c);
+      // falhou (sem internet, caderno grande demais…): continua na fila e não trava os outros cadernos
+      if (c) try { await subirCaderno(c); } catch (e) { NUVEM.pendentes.add(id); erro = e; }
     }
+    if (erro) throw erro;
     estadoNuvem("☁ Sincronizado");
   } catch (e) { console.warn(e); estadoNuvem(navigator.onLine ? "⚠ Erro ao salvar" : "⚠ Sem internet"); }
   finally { NUVEM.ocupada = false; }
 }
+// Junta duas versões do mesmo caderno mudadas em aparelhos diferentes: vale a mais nova, mas nada que só existe na outra se perde.
+// base = ids dos materiais na última sincronização (o que estava lá e sumiu de um lado foi apagado de propósito)
+function juntarCadernos(novo, velho, base = []) {
+  const out = { ...velho, ...novo }, temId = l => l.every(x => x && typeof x === "object" && x.id), chave = x => JSON.stringify(x);
+  for (const k of Object.keys(velho)) {
+    const a = novo[k], b = velho[k];
+    if (k === "materiais" || k === "_idsSync" || !Array.isArray(a) || !Array.isArray(b)) continue;
+    if (k === "chat") out[k] = b.length > a.length ? b : a;
+    else if (temId(a) && temId(b)) { const ids = new Set(a.map(x => x.id)); out[k] = [...a, ...b.filter(x => !ids.has(x.id))]; }
+  }
+  const idsN = new Set(novo.materiais.map(m => m.id)), idsV = new Set(velho.materiais.map(m => m.id)), antes = new Set(base);
+  out.materiais = [...novo.materiais.filter(m => idsV.has(m.id) || !antes.has(m.id)), ...velho.materiais.filter(m => !idsN.has(m.id) && !antes.has(m.id))];
+  // progresso: fica o domínio de quem praticou mais em cada tópico; XP e histórico não diminuem
+  if (novo.dominio && velho.dominio) { out.dominio = { ...velho.dominio, ...novo.dominio }; for (const t in velho.dominio) if ((velho.dominio[t]?.tentativas || 0) > (novo.dominio[t]?.tentativas || 0)) out.dominio[t] = velho.dominio[t]; }
+  if (novo.inteligente && velho.inteligente) {
+    const n = novo.inteligente, v = velho.inteligente, I = { ...v, ...n };
+    if (n.xp || v.xp) I.xp = Math.max(n.xp || 0, v.xp || 0);
+    if (Array.isArray(n.historico) && Array.isArray(v.historico)) { const ja = new Set(n.historico.map(chave)); I.historico = [...v.historico.filter(x => !ja.has(chave(x))), ...n.historico].slice(-250); }
+    out.inteligente = I;
+  }
+  return out;
+}
+// Monta o caderno que está na nuvem, reaproveitando os textos que este aparelho já tem
+async function cadernoDaNuvem(r, local, matsRemotos = null) {
+  const { F, db } = NUVEM, base = caminhoUser(), c = JSON.parse(r.dados), mats = [];
+  for (const id of c.materiais || []) {
+    const lm = local?.materiais.find(x => x.id === id);
+    let md = matsRemotos?.get(id);
+    if (!matsRemotos && !lm?.oficial) { const d = await F.getDoc(F.doc(db, `${base}/materiais/${id}`)); md = d.exists() ? d.data() : null; }
+    if (!md) { if (lm) mats.push(lm); continue; } // a nuvem não achou o material, mas este aparelho tem: não perde
+    let texto;
+    if (lm && lm._sync === md.ass) texto = lm.texto;
+    else {
+      const ps = await F.getDocs(F.collection(db, `${base}/materiais/${id}/partes`));
+      texto = ps.docs.sort((a, b) => +a.id - +b.id).map(x => x.data().t).join("");
+    }
+    mats.push({ ...JSON.parse(md.meta || "{}"), texto, _sync: md.ass });
+  }
+  c.materiais = mats; return c;
+}
+// Este aparelho e outro mudaram o mesmo caderno: junta os dois no objeto que já está aberto na tela
+async function juntarComNuvem(c, r, matsRemotos = null) {
+  const remoto = await cadernoDaNuvem(r, c, matsRemotos), baseIds = c._idsSync || [];
+  const fim = (c.atualizado || 0) >= (r.atualizado || 0) ? juntarCadernos(c, remoto, baseIds) : juntarCadernos(remoto, c, baseIds);
+  Object.assign(c, fim, { atualizado: Math.max(Date.now(), (r.atualizado || 0) + 1), _idsSync: [...new Set([...baseIds, ...remoto.materiais.map(m => m.id)])], _nuvem: r.atualizado });
+  await dbPut(c);
+}
 async function subirCaderno(c) {
   const { F, db } = NUVEM, base = caminhoUser();
+  // outro aparelho salvou depois da última vez que este sincronizou? junta antes de gravar por cima
+  const rd = await F.getDoc(F.doc(db, `${base}/cadernos/${c.id}`)), rem = rd.exists() ? rd.data() : null;
+  if (rem && !rem.apagado && rem.dados && c._nuvem && rem.atualizado !== c._nuvem) await juntarComNuvem(c, rem);
+  const quando = c.atualizado;
   for (const m of c.materiais) {
     if (m.oficial) continue; // material oficial vem do site, não ocupa a nuvem de cada pessoa
     const ass = assinaturaMat(m);
@@ -5103,7 +5215,8 @@ async function subirCaderno(c) {
   const atuais = c.materiais.map(m => m.id);
   for (const id of (c._idsSync || []).filter(id => !atuais.includes(id))) await apagarMaterialRemoto(id);
   c._idsSync = atuais;
-  await F.setDoc(F.doc(db, `${base}/cadernos/${c.id}`), { atualizado: c.atualizado, dados: cadernoLeve(c), apagado: false });
+  await F.setDoc(F.doc(db, `${base}/cadernos/${c.id}`), { atualizado: quando, dados: cadernoLeve(c), apagado: false });
+  c._nuvem = quando;
   try { await dbPut(c); } catch {}
 }
 async function apagarMaterialRemoto(id) {
@@ -5134,7 +5247,7 @@ async function apagarCaderno(c) {
 }
 // Junta o que está na nuvem com o que está neste aparelho (vence a versão mais nova de cada caderno)
 async function sincronizarTudo() {
-  if (!NUVEM.user || NUVEM.ocupada) return;
+  if (!NUVEM.user || NUVEM.ocupada || S.excluindo) return;
   NUVEM.ocupada = true; NUVEM.ultimaBaixa = Date.now();
   estadoNuvem("☁ Sincronizando…");
   try {
@@ -5151,24 +5264,16 @@ async function sincronizarTudo() {
         if (local && (local.atualizado || 0) <= r.atualizado) { S.cadernos = S.cadernos.filter(x => x.id !== d.id); await dbDel(d.id); if (S.atual === d.id) { S.atual = null; S.player = null; } }
         continue;
       }
-      if (local && (local.atualizado || 0) >= r.atualizado) { if ((local.atualizado || 0) > r.atualizado) NUVEM.pendentes.add(local.id); continue; }
-      // a versão da nuvem é mais nova: monta o caderno com os materiais
-      const c = JSON.parse(r.dados);
-      const mats = [];
-      for (const id of c.materiais || []) {
-        const md = matsRemotos.get(id);
-        if (!md) { const lo = local?.materiais.find(x => x.id === id); if (lo?.oficial) mats.push(lo); continue; }
-        const meta = JSON.parse(md.meta || "{}");
-        const lm = local?.materiais.find(x => x.id === id);
-        let texto;
-        if (lm && lm._sync === md.ass) texto = lm.texto;
-        else {
-          const ps = await F.getDocs(F.collection(db, `${base}/materiais/${id}/partes`));
-          texto = ps.docs.sort((a, b) => +a.id - +b.id).map(x => x.data().t).join("");
-        }
-        mats.push({ ...meta, texto, _sync: md.ass });
+      if (local && (local.atualizado || 0) >= r.atualizado) {
+        if (!local._nuvem || local.atualizado === r.atualizado) local._nuvem = r.atualizado; // ponto de partida para perceber mudanças de outro aparelho
+        if ((local.atualizado || 0) > r.atualizado) NUVEM.pendentes.add(local.id); // se a nuvem também mudou, subirCaderno junta
+        continue;
       }
-      c.materiais = mats; c._idsSync = mats.map(m => m.id);
+      // a nuvem é mais nova, mas este aparelho tinha mudanças que ainda não subiram: junta em vez de jogar fora
+      if (local && local._nuvem && local.atualizado > local._nuvem && r.atualizado !== local._nuvem) { await juntarComNuvem(local, r, matsRemotos); NUVEM.pendentes.add(local.id); continue; }
+      // a versão da nuvem é mais nova: monta o caderno com os materiais
+      const c = await cadernoDaNuvem(r, local, matsRemotos);
+      c._idsSync = c.materiais.map(m => m.id); c._nuvem = r.atualizado;
       if (local) Object.keys(local).forEach(k => delete local[k]), Object.assign(local, c); else S.cadernos.push(c);
       await dbPut(local || c);
     }
@@ -5325,6 +5430,8 @@ document.addEventListener("click", async e => {
     case "menuConta": NUVEM.menu = !NUVEM.menu; desenharConta(); break;
     case "syncAgora": NUVEM.menu = false; sincronizarTudo(); break;
     case "sairConta": NUVEM.menu = false; sairConta(); break;
+    case "excluirConta": NUVEM.menu = false; desenharConta(); telaExcluirConta(); break;
+    case "excluirContaOk": excluirConta(); break;
     case "pagar": e.preventDefault(); NUVEM.menu = false; desenharConta(); abrirPagamento(null); break;
     case "fecharPagar": $("#dlgPagar").close(); break;
     case "pagarCartao": pagarCartao(); break;
@@ -6254,7 +6361,7 @@ const UI_ES = {
   "o professor está escrevendo a explicação…": "el profesor está escribiendo la explicación…",
   "múltipla escolha (5 alternativas)": "opción múltiple (5 alternativas)",
   "🔒 Suba de nível estudando para liberar mais avatares.": "🔒 Sube de nivel estudiando para liberar más avatares.",
-  "Adicionar material": "Agregar material", "Dúvidas, sugestões ou problemas? Fale com a gente:": "¿Dudas, sugerencias o problemas? Habla con nosotros:", "Contato (Instagram)": "Contacto (Instagram)",
+  "Adicionar material": "Agregar material", "Dúvidas, sugestões ou problemas? Fale com a gente:": "¿Dudas, sugerencias o problemas? Habla con nosotros:", "Contato (Instagram)": "Contacto (Instagram)", "Privacidade e termos": "Privacidad y términos", "Excluir minha conta": "Eliminar mi cuenta",
   "Você atingiu o limite de uso grátis.": "Llegaste al límite de uso gratis.", "Ele volta em": "Vuelve en", ". Enquanto isso, você pode continuar sem limite com o Pro:": ". Mientras tanto, puedes seguir sin límite con el Pro:", "algumas horas": "algunas horas", "Interações grátis (a cada 5 h)": "Interacciones gratis (cada 5 h)",
   "Ateneos grátis (a cada 5 h)": "Ateneos gratis (cada 5 h)",
   "Feedback": "Feedback", "💬 Enviar feedback": "💬 Enviar feedback", "Achou um problema ou teve uma ideia? Conta pra gente: cada mensagem é lida.": "¿Encontraste un problema o tienes una idea? Cuéntanos: leemos cada mensaje.",
