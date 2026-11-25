@@ -267,6 +267,9 @@ h3{font-size:16px;margin:0 0 6px}
 .mm-btns .icx{width:16px;height:16px;vertical-align:-3px}
 .mm-btns .icon-btn{color:#fff}
 .mm-palco{position:relative;flex:1;overflow:hidden}
+.mm-zoom{position:absolute;right:12px;bottom:38px;z-index:2;display:flex;flex-direction:column;gap:6px}
+.mm-zoom button{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(10,8,32,.75);color:#fff;font:800 20px/1 system-ui;cursor:pointer;display:grid;place-items:center}
+.mm-zoom .icx{width:19px;height:19px}
 .mm-palco canvas,.mm-palco svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
 .mm-dica{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:12.5px;color:rgba(255,255,255,.6);pointer-events:none}
 .ice{display:inline-flex;width:1.12em;height:1.12em;vertical-align:-.18em;flex:none;line-height:0}
@@ -5013,15 +5016,18 @@ document.addEventListener("click", async e => {
     case "mmEstilo": S.mmEstilo = id; S.mmDesc = $("#mmDesc")?.value ?? S.mmDesc; render(); break;
     case "mmIdeia": { const t = $("#mmDesc"); if (t) { t.value = id; S.mmDesc = id; } break; }
     case "mmGerar": gerarMapa(); break;
+    case "mmCancelar": S.mmCancelar?.(); break;
+    case "mmZoom": $("#mmSvg")?._zoom?.(+id); break;
     case "mmAbrir": abrirMapa(id); break;
     case "mmApagar": if (confirm("Excluir este mapa mental?")) { c.mapas = c.mapas.filter(x => x.id !== id); await salvar(c); render(); } break;
     case "mmTrocar": if (S.mapaAberto) { S.mapaAberto.estilo = id; desenharTelaMapa(); } break;
     case "mmFechar": fecharMapa(); break;
-    case "mmEditar": S.mmEditando = !S.mmEditando; S.mmSel = null; if (!S.mmEditando) { const { c: cm, m } = mapaAtual(); if (m) { m.dados.ramos = m.dados.ramos.filter(r => r.t.trim() || r.itens.length); m.dados.ramos.forEach(r => r.itens = r.itens.map(t => t.trim()).filter(Boolean)); await salvar(cm); } } desenharTelaMapa(); break;
+    case "mmEditar": S.mmEditando = !S.mmEditando; S.mmSel = null; if (!S.mmEditando) { const { c: cm, m } = mapaAtual(); if (m) { m.dados.ramos = m.dados.ramos.filter(r => r.t.trim() || r.itens.length); m.dados.ramos.forEach(r => r.itens = podarMapa(r.itens)); await salvar(cm); } } desenharTelaMapa(); break;
     case "mmAddRamo": { const { m } = mapaAtual(); if (!m || m.dados.ramos.length >= 12) break; m.dados.ramos.push({ t: "Novo ramo", itens: [] }); mmMudou(true); mmSelecionar({ r: m.dados.ramos.length - 1 }); break; }
     case "mmTirarRamo": { const { m } = mapaAtual(); if (!m) break; if (m.dados.ramos.length <= 1) { toast("O mapa precisa de pelo menos 1 ramo."); break; } if (!confirm("Apagar este ramo e os detalhes dele?")) break; m.dados.ramos.splice(+id, 1); S.mmSel = null; mmMudou(true); break; }
     case "mmAddItem": { const { m } = mapaAtual(); const r = m?.dados.ramos[+id]; if (!r || r.itens.length >= 10) break; r.itens.push("Novo detalhe"); mmMudou(true); mmSelecionar({ r: +id, k: r.itens.length - 1 }); break; }
-    case "mmTirarItem": { const { m } = mapaAtual(); const [ri, ki] = String(id).split(":").map(Number); const r = m?.dados.ramos[ri]; if (!r) break; r.itens.splice(ki, 1); S.mmSel = null; mmMudou(true); break; }
+    case "mmTirarItem": { const { m } = mapaAtual(), a = acharItemMapa(m, id); if (!a) break; if (subMapa(a.l[a.k]).length && !confirm("Apagar este detalhe e os subtópicos dele?")) break; a.l.splice(a.k, 1); S.mmSel = null; mmMudou(true); break; }
+    case "mmAddSub": { const { m } = mapaAtual(), a = acharItemMapa(m, id); if (!a) break; const x = a.l[a.k], sub = [...subMapa(x), "Novo subtópico"]; a.l[a.k] = { t: txtMapa(x), sub }; mmMudou(true); mmSelecionar({ r: a.ri, p: [...a.cam, sub.length - 1] }); break; }
     case "mmBaixar": baixarMapa(); break;
     case "duelo": criarDuelo(); break;
     case "dueloAlt": dueloResponder(+id); break;
@@ -5962,11 +5968,12 @@ const UI_ES = {
   "Ocultar": "Ocultar", "Mostrar plano": "Mostrar plan", "Encolher o plano (não apaga)": "Contraer el plan (no lo borra)",
   "Inteligente": "Inteligente", "Guia": "Guía", "Mapa": "Mapa",
   "A voz está demorando. O texto continua na tela.": "La voz está tardando. El texto sigue en pantalla.", "Voz demorando. Toque em Ouvir de novo.": "La voz está tardando. Toca Escuchar de nuevo.",
-  "Grupo não encontrado.": "Grupo no encontrado.", "Só quem administra o grupo pode fazer isso.": "Solo quien administra el grupo puede hacer eso.", "Muita gente ao mesmo tempo. Tente de novo.": "Mucha gente al mismo tiempo. Inténtalo de nuevo.", "Cada pessoa pode estar em até 5 grupos.": "Cada persona puede estar en hasta 5 grupos.", "Essa pessoa já está em 5 grupos.": "Esa persona ya está en 5 grupos.", "O grupo já tem 100 pessoas.": "El grupo ya tiene 100 personas.", "Escreva o código da sala.": "Escribe el código del curso.", "Escreva a sala e a matéria.": "Escribe el curso y la materia.", "Você saiu deste grupo por decisão de quem administra. Envie um pedido de entrada.": "Quien administra te quitó de este grupo. Envía una solicitud de entrada.", "Muitas tentativas erradas. Tente de novo em até 1 hora ou envie um pedido de entrada.": "Muchos intentos fallidos. Inténtalo de nuevo en hasta 1 hora o envía una solicitud de entrada.", "Senha errada. Tente de novo em até 1 hora ou envie um pedido de entrada.": "Clave incorrecta. Inténtalo de nuevo en hasta 1 hora o envía una solicitud de entrada.", "Este grupo já tem muitos pedidos esperando.": "Este grupo ya tiene muchas solicitudes pendientes.", "Esse pedido não existe mais.": "Esa solicitud ya no existe.", "faça login com o Google de novo": "inicia sesión con Google de nuevo", "Não consegui falar com o servidor agora.": "No pude conectar con el servidor ahora."
+  "Grupo não encontrado.": "Grupo no encontrado.", "Só quem administra o grupo pode fazer isso.": "Solo quien administra el grupo puede hacer eso.", "Muita gente ao mesmo tempo. Tente de novo.": "Mucha gente al mismo tiempo. Inténtalo de nuevo.", "Cada pessoa pode estar em até 5 grupos.": "Cada persona puede estar en hasta 5 grupos.", "Essa pessoa já está em 5 grupos.": "Esa persona ya está en 5 grupos.", "O grupo já tem 100 pessoas.": "El grupo ya tiene 100 personas.", "Escreva o código da sala.": "Escribe el código del curso.", "Escreva a sala e a matéria.": "Escribe el curso y la materia.", "Você saiu deste grupo por decisão de quem administra. Envie um pedido de entrada.": "Quien administra te quitó de este grupo. Envía una solicitud de entrada.", "Muitas tentativas erradas. Tente de novo em até 1 hora ou envie um pedido de entrada.": "Muchos intentos fallidos. Inténtalo de nuevo en hasta 1 hora o envía una solicitud de entrada.", "Senha errada. Tente de novo em até 1 hora ou envie um pedido de entrada.": "Clave incorrecta. Inténtalo de nuevo en hasta 1 hora o envía una solicitud de entrada.", "Este grupo já tem muitos pedidos esperando.": "Este grupo ya tiene muchas solicitudes pendientes.", "Esse pedido não existe mais.": "Esa solicitud ya no existe.", "faça login com o Google de novo": "inicia sesión con Google de nuevo", "Não consegui falar com o servidor agora.": "No pude conectar con el servidor ahora.",
+  "Aproximar": "Acercar", "Afastar": "Alejar", "Ver o mapa inteiro": "Ver el mapa completo", "Subtópico": "Subtema", "Novo subtópico": "Nuevo subtema", "Adicionar subtópico": "Agregar subtema", "Apagar este detalhe e os subtópicos dele?": "¿Borrar este detalle y sus subtemas?", "Mapa cancelado. Nenhum uso foi descontado.": "Mapa cancelado. No se descontó ningún uso."
 };
 const UI_RE = [
   [/^Nível (\d+): (\d+)%$/, "Nivel $1: $2%"], [/^(\d+) Materiais$/, "$1 Materiales"], [/^(\d+) material\(is\) · Nível (\d+)$/, "$1 material(es) · Nivel $2"],
-  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^"(.+)" adicionado\. As próximas perguntas seguem esse estilo\.$/, "\"$1\" agregado. Las próximas preguntas siguen ese estilo."], [/^Estilo da prova \((\d+)\)$/, "Estilo del examen ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^Abrindo (.+)…$/, "Abriendo $1…"], [/^(.+): (\d+) arquivos? encontrados?(.*)\.$/, "$1: $2 archivo(s) encontrado(s)$3."], [/^(.+): não consegui abrir o zip \((.*)\)\.$/, "$1: no pude abrir el zip ($2)."], [/^(.+): tem páginas em imagem\. Lendo com IA…$/, "$1: tiene páginas en imagen. Leyendo con IA…"], [/^(.+): lido em (\d+) s\.$/, "$1: leído en $2 s."], [/^lendo (\d+)\/(\d+)$/, "leyendo $1/$2"], [/^Próximo: (.+)$/, "Siguiente: $1"], [/^Senha errada\. Restam (\d+) tentativas\.$/, "Clave incorrecta. Quedan $1 intentos."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
+  [/^(\d+) dias? seguidos?$/, "$1 días seguidos"], [/^Você já fez os (\d+) Ateneos grátis\.$/, "Ya hiciste los $1 Ateneos gratis."], [/^(\d+) (itens?) para não esquecer · ~(\d+) min$/, "$1 para no olvidar · ~$3 min"], [/^Acertos de primeira: (\d+) de (\d+)\. Amanhã tem mais\. 🔥$/, "Aciertos a la primera: $1 de $2. Mañana hay más. 🔥"], [/^🎉 Subiu para o nível (\d+)! Seu hipocampo agradece\.$/, "🎉 ¡Subiste al nivel $1! Tu hipocampo te lo agradece."], [/^Revisão do dia feita! (\d+)\/(\d+) de primeira\. 🧠$/, "¡Repaso del día hecho! $1/$2 a la primera. 🧠"], [/^(\d+) de (\d+) neurônios acesos$/, "$1 de $2 neuronas encendidas"], [/^parte (\d+) de (\d+)$/, "parte $1 de $2"], [/^prova em ~(.+) · (\d+)\/(\d+) feitos$/, "examen en ~$1 · $2/$3 hechos"], [/^⚔️ Meus duelos \((\d+)\)$/, "⚔️ Mis duelos ($1)"], [/^👥 Turma (.+) salva!$/, "👥 ¡Curso $1 guardado!"], [/^O ranking zera toda segunda-feira\. Cada pergunta respondida soma XP(.*)$/, "El ranking se reinicia cada lunes. Cada pregunta respondida suma XP."], [/^(\d+) mil letras$/, "$1 mil letras"], [/^"(.+)" adicionado\. As próximas perguntas seguem esse estilo\.$/, "\"$1\" agregado. Las próximas preguntas siguen ese estilo."], [/^Estilo da prova \((\d+)\)$/, "Estilo del examen ($1)"], [/^Estilo da prova · (.+)$/, "Estilo del examen · $1"], [/^(\d+) questões\. Escolha quanto tempo você quer ter\. O cronômetro começa quando você tocar em Começar e, se o tempo acabar, a prova é entregue sozinha\.$/, "$1 preguntas. Elige cuánto tiempo quieres tener. El cronómetro empieza cuando toques Empezar y, si se acaba el tiempo, el examen se entrega solo."], [/^Total: (\d+) de 60 questões no máximo$/, "Total: $1 de 60 preguntas como máximo"], [/^(\d+) acertos$/, "$1 aciertos"], [/^(\d+) erros$/, "$1 errores"], [/^1 acerto$/, "1 acierto"], [/^1 erro$/, "1 error"], [/^A voz não carregou agora \((.*)\)\. O texto continua na tela e a voz volta sozinha\.(.*)$/, "La voz no cargó ahora ($1). El texto sigue en pantalla y la voz vuelve sola.$2"], [/^Abrindo (.+)…$/, "Abriendo $1…"], [/^(.+): (\d+) arquivos? encontrados?(.*)\.$/, "$1: $2 archivo(s) encontrado(s)$3."], [/^(.+): não consegui abrir o zip \((.*)\)\.$/, "$1: no pude abrir el zip ($2)."], [/^(.+): tem páginas em imagem\. Lendo com IA…$/, "$1: tiene páginas en imagen. Leyendo con IA…"], [/^(.+): lido em (\d+) s\.$/, "$1: leído en $2 s."], [/^lendo (\d+)\/(\d+)$/, "leyendo $1/$2"], [/^Próximo: (.+)$/, "Siguiente: $1"], [/^Senha errada\. Restam (\d+) tentativas\.$/, "Clave incorrecta. Quedan $1 intentos."], [/^Montando o mapa… parte (\d+) de (\d+)$/, "Armando el mapa… parte $1 de $2"], [/^O mapa saiu com (\d+) de (\d+) partes do material\.$/, "El mapa salió con $1 de $2 partes del material."], [/^🔒 (.+) libera no nível (\d+)\. Continue estudando!$/, "🔒 $1 se libera en el nivel $2. ¡Sigue estudiando!"], [/^👑 Quero o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Quiero el Pro (R$ $1/mes)"], [/^👑 Renovar o Pro \(R\$ ([\d,.]+)\/mês\)$/, "👑 Renovar el Pro (R$ $1/mes)"], [/^≈ ([\d.]+) tokens de conteúdo ativo/, "≈ $1 tokens de contenido activo"], [/^(\d+) caracteres$/, "$1 caracteres"], [/^(\d+) material\(is\) ativo\(s\)/, "$1 material(es) activo(s)"], [/^(\d\d\/\d\d\/\d{4}): (\d+) perguntas$/, "$1: $2 preguntas"], [/^“(.+)” foi colocado em (.+)\.$/, "“$1” se colocó en $2."]
 ];
 const IGNORAR_TRAD = "#dlgIdioma,textarea,input,pre,.md,.oral-q,.q-text,.nm,.mkit b,.kit-head h1,.expl,.alt,.msg,.papel,.papel-sorteado,#toast-livre";
 let PEDACOS_UI = null;
@@ -6979,7 +6986,7 @@ function viewMapa(c) {
       ${denso ? `<div class="mm-aviso">${iconeSVG("lampada")}<div><b>${fonteSel ? "Esse arquivo" : "Esse caderno"} tem muito conteúdo.</b> Nos estilos 3D, muita informação junta pode ficar confusa. Para entender melhor, recomendamos um estilo mais simples:
         <div class="mm-aviso-bts"><button class="btn small primary" data-act="mmEstilo" data-id="arvore">Usar Árvore</button><button class="btn small" data-act="mmEstilo" data-id="classico">Usar Clássico</button></div>
         <small>Se quiser o 3D mesmo assim, ele sai mais enxuto: só os pontos principais.${fonteSel ? "" : " Ou escolha um arquivo só em \"De onde\"."}</small></div></div>` : ""}
-      <div><button class="btn primary" data-act="mmGerar" ${S.gerandoMapa ? "disabled" : ""}>${S.gerandoMapa ? `<span class="spin"></span> Montando o mapa…` : "Gerar mapa mental"}</button></div>
+      <div><button class="btn primary" data-act="mmGerar" ${S.gerandoMapa ? "disabled" : ""}>${S.gerandoMapa ? `<span class="spin"></span> Montando o mapa…${/\/1$/.test(S.gerandoMapa) ? "" : ` parte ${S.gerandoMapa.replace("/", " de ")}`}` : "Gerar mapa mental"}</button>${S.gerandoMapa ? ` <button class="btn" data-act="mmCancelar">Cancelar</button>` : ""}</div>
     </div>
     ${c.mapas.length ? `<div class="grid">${c.mapas.map(m => `<div class="card item mm-salvo"><div class="mm-thumb" data-act="mmAbrir" data-id="${m.id}">${miniaturaMapa(m.estilo, m.estiloIA)}</div><h3 style="margin:8px 0 2px">${esc(m.titulo)}</h3>
       <div class="muted" style="font-size:12.5px">${esc(m.fonte)} · ${esc((ESTILOS_MAPA.find(e => e[0] === m.estilo) || [, "Estilo"])[1])} · ${fmtData(m.criado)}</div>
@@ -7000,40 +7007,74 @@ function miniaturaMapa(k, e) {
   else s += pts.map(([x, y], i) => `<line x1="30" y1="30" x2="${x}" y2="${y}" stroke="${cs[i % cs.length]}" stroke-width="1.4" ${k === "neural" || e?.layout === "neural" ? 'stroke-dasharray="2 2"' : ""}/><circle cx="${x}" cy="${y}" r="${k === "neural" ? 3 : 4.2}" fill="${cs[i % cs.length]}"/>`).join("") + `<circle cx="30" cy="30" r="${k === "neural" ? 5 : 7.5}" fill="#8b7bff"/>`;
   return s + "</svg>";
 }
+// material em até `max` partes de 45 mil letras; maior que isso, trechos espalhados por TODO o material (antes só entrava o começo)
+function partesDoMapa(mats, foco, max) {
+  const LOTE = 45000, cab = m => `### ${m.nome}\n`, inteiro = mats.map(m => cab(m) + m.texto).join("\n\n");
+  if (inteiro.length <= LOTE) return [inteiro];
+  let blocos = []; for (const m of mats) { let b = ""; for (const par of m.texto.split(/\n\s*\n|\n(?=\[(?:Página|Slide) \d+\])/)) { for (let i = 0; i < Math.max(1, par.length); i += 1800) { const t = par.slice(i, i + 1800); if (b.length + t.length > 1800 && b) { blocos.push({ m, t: b }); b = ""; } b += t + "\n\n"; } } if (b.trim()) blocos.push({ m, t: b }); }
+  const cabem = LOTE * max, total = blocos.reduce((n, b) => n + b.t.length, 0);
+  if (total > cabem) { const ps = termosDe(foco); let esc = ps.size ? blocos.filter(b => sobreposicao(ps, termosDe(b.t), true) > 0) : []; const q = Math.floor(cabem / (total / blocos.length)); esc = new Set(esc.slice(0, Math.floor(q / 2))); const resto = blocos.filter(b => !esc.has(b)), falta = Math.max(0, q - esc.size); for (let k = 0; k < falta; k++) esc.add(resto[Math.floor(k * resto.length / falta)]); blocos = blocos.filter(b => esc.has(b)); }
+  const partes = [], usado = blocos.reduce((n, b) => n + b.t.length, 0), n = Math.min(max, Math.ceil(usado / LOTE)), alvo = usado / n; let at = "", ult = null;
+  for (const b of blocos) { if (at.length >= alvo && partes.length < n - 1) { partes.push(at); at = ""; ult = null; } if (ult !== b.m) { at += cab(b.m); ult = b.m; } at += b.t; }
+  if (at.trim()) partes.push(at); return partes;
+}
+function juntarMapas(ps) {
+  const ramos = [], txt = x => textoIA(typeof x === "object" && x ? x.texto ?? x : x);
+  for (const p of ps) for (const r of Array.isArray(p.ramos) ? p.ramos : []) { const k = chaveGrupo(textoIA(r.titulo)), ig = ramos.find(x => chaveGrupo(textoIA(x.titulo)) === k), itens = Array.isArray(r.itens) ? r.itens : []; if (!k) continue; if (ig) ig.itens.push(...itens.filter(i => !ig.itens.some(j => chaveGrupo(txt(j)) === chaveGrupo(txt(i))))); else ramos.push({ ...r, itens: [...itens] }); }
+  return { ...ps[0], ramos };
+}
+// itens da IA (texto, {texto, sub} ou {t, sub}) → texto simples ou { t, sub }, até 5 níveis
+function itensMapa(l, limpa, max, prof) {
+  return (Array.isArray(l) ? l : []).map(x => { const t = limpa(typeof x === "object" && x ? textoIA(x.texto ?? x.t ?? x.titulo ?? "") : x), sub = prof < 4 && typeof x === "object" && x ? itensMapa(x.sub ?? x.itens, limpa, 6, prof + 1) : []; return !t ? null : sub.length ? { t, sub } : t; }).filter(Boolean).slice(0, max);
+}
 async function gerarMapa() {
   const c = atual(); if (!c) return;
   const estilo = S.mmEstilo || "galaxia", desc = ($("#mmDesc")?.value || "").trim();
   if (estilo === "ia" && desc.length < 4) return toast("Descreva o estilo que você quer.", true);
-  if (!podeUsar()) return; gastar();
+  if (S.gerandoMapa || !podeUsar()) return;
   const matId = $("#mmFonte")?.value || "todos", foco = ($("#mmFoco")?.value || "").trim(), m = c.materiais.find(x => x.id === matId);
   const tam3D = ["galaxia", "neural"].includes(estilo) && (m ? m.texto.length : ativos(c).reduce((n, x) => n + x.texto.length, 0)) > MAPA_DENSO;
-  S.mmDesc = desc; S.gerandoMapa = true; render();
+  S.mmDesc = desc; S.gerandoMapa = "0/1"; render();
+  let cancelou = false, fimEspera; const parar = new Promise((_, e) => fimEspera = e); parar.catch(() => {});
+  S.mmCancelar = () => { cancelou = true; fimEspera(new Error("cancelado")); };
+  const limite = setTimeout(() => fimEspera(new Error("a IA demorou demais")), 120000);
   try {
-    const material = m ? `### ${m.nome}\n${m.texto.slice(0, 45000)}` : blocoMateriais(c, foco, 45000);
-    const dados = await chamar({
-      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: material }],
-      messages: [{ role: "user", content: `Crie um MAPA MENTAL de estudo do conteúdo acima${foco ? `, com foco em: ${foco}` : ""}, para revisar antes da prova.${tam3D ? "\nIMPORTANTE: este mapa é em 3D e o conteúdo é grande. Seja ENXUTO: no máximo 6 ramos, com no máximo 4 itens cada, e itens curtíssimos (até 5 palavras). Só o essencial." : ""}\n- "titulo": nome do mapa (até 6 palavras).\n- "centro": o tema central (até 4 palavras).\n- "subtitulo": um dado-chave curtíssimo do tema (ex.: um valor normal), ou "".\n- "ramos": de 4 a 7 ramos principais com "titulo" (até 4 palavras) e "itens": de 2 a 6 fatos curtos (até 9 palavras cada) que caem em prova, com valores e unidades quando houver.\n- Escreva com acentuação e ortografia corretas. Sem emojis, sem markdown. Não repita fatos entre ramos.` }],
-      schema: obj({ titulo: str, centro: str, subtitulo: str, ramos: arr(obj({ titulo: str, itens: arr(str) })) }), maxTokens: 3000, urgente: true
-    });
+    const partes = partesDoMapa(m ? [m] : ativos(c), foco, tam3D ? 2 : 4), feitas = []; let erroParte = null;
+    const niveis = tam3D ? "" : `\n- PROFUNDIDADE: aprofunde SÓ onde o conteúdo pedir. Cada item pode ter "sub" (subtópicos, até 5), e cada subtópico pode ter "sub" (detalhes finais, até 4): ex. Função do rim → Filtração → Etapas → Componentes. Assunto simples fica com "sub": [].`;
+    for (let k = 0; k < partes.length; k++) {
+      S.gerandoMapa = `${k + 1}/${partes.length}`; render();
+      try {
+        feitas.push(await Promise.race([parar, chamar({
+          system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) }, { type: "text", text: partes[k] }],
+          messages: [{ role: "user", content: `Crie um MAPA MENTAL de estudo do conteúdo acima${foco ? `, com foco em: ${foco}` : ""}, para revisar antes da prova.${partes.length > 1 ? `\nEste conteúdo é a parte ${k + 1} de ${partes.length} do material: faça ${partes.length > 2 ? "3" : "4"} ramos só do que está AQUI.${feitas.length ? ` Ramos já feitos (não repita): ${feitas.flatMap(f => (f.ramos || []).map(r => textoIA(r.titulo))).join("; ")}.` : ""}` : ""}${tam3D ? "\nIMPORTANTE: este mapa é em 3D e o conteúdo é grande. Seja ENXUTO: no máximo 4 itens por ramo, itens curtíssimos (até 5 palavras). Só o essencial." : ""}\n- "titulo": nome do mapa (até 6 palavras).\n- "centro": o tema central (até 4 palavras).\n- "subtitulo": um dado-chave curtíssimo do tema (ex.: um valor normal), ou "".\n- "ramos": ${partes.length > 1 ? "" : "de 4 a 7 "}ramos principais com "titulo" (até 4 palavras) e "itens": de 2 a 6 pontos curtos (até 9 palavras cada) que caem em prova, com valores e unidades quando houver.${niveis}\n- Só conteúdo acadêmico (nada de nomes de professores, agradecimentos ou avisos). Escreva com acentuação e ortografia corretas. Sem emojis, sem markdown. Não repita fatos entre ramos.` }],
+          schema: tam3D ? obj({ titulo: str, centro: str, subtitulo: str, ramos: arr(obj({ titulo: str, itens: arr(str) })) }) : obj({ titulo: str, centro: str, subtitulo: str, ramos: arr(obj({ titulo: str, itens: arr(obj({ texto: str, sub: arr(obj({ texto: str, sub: arr(str) })) })) })) }), maxTokens: 8000, urgente: true
+        })]));
+      } catch (e) { erroParte = e; if (cancelou || /demorou demais/.test(e.message)) break; } // uma parte falhou: segue com as outras
+    }
+    if (cancelou) throw new Error("cancelado");
+    if (!feitas.length) throw erroParte || new Error("a IA não devolveu o mapa");
+    const dados = juntarMapas(feitas); gastar();
+    if (feitas.length < partes.length) toast(`O mapa saiu com ${feitas.length} de ${partes.length} partes do material.`);
     let estiloIA = null;
     if (estilo === "ia") {
-      estiloIA = await chamar({
+      estiloIA = await Promise.race([parar, chamar({
         system: "Você é designer de interfaces. Transforme a descrição do estudante em parâmetros visuais de um mapa mental, com bom contraste e boa leitura.",
         messages: [{ role: "user", content: `Descrição do estilo: "${desc}"\nResponda com: "layout" (um de: galaxia, neural, radial, arvore — galaxia/neural são 3D giratórios; radial é o mapa clássico em volta do centro; arvore vai da esquerda para a direita), "fundo" e "fundo2" (cores hexadecimais do fundo, iguais se for liso), "texto" (cor das letras, com contraste com o fundo), "centro" (cor do nó central), "cores" (5 a 7 cores hexadecimais para os ramos), "forma" (circulo, pilula ou retangulo), "linha" (curva, reta ou tracejada), "fonte" (sans, serif, mono ou arredondada).` }],
         schema: obj({ layout: { type: "string", enum: ["galaxia", "neural", "radial", "arvore"] }, fundo: str, fundo2: str, texto: str, centro: str, cores: arr(str), forma: { type: "string", enum: ["circulo", "pilula", "retangulo"] }, linha: { type: "string", enum: ["curva", "reta", "tracejada"] }, fonte: { type: "string", enum: ["sans", "serif", "mono", "arredondada"] } }),
         maxTokens: 600, urgente: true
-      });
+      })]);
       const hex = v => /^#[0-9a-f]{3,8}$/i.test(String(v || "").trim()) ? String(v).trim() : null;
       estiloIA = { ...estiloIA, desc, fundo: hex(estiloIA.fundo) || "#140f38", fundo2: hex(estiloIA.fundo2) || hex(estiloIA.fundo) || "#140f38", texto: hex(estiloIA.texto) || "#ffffff", centro: hex(estiloIA.centro) || "#7b6bff", cores: (estiloIA.cores || []).map(hex).filter(Boolean).slice(0, 8) };
       if (!estiloIA.cores.length) estiloIA.cores = PALETA_MAPA;
     }
     const limpa = t => semEmojiTexto(String(t || "")).replace(/[*_#`]/g, "").trim();
     const mapa = { id: uid(), criado: Date.now(), estilo, estiloIA, fonte: m ? m.nome.slice(0, 60) : "Todo o caderno", titulo: limpa(dados.titulo) || "Mapa mental",
-      dados: { centro: limpa(dados.centro) || c.nome, sub: limpa(dados.subtitulo), ramos: (dados.ramos || []).slice(0, 8).map(r => ({ t: limpa(r.titulo), itens: (r.itens || []).slice(0, 7).map(limpa).filter(Boolean) })).filter(r => r.t) } };
+      dados: { centro: limpa(dados.centro) || c.nome, sub: limpa(dados.subtitulo), ramos: dados.ramos.slice(0, 12).map(r => ({ t: limpa(textoIA(r.titulo)), itens: itensMapa(r.itens, limpa, 10, 1) })).filter(r => r.t) } };
     if (!mapa.dados.ramos.length) throw new Error("a IA não devolveu os ramos do mapa");
     (c.mapas ||= []).unshift(mapa); await salvar(c);
     S.gerandoMapa = false; render(); abrirMapa(mapa.id);
-  } catch (e) { S.gerandoMapa = false; render(); toast("Não consegui gerar o mapa: " + erroMsg(e), true); }
+  } catch (e) { S.gerandoMapa = false; render(); toast(e?.message === "cancelado" ? "Mapa cancelado. Nenhum uso foi descontado." : "Não consegui gerar o mapa: " + erroMsg(e), e?.message !== "cancelado"); }
+  finally { clearTimeout(limite); S.mmCancelar = null; }
 }
 // ---------- visualizador em tela cheia ----------
 function abrirMapa(id) {
@@ -7047,14 +7088,21 @@ function desenharTelaMapa() {
   const estilos = ESTILOS_MAPA.filter(([k]) => k !== "ia" || m.estiloIA);
   el.innerHTML = `<div class="mm-topo"><b>${esc(m.titulo)}</b><div class="mm-chips">${estilos.map(([k, n]) => `<button class="${st.estilo === k ? "on" : ""}" data-act="mmTrocar" data-id="${k}">${n}</button>`).join("")}</div>
     <div class="mm-btns"><button class="btn small ${S.mmEditando ? "primary" : ""}" data-act="mmEditar">${iconeSVG("lapis")} ${S.mmEditando ? "Pronto" : "Editar"}</button><button class="btn small" data-act="mmBaixar">${iconeSVG("baixar")} Baixar imagem</button><button class="icon-btn" data-act="mmFechar" title="Fechar">${iconeSVG("x")}</button></div></div>
-    <div class="mm-corpo ${S.mmEditando ? "editando" : ""}"><div class="mm-palco" id="mmPalco"><canvas id="mmCanvas"></canvas><svg id="mmSvg" style="display:none"></svg><div class="mm-dica">${["classico", "arvore"].includes(st.estilo) || (st.estilo === "ia" && ["radial", "arvore"].includes(m.estiloIA?.layout)) ? "" : innerWidth < 560 ? "toque num tópico para ver os detalhes · arraste para girar" : "arraste para girar · role ou pinça para aproximar · toque num tópico para destacar"}</div></div>${S.mmEditando ? `<aside id="mmEditor">${mmEditorHTML(m)}</aside>` : ""}</div>`;
+    <div class="mm-corpo ${S.mmEditando ? "editando" : ""}"><div class="mm-palco" id="mmPalco"><div class="mm-zoom" id="mmZoom"><button data-act="mmZoom" data-id="1.25" title="Aproximar">+</button><button data-act="mmZoom" data-id="0.8" title="Afastar">−</button><button data-act="mmZoom" data-id="0" title="Ver o mapa inteiro">${iconeSVG("lupa")}</button></div><canvas id="mmCanvas"></canvas><svg id="mmSvg" style="display:none"></svg><div class="mm-dica">${["classico", "arvore"].includes(st.estilo) || (st.estilo === "ia" && ["radial", "arvore"].includes(m.estiloIA?.layout)) ? "" : innerWidth < 560 ? "toque num tópico para ver os detalhes · arraste para girar" : "arraste para girar · role ou pinça para aproximar · toque num tópico para destacar"}</div></div>${S.mmEditando ? `<aside id="mmEditor">${mmEditorHTML(m)}</aside>` : ""}</div>`;
   iniciarRenderMapa(m, st.estilo);
 }
-function fecharMapa() { cancelAnimationFrame(S.mmAnim); S.mmAnim = null; S.mapaAberto = null; S.mmEditando = false; S.mmSel = null; S.mmVista = null; $("#mapaTela")?.remove(); }
+function fecharMapa() { cancelAnimationFrame(S.mmAnim); S.mmAnim = null; S.mapaAberto = null; S.mmEditando = false; S.mmSel = null; S.mmVista = null; S.mmVista2D = null; $("#mapaTela")?.remove(); }
 /* ---------- edição do mapa (textos, ramos, detalhes e cores) ---------- */
 function mapaAtual() { const st = S.mapaAberto, c = S.cadernos.find(x => x.id === st?.cid); return { c, m: c?.mapas?.find(x => x.id === st?.id) }; }
 function corPadraoMapa(m, i) { const cs = m.estilo === "ia" && m.estiloIA?.cores?.length ? m.estiloIA.cores : PALETA_MAPA; return cs[i % cs.length]; }
 const hex6 = v => /^#[0-9a-f]{6}$/i.test(v || "") ? v : /^#[0-9a-f]{3}$/i.test(v || "") ? "#" + v.slice(1).split("").map(x => x + x).join("") : "#7b6bff";
+function mmeItem(x, i, cam) { // um detalhe e os subtópicos dele
+  const ref = cam.length === 1 ? { r: i, k: cam[0] } : { r: i, p: cam }, id = [i, ...cam].join(":"), sub = subMapa(x);
+  return `<div class="mme-linha mme-item" style="margin-left:${(cam.length - 1) * 14}px" data-ref='${JSON.stringify(ref)}'><span class="mme-ponto"></span><input data-mm="item" data-cam="${id}" maxlength="80" value="${esc(txtMapa(x))}" placeholder="${cam.length === 1 ? "Detalhe" : "Subtópico"}">${cam.length < 4 && sub.length < 6 ? `<button class="mini" data-act="mmAddSub" data-id="${id}" title="Adicionar subtópico">+</button>` : ""}<button class="mini" data-act="mmTirarItem" data-id="${id}" title="Apagar detalhe">${iconeSVG("x")}</button></div>${sub.map((f, k) => mmeItem(f, i, [...cam, k])).join("")}`;
+}
+// lista onde está o item do caminho "ramo:k:k2…" e a posição dele
+function acharItemMapa(m, id) { const [ri, ...cam] = String(id).split(":").map(Number); let l = m?.dados.ramos[ri]?.itens; for (let k = 0; k < cam.length - 1 && l; k++) l = subMapa(l[cam[k]]); const k = cam[cam.length - 1]; return l && l[k] !== undefined ? { l, k, ri, cam } : null; }
+const podarMapa = l => l.map(x => { const t = txtMapa(x).trim(), sub = podarMapa(subMapa(x)); return !t ? null : sub.length ? { ...x, t, sub } : t; }).filter(Boolean);
 function mmEditorHTML(m) {
   const d = m.dados, x = iconeSVG("x");
   const val = t => esc(String(t || ""));
@@ -7067,7 +7115,7 @@ function mmEditorHTML(m) {
     </div>
     ${d.ramos.map((r, i) => `<div class="mme-bloco" data-ref='{"r":${i}}' style="--c:${hex6(r.cor || corPadraoMapa(m, i))}">
       <div class="mme-linha"><input type="color" data-mm="cor" data-r="${i}" value="${hex6(r.cor || corPadraoMapa(m, i))}" title="Cor do ramo"><input class="mme-ramo" data-mm="ramo" data-r="${i}" maxlength="50" value="${val(r.t)}" placeholder="Nome do ramo"><button class="mini" data-act="mmTirarRamo" data-id="${i}" title="Apagar ramo">${x}</button></div>
-      ${r.itens.map((t, k) => `<div class="mme-linha mme-item" data-ref='{"r":${i},"k":${k}}'><span class="mme-ponto"></span><input data-mm="item" data-r="${i}" data-k="${k}" maxlength="80" value="${val(t)}" placeholder="Detalhe"><button class="mini" data-act="mmTirarItem" data-id="${i}:${k}" title="Apagar detalhe">${x}</button></div>`).join("")}
+      ${r.itens.map((t, k) => mmeItem(t, i, [k])).join("")}
       ${r.itens.length < 10 ? `<button class="btn small ghost mme-add" data-act="mmAddItem" data-id="${i}">+ Detalhe</button>` : ""}
     </div>`).join("")}
     ${d.ramos.length < 12 ? `<button class="btn small mme-add" data-act="mmAddRamo">+ Ramo</button>` : ""}`;
@@ -7098,7 +7146,7 @@ document.addEventListener("input", e => {
   else if (k === "corCentro") d.corCentro = v;
   else if (k === "ramo") d.ramos[r].t = limpo;
   else if (k === "cor") { d.ramos[r].cor = v; e.target.closest(".mme-bloco")?.style.setProperty("--c", v); }
-  else if (k === "item") d.ramos[r].itens[it] = limpo;
+  else if (k === "item") { const a = acharItemMapa(m, e.target.dataset.cam); if (a) a.l[a.k] = typeof a.l[a.k] === "string" ? limpo : { ...a.l[a.k], t: limpo }; }
   mmMudou(false);
 });
 // ao sair de um campo, tira os detalhes vazios
@@ -7108,7 +7156,7 @@ document.addEventListener("focusout", e => {
   setTimeout(() => {
     if ($("#mmEditor")?.contains(document.activeElement)) return;
     let mudou = false;
-    for (const r of m.dados.ramos) { const n = r.itens.length; r.itens = r.itens.map(t => t.trim()).filter(Boolean); if (r.itens.length !== n) mudou = true; }
+    for (const r of m.dados.ramos) { const n = r.itens.length; const tam = x => x.reduce((q, y) => q + 1 + tam(subMapa(y)), 0), antes = tam(r.itens); r.itens = podarMapa(r.itens); if (tam(r.itens) !== antes) mudou = true; }
     if (mudou) mmMudou(true);
   }, 50);
 });
@@ -7119,6 +7167,7 @@ function iniciarRenderMapa(m, estilo) {
   const cv = $("#mmCanvas"), svgEl = $("#mmSvg"), palco = $("#mmPalco");
   palco.style.background = e ? `radial-gradient(120% 120% at 50% 40%, ${e.fundo2}, ${e.fundo} 70%)` : "radial-gradient(120% 120% at 50% 40%,#21195a,#0b0820 70%)";
   const cores = e?.cores?.length ? e.cores : PALETA_MAPA, fonte = FONTES_MAPA[e?.fonte] || FONTES_MAPA.sans, corTexto = e?.texto || "#ffffff", corCentro = e?.centro || "#7b6bff";
+  if ($("#mmZoom")) $("#mmZoom").style.display = layout === "radial" || layout === "arvore" ? "" : "none";
   if (layout === "radial" || layout === "arvore") { cv.style.display = "none"; svgEl.style.display = ""; mapa2D(svgEl, m.dados, { layout, cores, fonte, corTexto, corCentro, forma: e?.forma || "pilula", linha: e?.linha || "curva" }); return; }
   cv.style.display = ""; svgEl.style.display = "none";
   mapa3D(cv, m.dados, { neural: layout === "neural", cores, fonte, corTexto, corCentro, estrelas: !e && layout === "galaxia" });
@@ -7138,8 +7187,13 @@ function mapa3D(cv, dados, o) {
     const L = Math.hypot(b.x, b.y, b.z) || 1, ux = b.x / L, uy = b.y / L, uz = b.z / L; let px = -uz, pz = ux; const pl = Math.hypot(px, pz) || 1; px /= pl; pz /= pl;
     const qx = uy * pz, qy = uz * px - ux * pz, qz = -uy * px;
     r.itens.forEach((t, j) => { const a = j / r.itens.length * Math.PI * 2, rr = o.neural ? 72 : 88;
-      nos.push({ t, nivel: 2, pai: bi, cor, ref: { r: i, k: j }, x: b.x + ux * 72 + (px * Math.cos(a) + qx * Math.sin(a)) * rr, y: b.y + uy * 72 + (qy * Math.sin(a)) * rr, z: b.z + uz * 72 + (pz * Math.cos(a) + qz * Math.sin(a)) * rr }); ar.push([bi, nos.length - 1, cor]); });
+      nos.push({ t: txtMapa(t), nivel: 2, pai: bi, cor, ref: { r: i, k: j }, x: b.x + ux * 72 + (px * Math.cos(a) + qx * Math.sin(a)) * rr, y: b.y + uy * 72 + (qy * Math.sin(a)) * rr, z: b.z + uz * 72 + (pz * Math.cos(a) + qz * Math.sin(a)) * rr }); ar.push([bi, nos.length - 1, cor]);
+      // subtópicos: saem do detalhe para fora, em leque, cada nível menor
+      const galho = (x, paiI, d, cam) => subMapa(x).forEach((f, q, l) => { const pn = nos[paiI], Lp = Math.hypot(pn.x, pn.y, pn.z) || 1, an = q / l.length * Math.PI * 2 + d, dist = 64 / d, ab = 34 / d, vx = pn.x / Lp, vy = pn.y / Lp, vz = pn.z / Lp;
+        nos.push({ t: txtMapa(f), nivel: 2 + d, pai: paiI, cor, ref: { r: i, p: [...cam, q] }, x: pn.x + vx * dist + (px * Math.cos(an) + qx * Math.sin(an)) * ab, y: pn.y + vy * dist + qy * Math.sin(an) * ab, z: pn.z + vz * dist + (pz * Math.cos(an) + qz * Math.sin(an)) * ab }); const eu = nos.length - 1; ar.push([paiI, eu, cor]); galho(f, eu, d + 1, [...cam, q]); });
+      galho(t, nos.length - 1, 1, [j]); });
   });
+  const temFilho = new Set(ar.map(x => x[0])), cadeia = i => { const out = []; for (let k = i; k != null; k = nos[k].pai) out.push(k); return out; };
   const primeiraVez = !S.mmVista;
   const vista = S.mmVista ||= { rx: -0.35, ry: 0.6, zoom: 1 };
   let rx = vista.rx, ry = vista.ry, zoom = vista.zoom, auto = primeiraVez && !S.mmEditando, sel = null, arr = false, ux0 = 0, uy0 = 0, moveu = 0, W = 0, H = 0, t0 = performance.now(), toques = new Map(), pinca = 0;
@@ -7148,9 +7202,11 @@ function mapa3D(cv, dados, o) {
   const proj = p => { const cy = Math.cos(ry), sy = Math.sin(ry), cx = Math.cos(rx), sx = Math.sin(rx); let x = p.x * cy - p.z * sy, z = p.x * sy + p.z * cy, y = p.y * cx - z * sx; z = p.y * sx + z * cx; const k = Math.min(W, H) / 640 * zoom, f = 700 / (700 + z); return { X: W / 2 + x * f * k, Y: H / 2 + y * f * k, Z: z, f: f * k }; };
   const rot = (t, x, y, tm, cor, peso) => { ctx.font = `${peso} ${tm}px ${o.fonte}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.strokeText(t, x, y); ctx.fillStyle = cor; ctx.fillText(t, x, y); };
   const quebra = (t, mx) => { const ps = String(t).split(" "), ls = []; let l = ""; for (const p of ps) { if ((l + " " + p).trim().length > mx && l) { ls.push(l); l = p; } else l = (l + " " + p).trim(); } if (l) ls.push(l); return ls; };
-  const ativo = i => sel === null || i === sel || nos[i].pai === sel || nos[sel]?.pai === i;
+  const ativo = i => sel === null || i === sel || cadeia(i).includes(sel) || cadeia(sel).includes(i) || nos[i].nivel === 0;
+  let ultimo = 0;
   const frame = agora => {
     if (!S.mapaAberto || !cv.isConnected) return;
+    if (CELULAR && agora - ultimo < 30) { S.mmAnim = requestAnimationFrame(frame); return; } ultimo = agora;
     if (auto && !arr) { const k = (agora - t0) / 3000; if (k >= 1) auto = false; else ry += 0.012 * (1 - k); } // apresentação de 3 s, depois para
     ctx.clearRect(0, 0, W, H); const tm = (agora - t0) / 1000, P = nos.map(proj);
     if (o.estrelas) for (let i = 0; i < 80; i++) { ctx.fillStyle = `rgba(255,255,255,${0.25 + 0.25 * Math.sin(tm * 2 + i)})`; ctx.fillRect((i * 97.13 % 1 * W + i * 53) % W, (i * 57.71 % 1 * H + i * 31) % H, 1.6, 1.6); }
@@ -7165,8 +7221,8 @@ function mapa3D(cv, dados, o) {
     // 1) bolinhas (de trás para a frente)
     for (const i of ordem) {
       const no = nos[i], p = P[i]; ctx.globalAlpha = alfa(i);
-      const r = (no.nivel === 0 ? 46 : no.nivel === 1 ? 24 : 9) * p.f * (o.neural ? .75 : 1) * (o.neural ? 1 + .1 * Math.sin(tm * 3 + i) : 1); p.r = r;
-      const g = ctx.createRadialGradient(p.X, p.Y, 0, p.X, p.Y, r * 2.4); g.addColorStop(0, no.cor + "cc"); g.addColorStop(1, no.cor + "00"); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.X, p.Y, r * 2.4, 0, 7); ctx.fill();
+      const r = (no.nivel === 0 ? 46 : no.nivel === 1 ? 24 : no.nivel === 2 ? 9 : 5.5) * p.f * (o.neural ? .75 : 1) * (o.neural ? 1 + .1 * Math.sin(tm * 3 + i) : 1); p.r = r;
+      if (!CELULAR || no.nivel < 2) { const g = ctx.createRadialGradient(p.X, p.Y, 0, p.X, p.Y, r * 2.4); g.addColorStop(0, no.cor + "cc"); g.addColorStop(1, no.cor + "00"); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.X, p.Y, r * 2.4, 0, 7); ctx.fill(); }
       const g2 = ctx.createRadialGradient(p.X - r * .35, p.Y - r * .35, r * .1, p.X, p.Y, r); g2.addColorStop(0, "#fff"); g2.addColorStop(.35, no.cor); g2.addColorStop(1, no.cor); ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(p.X, p.Y, r, 0, 7); ctx.fill();
       if (S.mmEditando && S.mmSel && JSON.stringify(S.mmSel) === JSON.stringify(no.ref)) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(p.X, p.Y, r + 6, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
       no.P = p;
@@ -7213,9 +7269,9 @@ function mapa3D(cv, dados, o) {
       const no = nos[i], p = P[i], ls = quebra(no.t, pequena ? 14 : 26), tmF = (pequena ? 12.5 : 14) * Math.max(.75, p.f), h2 = ls.length * tmF * 1.22 / 2 + 6;
       etiqueta(i, ls, tmF, o.corTexto, 800, [[p.X, p.Y - p.r - h2], [p.X, p.Y + p.r + h2], [p.X + p.r + 60, p.Y], [p.X - p.r - 60, p.Y]], true);
     }
-    for (const i of porFrente(ordem.filter(i => nos[i].nivel === 2))) {
+    for (const i of porFrente(ordem.filter(i => nos[i].nivel >= 2))) {
       const no = nos[i], p = P[i];
-      if (!(sel !== null ? (no.pai === sel || i === sel) : (!pequena && (!o.neural || p.Z < 60)))) continue;
+      if (!(sel !== null ? (no.pai === sel || i === sel || cadeia(sel).includes(i)) : no.nivel > 2 ? false : (!pequena && (!o.neural || p.Z < 60)))) continue;
       const ls = quebra(no.t, 22), tmF = 11 * Math.max(.75, p.f), h2 = ls.length * tmF * 1.22 / 2 + 5;
       etiqueta(i, ls, tmF, no.cor === "#ffffff" ? "#fff" : clarear(no.cor), 650, [[p.X, p.Y + p.r + h2], [p.X, p.Y - p.r - h2], [p.X + p.r + 50, p.Y], [p.X - p.r - 50, p.Y]], sel !== null);
     }
@@ -7226,35 +7282,78 @@ function mapa3D(cv, dados, o) {
     if (toques.size === 2) { const [a, b] = [...toques.values()], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); if (pinca) zoom = Math.max(.6, Math.min(2.4, zoom * d / pinca)); pinca = d; moveu += 10; return; }
     const dx = ev.clientX - ux0, dy = ev.clientY - uy0; moveu += Math.abs(dx) + Math.abs(dy); ry += dx * .008; rx = Math.max(-1.3, Math.min(1.3, rx + dy * .008)); ux0 = ev.clientX; uy0 = ev.clientY; };
   cv.onpointerup = ev => { toques.delete(ev.pointerId); if (toques.size) return; arr = false; pinca = 0; /* depois que a pessoa mexe, o mapa fica parado onde ela deixou */
-    if (moveu < 6) { const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top; let mi = null, d0 = 40; nos.forEach((no, i) => { if (!no.P) return; const d = Math.hypot(no.P.X - x, no.P.Y - y); if (d < d0) { d0 = d; mi = i; } }); if (S.mmEditando) { if (mi !== null) mmSelecionar(nos[mi].ref); return; } sel = mi === null || mi === sel ? null : (nos[mi].nivel === 2 ? nos[mi].pai : mi); } };
+    if (moveu < 6) { const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top; let mi = null, d0 = 40; nos.forEach((no, i) => { if (!no.P) return; const d = Math.hypot(no.P.X - x, no.P.Y - y); if (d < d0) { d0 = d; mi = i; } }); if (S.mmEditando) { if (mi !== null) mmSelecionar(nos[mi].ref); return; } sel = mi === null || mi === sel ? null : (nos[mi].nivel >= 2 && !temFilho.has(mi) ? nos[mi].pai : mi); } };
   cv.onwheel = ev => { ev.preventDefault(); zoom = Math.max(.6, Math.min(2.4, zoom * (ev.deltaY < 0 ? 1.08 : .93))); };
   S.mmAnim = requestAnimationFrame(frame);
 }
-function mapa2D(svgEl, dados, o) {
-  // monta num tamanho mínimo e deixa o SVG se ajustar à tela (no celular não amontoa os ramos)
-  const w = Math.max(svgEl.clientWidth || 900, 980), h = Math.max(svgEl.clientHeight || 600, 660), n = dados.ramos.length, esc2 = t => esc(t);
-  const fs = 12.5, raio = o.forma === "retangulo" ? 4 : o.forma === "circulo" ? 20 : 17;
-  const traco = o.linha === "tracejada" ? 'stroke-dasharray="6 5"' : "";
-  const linha = (x1, y1, x2, y2, cor, lw, curva = o.linha !== "reta", dir = 1) => curva ? `<path d="M${x1} ${y1} C ${x1 + dir * Math.abs(x2 - x1) * .5} ${y1}, ${x2 - dir * Math.abs(x2 - x1) * .5} ${y2}, ${x2} ${y2}" stroke="${cor}" stroke-width="${lw}" fill="none" stroke-linecap="round" ${traco}/>` : `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${cor}" stroke-width="${lw}" stroke-linecap="round" ${traco}/>`;
-  const caixa = (x, y, t, cor) => { const tt = t.length > 30 ? t.slice(0, 29) + "…" : t, larg = Math.max(120, Math.min(230, tt.length * 7.8 + 30)); return `<g><rect x="${x - larg / 2}" y="${y - 17}" width="${larg}" height="34" rx="${raio}" fill="${cor}"/><text x="${x}" y="${y + 5}" text-anchor="middle" font-size="13.5" font-weight="800" fill="#1b1d3a" font-family='${o.fonte}'>${esc2(tt)}</text></g>`; };
-  let s = "";
-  if (o.layout === "arvore") {
-    const x0 = Math.max(110, w * .14), x1 = w * .38, xf = w * .52, alt = h - 60, passo = alt / n;
-    dados.ramos.forEach((r, i) => { const cor = (r.cor || o.cores[i % o.cores.length]), y = 30 + passo * (i + .5);
-      s += linha(x0 + 70, h / 2, x1 - 64, y, cor, 4);
-      r.itens.forEach((t, j) => { const fy = y + (j - (r.itens.length - 1) / 2) * Math.min(22, passo / Math.max(1, r.itens.length)); s += linha(x1 + 64, y, xf, fy, cor, 1.8) + `<text x="${xf + 6}" y="${fy + 4}" font-size="${fs}" font-weight="600" fill="${o.corTexto}" font-family='${o.fonte}'>${esc2(t)}</text>`; });
-      s += caixa(x1, y, r.t, cor); });
-    s += `<g><rect x="${x0 - 76}" y="${h / 2 - 30}" width="152" height="60" rx="${raio + 6}" fill="${dados.corCentro || o.corCentro}"/><text x="${x0}" y="${h / 2 - (dados.sub ? 2 : -5)}" text-anchor="middle" font-size="16" font-weight="900" fill="#fff" font-family='${o.fonte}'>${esc2(dados.centro)}</text>${dados.sub ? `<text x="${x0}" y="${h / 2 + 17}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#ffd76a" font-family='${o.fonte}'>${esc2(dados.sub)}</text>` : ""}</g>`;
-  } else {
-    const cx = w / 2, cy = h / 2 + 6, R = Math.min(w * .2, h * .34);
-    dados.ramos.forEach((r, i) => { const a = -Math.PI / 2 + i / n * Math.PI * 2, bx = cx + Math.cos(a) * R, by = cy + Math.sin(a) * R * .82, dir = Math.cos(a) >= 0 ? 1 : -1, cor = (r.cor || o.cores[i % o.cores.length]);
-      s += linha(cx, cy, bx, by, cor, 6, o.linha !== "reta", dir);
-      r.itens.forEach((t, j) => { const fy = by + (j - (r.itens.length - 1) / 2) * 24 + Math.sin(a) * 26, fx = bx + dir * Math.min(w * .08, 66);
-        s += linha(bx, by, fx, fy, cor, 2.2, o.linha !== "reta", dir) + `<text x="${fx + dir * 6}" y="${fy + 4}" text-anchor="${dir > 0 ? "start" : "end"}" font-size="${fs}" font-weight="600" fill="${o.corTexto}" font-family='${o.fonte}'>${esc2(t)}</text>`; });
-      s += caixa(bx, by, r.t, cor); });
-    s += `<g><ellipse cx="${cx}" cy="${cy}" rx="94" ry="44" fill="${dados.corCentro || o.corCentro}"/><text x="${cx}" y="${cy - (dados.sub ? 2 : -5)}" text-anchor="middle" font-size="17" font-weight="900" fill="#fff" font-family='${o.fonte}'>${esc2(dados.centro)}</text>${dados.sub ? `<text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#ffd76a" font-family='${o.fonte}'>${esc2(dados.sub)}</text>` : ""}</g>`;
+// Clássico e Árvore: mede cada texto, quebra em linhas e reserva o espaço de cada ramo (nada fica em cima de nada).
+// O mapa cresce o quanto precisar; a pessoa arrasta e dá zoom. Aceita vários níveis (item = texto ou { t, sub: [...] }).
+const txtMapa = x => typeof x === "string" ? x : String(x?.t ?? ""), subMapa = x => Array.isArray(x?.sub) ? x.sub : [];
+const MEDIDOR = document.createElement("canvas").getContext("2d");
+function quebrarMedido(t, fonte, larg) {
+  MEDIDOR.font = fonte; const out = []; let l = "";
+  for (let p of String(t || "").split(/\s+/).filter(Boolean)) {
+    while (MEDIDOR.measureText(p).width > larg && p.length > 4) { let k = p.length - 1; while (k > 3 && MEDIDOR.measureText(p.slice(0, k) + "-").width > larg) k--; if (l) { out.push(l); l = ""; } out.push(p.slice(0, k) + "-"); p = p.slice(k); }
+    const j = l ? l + " " + p : p; if (l && MEDIDOR.measureText(j).width > larg) { out.push(l); l = p; } else l = j;
   }
-  svgEl.setAttribute("viewBox", `0 0 ${w} ${h}`); svgEl.innerHTML = s;
+  if (l) out.push(l); const linhas = out.length ? out : [" "];
+  return { linhas, w: Math.ceil(Math.max(...linhas.map(x => MEDIDOR.measureText(x).width))) };
+}
+function layoutMapa(dados, o) {
+  const F = (peso, px) => `${peso} ${px}px ${o.fonte}`, VAO = 46, GAP = 9;
+  const no = (t, nivel, cor, filhos) => { // mede de baixo para cima
+    const px = nivel === 1 ? 14 : nivel === 2 ? 12.5 : 11.5, peso = nivel === 1 ? 800 : 600, m = quebrarMedido(t, F(peso, px), nivel === 1 ? 170 : 210), lh = px * 1.28;
+    const n = { t, nivel, cor, px, peso, lh, linhas: m.linhas, w: m.w + (nivel === 1 ? 32 : 12), h: m.linhas.length * lh + (nivel === 1 ? 14 : 6), filhos: filhos.map(f => no(txtMapa(f), nivel + 1, cor, subMapa(f))) };
+    const soma = n.filhos.reduce((x, f) => x + f.alt, 0) + Math.max(0, n.filhos.length - 1) * GAP; n.alt = Math.max(n.h, soma) + (nivel === 1 ? 16 : 0); return n;
+  };
+  const ramos = dados.ramos.map((r, i) => no(r.t, 1, r.cor || o.cores[i % o.cores.length], r.itens || []));
+  const mc = quebrarMedido(dados.centro, F(900, 17), 190), ms = dados.sub ? quebrarMedido(dados.sub, F(700, 12), 190) : null;
+  const centro = { linhas: mc.linhas, sub: ms?.linhas || [], w: Math.max(mc.w, ms?.w || 0) + 46, h: mc.linhas.length * 22 + (ms ? ms.linhas.length * 16 + 4 : 0) + 30 };
+  // lados: Clássico divide os ramos em esquerda e direita com alturas parecidas; Árvore põe tudo à direita
+  const lados = [[], []]; if (o.layout === "arvore") lados[0] = ramos;
+  else { const total = ramos.reduce((x, r) => x + r.alt, 0); let ac = 0; for (const r of ramos) { if (!lados[0].length || (ac + r.alt / 2 <= total / 2 && !lados[1].length)) { lados[0].push(r); ac += r.alt; } else lados[1].push(r); } }
+  const todos = [];
+  lados.forEach((l, k) => { const dir = k ? -1 : 1, cols = [];
+    const larg = n => { cols[n.nivel] = Math.max(cols[n.nivel] || 0, n.w); n.filhos.forEach(larg); }; l.forEach(larg);
+    const x0 = []; let x = centro.w / 2 + 64; for (let v = 1; v < cols.length; v++) { x0[v] = x; x += cols[v] + VAO; }
+    const pos = (n, y, pai) => { n.dir = dir; n.pai = pai; n.x = dir * (x0[n.nivel] + n.w / 2); n.y = y + n.alt / 2; todos.push(n); const soma = n.filhos.reduce((q, f) => q + f.alt, 0) + Math.max(0, n.filhos.length - 1) * GAP; let fy = n.y - soma / 2; for (const f of n.filhos) { pos(f, fy, n); fy += f.alt + GAP; } };
+    const h = l.reduce((q, r) => q + r.alt, 0) + Math.max(0, l.length - 1) * 14; let y = -h / 2; for (const r of l) { pos(r, y, null); y += r.alt + 14; } });
+  const M = 28, xs = [-centro.w / 2, centro.w / 2], ys = [-centro.h / 2, centro.h / 2]; for (const n of todos) { xs.push(n.x - n.w / 2, n.x + n.w / 2); ys.push(n.y - n.h / 2, n.y + n.h / 2); }
+  const minX = Math.min(...xs) - M, minY = Math.min(...ys) - M; return { todos, centro, minX, minY, w: Math.max(...xs) + M - minX, h: Math.max(...ys) + M - minY };
+}
+function mapa2D(svgEl, dados, o) {
+  const L = layoutMapa(dados, o), esc2 = t => esc(t), raio = o.forma === "retangulo" ? 4 : o.forma === "circulo" ? 20 : 16, traco = o.linha === "tracejada" ? 'stroke-dasharray="6 5"' : "";
+  const f1 = n => n.toFixed(1), fam = `font-family='${o.fonte}'`;
+  const textos = (ls, x, y, lh, px, peso, cor) => ls.map((l, i) => `<text x="${f1(x)}" y="${f1(y + (i - (ls.length - 1) / 2) * lh + px * .35)}" text-anchor="middle" font-size="${px}" font-weight="${peso}" fill="${cor}" ${fam}>${esc2(l)}</text>`).join("");
+  const linha = (x1, y1, x2, y2, cor, lw) => o.linha === "reta" ? `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${cor}" stroke-width="${lw}" stroke-linecap="round" ${traco}/>` : `<path d="M${f1(x1)} ${f1(y1)} C ${f1((x1 + x2) / 2)} ${f1(y1)}, ${f1((x1 + x2) / 2)} ${f1(y2)}, ${f1(x2)} ${f1(y2)}" stroke="${cor}" stroke-width="${lw}" fill="none" stroke-linecap="round" ${traco}/>`;
+  let s = "", t = "";
+  for (const n of L.todos) {
+    const x2 = n.x - n.dir * n.w / 2, p = n.pai;
+    s += linha(p ? p.x + p.dir * p.w / 2 : n.dir * L.centro.w / 2, p ? p.y : 0, x2, n.y, n.cor, n.nivel === 1 ? 4.5 : n.nivel === 2 ? 2 : 1.4);
+    if (n.nivel === 1) t += `<g><rect x="${f1(n.x - n.w / 2)}" y="${f1(n.y - n.h / 2)}" width="${f1(n.w)}" height="${f1(n.h)}" rx="${raio}" fill="${n.cor}"/>${textos(n.linhas, n.x, n.y, n.lh, n.px, n.peso, "#1b1d3a")}</g>`;
+    else t += textos(n.linhas, n.x, n.y, n.lh, n.px, n.peso, o.corTexto) + (n.filhos.length ? `<line x1="${f1(n.x - n.w / 2 + 4)}" y1="${f1(n.y + n.h / 2)}" x2="${f1(n.x + n.w / 2 - 4)}" y2="${f1(n.y + n.h / 2)}" stroke="${n.cor}" stroke-width="1.2" opacity=".7"/>` : "");
+  }
+  const c = L.centro, yc = -(c.sub.length ? c.sub.length * 16 + 4 : 0) / 2;
+  t += `<g><rect x="${f1(-c.w / 2)}" y="${f1(-c.h / 2)}" width="${f1(c.w)}" height="${f1(c.h)}" rx="${o.layout === "arvore" ? raio + 6 : c.h / 2}" fill="${dados.corCentro || o.corCentro}"/>${textos(c.linhas, 0, yc, 22, 17, 900, "#fff")}${c.sub.length ? textos(c.sub, 0, yc + c.linhas.length * 11 + 4 + c.sub.length * 8, 16, 12, 700, "#ffd76a") : ""}</g>`;
+  svgEl.innerHTML = s + t; svgEl._mapa = { x: L.minX, y: L.minY, w: L.w, h: L.h };
+  navegar2D(svgEl, o.layout);
+}
+// arrastar, pinça, roda e botões no Clássico e na Árvore; começa com letra legível
+function navegar2D(svgEl, layout) {
+  const M = svgEl._mapa, r0 = svgEl.getBoundingClientRect(), W = r0.width || 900, H = r0.height || 600, chave = layout + "|" + Math.round(W);
+  const cabe = Math.min(W / M.w, H / M.h); let v = S.mmVista2D?.chave === chave ? S.mmVista2D : null;
+  if (!v) { const e = Math.max(Math.min(cabe, 1.4), Math.min(.82, 1.4)); v = { chave, e, x: e > cabe && layout === "arvore" ? M.x : M.x + M.w / 2 - W / e / 2, y: e > cabe ? -H / e / 2 : M.y + M.h / 2 - H / e / 2 }; if (e > cabe && layout !== "arvore") v.x = -W / e / 2; }
+  S.mmVista2D = v;
+  const por = () => { v.x = Math.max(M.x - W / v.e * .7, Math.min(M.x + M.w - W / v.e * .3, v.x)); v.y = Math.max(M.y - H / v.e * .7, Math.min(M.y + M.h - H / v.e * .3, v.y)); svgEl.setAttribute("viewBox", `${v.x} ${v.y} ${W / v.e} ${H / v.e}`); }; por();
+  const zoom = (f, px = W / 2, py = H / 2) => { const e = Math.max(Math.min(cabe, .3), Math.min(3, v.e * f)), ux = v.x + px / v.e, uy = v.y + py / v.e; v.e = e; v.x = ux - px / e; v.y = uy - py / e; por(); };
+  svgEl._zoom = f => f ? zoom(f) : (v.e = Math.min(cabe, 1.4), v.x = M.x + M.w / 2 - W / v.e / 2, v.y = M.y + M.h / 2 - H / v.e / 2, por());
+  const dedos = new Map(); let pinca = 0;
+  svgEl.onpointerdown = ev => { dedos.set(ev.pointerId, ev); try { svgEl.setPointerCapture(ev.pointerId); } catch {} pinca = 0; };
+  svgEl.onpointermove = ev => { const a = dedos.get(ev.pointerId); if (!a) return; dedos.set(ev.pointerId, ev);
+    if (dedos.size === 2) { const [p, q] = [...dedos.values()], d = Math.hypot(p.clientX - q.clientX, p.clientY - q.clientY), r = svgEl.getBoundingClientRect(); if (pinca) zoom(d / pinca, (p.clientX + q.clientX) / 2 - r.left, (p.clientY + q.clientY) / 2 - r.top); pinca = d; return; }
+    v.x -= (ev.clientX - a.clientX) / v.e; v.y -= (ev.clientY - a.clientY) / v.e; por(); };
+  svgEl.onpointerup = svgEl.onpointercancel = ev => { dedos.delete(ev.pointerId); pinca = 0; };
+  svgEl.onwheel = ev => { ev.preventDefault(); const r = svgEl.getBoundingClientRect(); zoom(ev.deltaY < 0 ? 1.12 : .89, ev.clientX - r.left, ev.clientY - r.top); };
 }
 async function baixarMapa() {
   const st = S.mapaAberto, c = S.cadernos.find(x => x.id === st?.cid), m = c?.mapas?.find(x => x.id === st.id); if (!m) return;
@@ -7264,9 +7363,10 @@ async function baixarMapa() {
     const out = document.createElement("canvas"); out.width = cv.width; out.height = cv.height; const g = out.getContext("2d");
     const e = st.estilo === "ia" ? m.estiloIA : null; g.fillStyle = e?.fundo || "#100c2c"; g.fillRect(0, 0, out.width, out.height); g.drawImage(cv, 0, 0); salvarPNG(out.toDataURL("image/png")); return;
   }
-  const xml = new XMLSerializer().serializeToString(svgEl), r = palco.getBoundingClientRect(), img = new Image();
-  img.onload = () => { const out = document.createElement("canvas"); out.width = r.width * 2; out.height = r.height * 2; const g = out.getContext("2d"); const e = st.estilo === "ia" ? m.estiloIA : null; g.fillStyle = e?.fundo || "#140f38"; g.fillRect(0, 0, out.width, out.height); g.drawImage(img, 0, 0, out.width, out.height); salvarPNG(out.toDataURL("image/png")); };
-  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml.includes("xmlns=") ? xml : xml.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"'));
+  const M = svgEl._mapa, k = Math.min(2, 8000 / Math.max(M.w, M.h)), copia = svgEl.cloneNode(true), img = new Image();
+  copia.setAttribute("xmlns", "http://www.w3.org/2000/svg"); copia.setAttribute("viewBox", `${M.x} ${M.y} ${M.w} ${M.h}`); copia.setAttribute("width", M.w * k); copia.setAttribute("height", M.h * k); copia.removeAttribute("style");
+  img.onload = () => { const out = document.createElement("canvas"); out.width = M.w * k; out.height = M.h * k; const g = out.getContext("2d"), e = st.estilo === "ia" ? m.estiloIA : null; g.fillStyle = e?.fundo || "#140f38"; g.fillRect(0, 0, out.width, out.height); g.drawImage(img, 0, 0, out.width, out.height); salvarPNG(out.toDataURL("image/png")); };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(new XMLSerializer().serializeToString(copia));
 }
 
 
