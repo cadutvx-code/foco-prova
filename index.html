@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hipocampo Study</title>
-<link rel="icon" href="favicon.svg?v=livro3" type="image/svg+xml">
-<link rel="icon" href="favicon-32.png?v=livro3" sizes="32x32" type="image/png">
-<link rel="shortcut icon" href="favicon.ico?v=livro3">
+<link rel="icon" href="favicon.svg?v=hipo1" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png?v=hipo1" sizes="32x32" type="image/png">
+<link rel="shortcut icon" href="favicon.ico?v=hipo1">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icone-180.png">
 <meta name="theme-color" content="#6246ea">
@@ -782,6 +782,49 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
   #maisMenu svg{width:22px;height:22px;color:var(--accent)}
 }
 .kit-mini{display:none}
+#flashFocoAo{flex:1;min-width:0;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font:inherit}#flashFocoAo::placeholder{color:var(--muted)}
+.fl-abas{display:flex;gap:6px;margin:0 0 14px}
+.fl-abas button{border:1px solid transparent;background:none;color:var(--muted);font:inherit;font-weight:700;font-size:14px;padding:7px 16px;border-radius:999px;cursor:pointer}
+.fl-abas button.on{border-color:var(--line);background:var(--panel);color:var(--text)}
+.fl-topo{display:flex;align-items:center;justify-content:center;gap:10px;margin:0 auto 14px}
+.fl-cont{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 8px;min-width:0;flex:0 1 460px}
+.fl-cont div{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0}
+.fl-cont b{font-size:20px;line-height:1.1}.fl-cont small{font-size:11.5px;font-weight:700;color:var(--c);white-space:nowrap}
+.fl-gear{width:40px;height:40px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.fl-gear svg{width:20px;height:20px}
+.fl-ajuste{display:flex;gap:8px;max-width:620px;margin:0 auto 12px}
+.fl-cartao{max-width:900px;margin:0 auto;min-height:min(46vh,420px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:26px 22px;border-radius:24px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);cursor:pointer;user-select:none}
+.fl-cartao .md{font-size:clamp(19px,3.2vw,30px);line-height:1.35;font-weight:600}
+.fl-cartao .fl-verso{font-size:clamp(16px,2.4vw,22px);font-weight:500;margin-top:16px;padding-top:16px;border-top:1px dashed var(--line);width:100%}
+.fl-cartao .fl-dica{font-size:12.5px;color:var(--muted);margin-top:18px}
+.fl-notas{display:flex;align-items:center;justify-content:center;gap:12px;margin:16px auto 0;padding:9px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);width:max-content;max-width:100%}
+.fl-nota{width:52px;height:52px;border-radius:50%;border:none;display:grid;place-items:center;cursor:pointer;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.18);transition:transform .12s}
+.fl-nota:active{transform:scale(.92)}.fl-nota svg{width:26px;height:26px}
+.fl-girar{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--text);display:grid;place-items:center;cursor:pointer}
+.fl-girar svg{width:22px;height:22px}
+.fl-lista{display:flex;flex-direction:column;gap:8px;max-width:900px;margin:0 auto}
+.fl-item{display:grid;grid-template-columns:10px 1fr auto;gap:12px;align-items:start;padding:12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.fl-item i{width:10px;height:10px;border-radius:50%;margin-top:6px;background:var(--c)}
+.fl-item b{display:block;font-size:14.5px}.fl-item span{font-size:13.5px;color:var(--muted)}
+.jogos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;max-width:900px;margin:0 auto}
+.jogo{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:22px 14px;border-radius:18px;border:1.5px solid var(--line);background:var(--panel);color:var(--text);font:inherit;cursor:pointer}
+.jogo:hover{border-color:var(--accent)}.jogo svg{width:44px;height:44px;color:var(--accent)}.jogo b{font-size:16px}.jogo small{color:var(--muted);font-size:12.5px;line-height:1.35}
+.jg-topo{display:flex;align-items:center;gap:10px;max-width:900px;margin:0 auto 12px}.jg-topo b{flex:1}
+.pares{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;max-width:900px;margin:0 auto}
+.par{min-height:86px;padding:10px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:13.5px;line-height:1.3;cursor:pointer}
+.par.frente{font-weight:800;border-left:4px solid var(--accent2)}
+.par.sel{border-color:var(--accent);background:var(--accent-soft)}.par.erro{border-color:var(--bad);animation:treme .3s}.par.ok{visibility:hidden}
+@keyframes treme{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.comp{max-width:700px;margin:0 auto}.comp .lac{display:inline-block;min-width:70px;border-bottom:2px solid var(--accent);color:var(--accent);font-weight:800}
+.comp-op{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.comp-op button{padding:13px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
+.comp-op button.certo{border-color:var(--ok);color:var(--ok)}.comp-op button.errado{border-color:var(--bad);color:var(--bad)}
+.caca{display:grid;gap:3px;max-width:430px;margin:0 auto;touch-action:manipulation}
+.caca button{aspect-ratio:1;border:none;border-radius:6px;background:var(--panel);color:var(--text);font:inherit;font-weight:800;font-size:clamp(12px,3.6vw,17px);cursor:pointer;padding:0}
+.caca button.sel{background:var(--accent);color:#fff}.caca button.achado{background:var(--ok-soft);color:var(--ok)}
+.caca-lista{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:600px;margin:12px auto 0}
+.caca-lista span{padding:4px 10px;border-radius:999px;background:var(--panel2);font-size:12.5px;font-weight:800}.caca-lista span.ok{text-decoration:line-through;color:var(--muted)}
+@media (max-width:760px){.fl-cartao{min-height:44vh;padding:22px 16px}.fl-cont b{font-size:17px}.fl-cont small{font-size:10.5px}.fl-nota{width:56px;height:56px}.pares{grid-template-columns:1fr 1fr}}
 .modo-txt{display:contents}
 #maisMenu[hidden]{display:none!important}
 </style>
@@ -2674,23 +2717,10 @@ const INTERVALOS = [1, 2, 4, 7, 15, 30]; // dias por caixa (Leitner)
 const devidos = d => d.cards.filter(k => (k.proxima || 0) <= Date.now()).length;
 function viewFlash(c) {
   if (S.player?.tipo === "flash") return playerFlash(c);
+  if (S.player?.tipo === "flashseq") return playerFlashSeq(c);
   const sem = semMateriais(c); if (sem) return sem;
-  return `<div class="stack">${formGerar("flash", "flashcards")}
-  ${c.decks.length ? "" : `<div class="empty">Nenhum baralho ainda. Gere o primeiro acima!</div>`}
-  <div class="grid">${c.decks.map(d => {
-    const dom = d.cards.filter(k => k.caixa >= 3).length;
-    return `<div class="card item"><h3>${esc(d.titulo)}</h3>
-    <div class="muted" style="font-size:13px">${d.cards.length} cards · ${devidos(d)} para revisar · ${dom} dominados</div>
-    <div class="prog" style="margin-top:10px"><div style="width:${d.cards.length ? dom / d.cards.length * 100 : 0}%;background:var(--ok)"></div></div>
-    <div class="acts">
-      <button class="btn small primary" data-act="estudarDeck" data-id="${d.id}" ${devidos(d) ? "" : "disabled"}>▶ Revisar (${devidos(d)})</button>
-      <button class="btn small" data-act="estudarTudo" data-id="${d.id}">Estudar todos</button>
-      <button class="btn small" data-act="verDeck" data-id="${d.id}">${S.verDeck === d.id ? "Ocultar" : "Ver"} cards</button>
-      <button class="btn small danger" data-act="excluir" data-tipo="decks" data-id="${d.id}">Excluir</button>
-    </div></div>`;
-  }).join("")}</div>
-  ${S.verDeck && c.decks.find(d => d.id === S.verDeck) ? (() => { const d = c.decks.find(d => d.id === S.verDeck); return `<div class="card"><h3>${esc(d.titulo)}</h3><table class="cards"><tr><th>Frente</th><th>Verso</th><th>Tópico</th></tr>${d.cards.map(k => `<tr><td>${esc(k.frente)}</td><td>${esc(k.verso)}</td><td class="muted">${esc(k.topico)}</td></tr>`).join("")}</table></div>`; })() : ""}
-  </div>`;
+  if (!S.player) setTimeout(() => { if (atual() === c && S.aba === "flash" && !S.player) iniciarFlashSeguido(c); }); // abre direto no cartão
+  return `<div class="card empty"><span class="spin"></span></div>`;
 }
 function playerFlash(c) {
   const p = S.player, d = c.decks.find(x => x.id === p.deckId);
@@ -2711,6 +2741,178 @@ function playerFlash(c) {
       <button class="btn" style="border-color:var(--warn);color:var(--warn)" data-act="avaliar" data-id="1">2 · Difícil</button>
       <button class="btn" style="border-color:var(--ok);color:var(--ok)" data-act="avaliar" data-id="2">3 · Acertei</button>
     </div>` : ""}`;
+}
+/* ---------- Flashcards seguidos: começa na hora e a IA cria os próximos enquanto a pessoa estuda ----------
+   Primeiro os cartões que venceram (de todos os baralhos do caderno), depois cartões novos, de 6 em 6, no baralho "Flashcards". */
+const FLASH_LOTE = 6;
+function deckSeguido(c) {
+  let d = c.decks.find(x => x.seq);
+  if (!d) { d = { id: uid(), criado: Date.now(), titulo: TT("Flashcards", "Flashcards"), seq: true, cards: [] }; c.decks.unshift(d); }
+  return d;
+}
+function iniciarFlashSeguido(c) {
+  if (!ativos(c).length) { S.aba = "materiais"; render(); return toast(TT("Adicione materiais primeiro.", "Agrega materiales primero."), true); }
+  const foco = (c.flashFoco || "").trim().slice(0, 200);
+  c.flashFoco = foco; deckSeguido(c);
+  const agora = Date.now(), vencidos = [];
+  for (const d of c.decks) d.cards.forEach((k, i) => { if ((k.proxima || 0) <= agora) vencidos.push({ did: d.id, i }); });
+  // com foco, os cartões novos (do foco) vêm primeiro; sem foco, revisa o que venceu antes
+  S.player = { tipo: "flashseq", fila: foco ? [] : embaralhar(vencidos).slice(0, 40), virado: false, feitos: 0, acertos: 0, errados: new Set(), foco, gerando: false, falhou: false };
+  S.aba = "flash"; render(); window.scrollTo(0, 0);
+  flashBuscarMais(c);
+}
+async function flashBuscarMais(c, forcar = false) {
+  const p = S.player; if (!p || p.tipo !== "flashseq" || p.gerando) return;
+  if (!forcar && p.fila.length > 3) return;
+  if (p.fila.length ? !podeUsarSilencioso() : !podeUsar()) { p.semLimite = true; render(); return; } // acabou o grátis: só abre a tela do Pro quando não sobrou cartão
+  gastar(); p.gerando = true; p.falhou = false; p.semLimite = false; render();
+  const d = deckSeguido(c), foco = p.foco;
+  const ja = c.decks.flatMap(x => x.cards).slice(-120), fatos = ja.map(k => fatoDe({ enunciado: k.frente, alternativas: [k.verso], correta: 0 }));
+  const evitar = ja.length ? `\nJÁ EXISTEM — não repita nenhum destes (nem com outras palavras); cubra OUTRAS partes do conteúdo:\n${ja.map(k => "- " + String(k.frente).slice(0, 100)).join("\n")}` : "";
+  try {
+    const r = await gerarPara("flash")(c, `Crie exatamente ${FLASH_LOTE} flashcards. A frente deve ser uma pergunta ou termo curto; o verso, uma resposta objetiva (1 a 3 frases). Cubra os tópicos mais importantes. ${REGRA_ACADEMICA}${foco ? `\nConcentre-se especificamente em: ${foco}.` : ""}${evitar}`, SCH.flash, foco);
+    if (S.player !== p) return; // a pessoa saiu enquanto a IA escrevia: os cartões ficam guardados mesmo assim
+    let novos = 0;
+    for (const k of r.cards || []) {
+      if (!k?.frente || !k?.verso || semValorAcademico({ enunciado: k.frente })) continue;
+      const f = fatoDe({ enunciado: k.frente, alternativas: [k.verso], correta: 0 }); if (fatos.some(a => mesmoFato(f, a))) continue;
+      fatos.push(f); d.cards.push({ frente: textoIA(k.frente), verso: textoIA(k.verso), topico: textoIA(k.topico || ""), caixa: 0, proxima: 0 });
+      p.fila.push({ did: d.id, i: d.cards.length - 1 }); novos++;
+    }
+    if (!novos) p.falhou = true;
+    await salvar(c);
+  } catch (e) { console.warn("flashcards:", e?.message); if (S.player === p) p.falhou = true; }
+  finally { p.gerando = false; }
+  if (S.player === p) render();
+}
+// Níveis (como os cartões ficam guardados): Aprendendo (caixa 0) · Revisando (1-2) · Conhecido (3-4) · Dominado (5)
+const FL_NIVEIS = [["Aprendendo", "Aprendiendo", "#3d8bff"], ["Revisando", "Repasando", "#f5a524"], ["Conhecido", "Conocido", "#2fb67c"], ["Dominado", "Dominado", "#24c45a"]];
+const notaDoCard = k => !k.visto && !(k.caixa > 0) ? -1 : (k.caixa || 0) >= 5 ? 3 : (k.caixa || 0) >= 3 ? 2 : (k.caixa || 0) >= 1 ? 1 : 0;
+const ROSTO = { triste: '<circle cx="12" cy="12" r="9"/><path d="M8.5 16.2c1.9-1.9 5.1-1.9 7 0"/><path d="M9 10h.01M15 10h.01" stroke-width="2.6"/>', neutro: '<circle cx="12" cy="12" r="9"/><path d="M8.5 15.2h7"/><path d="M9 10h.01M15 10h.01" stroke-width="2.6"/>', feliz: '<circle cx="12" cy="12" r="9"/><path d="M8.3 13.6c2 2.5 5.4 2.5 7.4 0"/><path d="M9 10h.01M15 10h.01" stroke-width="2.6"/>' };
+const svgL = (d, extra = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
+const todosCards = c => c.decks.flatMap(d => d.cards.map((k, i) => ({ k, did: d.id, i }))).filter(x => x.k?.frente && x.k?.verso);
+function playerFlashSeq(c) {
+  const p = S.player, es = lsGet("fp-ui", "pt") === "es", vista = p.vista || "estudar";
+  const abas = `<div class="fl-abas">${[["lista", TT("Lista", "Lista")], ["estudar", TT("Estudar", "Estudiar")], ["jogos", TT("Jogos", "Juegos")]].map(([k, n]) => `<button class="${vista === k || (k === "jogos" && p.jogo) ? "on" : ""}" data-act="flVista" data-id="${k}">${n}</button>`).join("")}<span style="flex:1"></span><button class="btn small ghost" data-act="sair">${TT("Sair", "Salir")}</button></div>`;
+  if (p.jogo) return abas + viewJogo(c, p);
+  if (vista === "jogos") return abas + viewJogos(c);
+  const cont = [0, 0, 0, 0]; for (const x of todosCards(c)) { const n = notaDoCard(x.k); if (n >= 0) cont[n]++; }
+  const topo = `<div class="fl-topo"><div class="fl-cont">${FL_NIVEIS.map(([pt, e, cor], i) => `<div><b>${cont[i]}</b><small style="--c:${cor}">${es ? e : pt}</small></div>`).join("")}</div>
+      <button class="fl-gear" data-act="flGear" title="${TT("Ajustes dos flashcards", "Ajustes de las tarjetas")}">${svgL('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>')}</button></div>
+    ${p.ajuste ? `<div class="fl-ajuste"><input id="flashFocoAo" placeholder="${TT("Foco (opcional): ex.: capítulo 3", "Enfoque (opcional): ej.: capítulo 3")}" value="${esc(p.foco)}"><button class="btn small" data-act="flashFocoMudar">${TT("Aplicar", "Aplicar")}</button></div>` : ""}`;
+  if (vista === "lista") {
+    const l = todosCards(c);
+    return abas + topo + (l.length ? `<div class="fl-lista">${l.map(x => { const n = notaDoCard(x.k); return `<div class="fl-item"><i style="--c:${n < 0 ? "var(--line)" : FL_NIVEIS[n][2]}"></i><div><b>${esc(x.k.frente)}</b><span>${esc(x.k.verso)}</span></div><button class="btn small ghost" data-act="flApagarCard" data-id="${x.did}:${x.i}" title="${TT("Apagar cartão", "Borrar tarjeta")}">🗑️</button></div>`; }).join("")}</div>` : `<div class="card empty">${TT("Os cartões aparecem aqui conforme você estuda.", "Las tarjetas aparecen aquí a medida que estudias.")}</div>`);
+  }
+  const it = p.fila[0], d = it && c.decks.find(x => x.id === it.did), k = d?.cards[it.i];
+  if (!k) {
+    if (p.semLimite) return abas + topo + `<div class="card empty"><p>${TT("Seus usos grátis acabaram por agora.", "Tus usos gratis se acabaron por ahora.")}</p><button class="pill" data-act="pagar">${TT("Ver o Pro", "Ver el Pro")}</button></div>`;
+    if (p.falhou && !p.gerando) return abas + topo + `<div class="card empty"><p>${TT("A IA ficou ocupada. Tente de novo.", "La IA está ocupada. Intenta de nuevo.")}</p><button class="pill" data-act="flashMais">${TT("Tentar de novo", "Intentar de nuevo")}</button></div>`;
+    return abas + topo + `<div class="fl-cartao"><span class="spin"></span><div class="fl-dica">${TT("Preparando os cartões…", "Preparando las tarjetas…")}</div></div>`;
+  }
+  return abas + topo + `<div class="fl-cartao" data-act="virar">
+      ${k.topico ? `<div class="muted" style="font-size:12px;margin-bottom:10px">${esc(k.topico)}</div>` : ""}
+      <div class="md">${md(k.frente)}</div>
+      ${p.virado ? `<div class="fl-verso md">${md(k.verso)}</div>` : `<div class="fl-dica">${TT("toque para ver a resposta", "toca para ver la respuesta")}</div>`}
+    </div>
+    <div class="fl-notas">
+      <button class="fl-nota" style="background:#ef4444" data-act="flashAvaliar" data-id="0" title="${TT("Não sabia (Aprendendo)", "No sabía (Aprendiendo)")}">${svgL(ROSTO.triste)}</button>
+      <button class="fl-nota" style="background:#f5b301" data-act="flashAvaliar" data-id="1" title="${TT("Mais ou menos (Revisando)", "Más o menos (Repasando)")}">${svgL(ROSTO.neutro)}</button>
+      <button class="fl-nota" style="background:#22c55e" data-act="flashAvaliar" data-id="2" title="${TT("Sabia (Conhecido)", "Sabía (Conocido)")}">${svgL(ROSTO.feliz)}</button>
+      <button class="fl-girar" data-act="virar" title="${TT("Virar o cartão", "Voltear la tarjeta")}">${svgL('<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/>')}</button>
+    </div>`;
+}
+async function flashAvaliarSeq(c, nivel) {
+  const p = S.player, it = p.fila[0], d = it && c.decks.find(x => x.id === it.did), k = d?.cards[it.i]; if (!k) return;
+  const chave = it.did + ":" + it.i, agora = Date.now(); p.fila.shift(); k.visto = true;
+  if (nivel === 0) { k.caixa = 0; k.proxima = agora; p.errados.add(chave); p.fila.splice(Math.min(3, p.fila.length), 0, it); } // não sabia: volta daqui a 3 cartões
+  else if (nivel === 1) { k.caixa = Math.max(1, Math.min(k.caixa || 0, 2)); k.proxima = agora + DIA; }
+  else { k.caixa = (k.caixa || 0) < 3 ? 3 : Math.min((k.caixa || 0) + 1, 5); k.proxima = agora + INTERVALOS[k.caixa] * DIA; if (!p.errados.has(chave)) p.acertos++; } // 3 "sabia" seguidos = Dominado
+  p.feitos++; contarResposta(1, c); ganharXP(nivel === 2 ? 2 : 1, c);
+  p.virado = false; render(); flashBuscarMais(c); await salvar(c);
+}
+
+/* ---------- Jogos com os próprios cartões (Pares, Complete a frase, Caça-termos) ---------- */
+const JOGOS = [
+  ["pares", "Pares", "Pares", "Junte cada pergunta com a resposta certa", "Une cada pregunta con su respuesta", '<rect x="3" y="4" width="8" height="7" rx="2"/><rect x="13" y="13" width="8" height="7" rx="2"/><path d="M11 7.5h3a3 3 0 0 1 3 3V13"/>'],
+  ["completar", "Complete a frase", "Completa la frase", "Escolha a palavra que falta na resposta", "Elige la palabra que falta en la respuesta", '<path d="M4 7h16M4 12h6M14 12h6M4 17h10"/><path d="M10.5 12h3" stroke-dasharray="1.5 1.5"/>'],
+  ["caca", "Caça-termos", "Sopa de términos", "Ache os termos escondidos na grade", "Encuentra los términos escondidos en la cuadrícula", '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 8h.01M12 8h.01M17 8h.01M7 12h.01M17 12h.01M7 16h.01M12 16h.01M17 16h.01"/><path d="M9.5 10.5l5 3" stroke-width="2.6"/>']
+];
+function viewJogos(c) {
+  const es = lsGet("fp-ui", "pt") === "es", n = todosCards(c).length;
+  return (n < 4 ? `<div class="aviso-nuvem" style="max-width:900px;margin:0 auto 12px">${TT("Estude alguns cartões primeiro: os jogos usam os seus flashcards.", "Estudia algunas tarjetas primero: los juegos usan tus flashcards.")}</div>` : "") +
+    `<div class="jogos">${JOGOS.map(([id, pt, e, dpt, des, ic]) => `<button class="jogo" data-act="jogoAbrir" data-id="${id}" ${n < 4 ? "disabled style=\"opacity:.5\"" : ""}>${svgL(ic, 'stroke-width="1.6"')}<b>${es ? e : pt}</b><small>${es ? des : dpt}</small></button>`).join("")}</div>`;
+}
+const semAcentoJ = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+// a palavra mais importante da resposta (a mais longa que não está na pergunta)
+function palavraChave(k, max = 99) {
+  const naFrente = new Set(semAcentoJ(k.frente).toLowerCase().match(/[a-z]{4,}/g) || []);
+  const ws = (String(k.verso).match(/[A-Za-zÀ-ÿ]{5,}/g) || []).filter(w => w.length <= max && !naFrente.has(semAcentoJ(w).toLowerCase()));
+  return ws.sort((a, b) => b.length - a.length)[0] || "";
+}
+function iniciarJogo(c, tipo) {
+  const p = S.player, cards = embaralhar(todosCards(c).map(x => x.k));
+  if (tipo === "pares") {
+    const l = cards.slice(0, telaCelular() ? 5 : 6), t = [];
+    l.forEach((k, i) => { t.push({ par: i, txt: k.frente, frente: true }); t.push({ par: i, txt: k.verso }); });
+    p.jogo = { tipo, tiles: embaralhar(t), sel: null, ok: new Set(), erros: 0, ini: Date.now() };
+  } else if (tipo === "completar") {
+    const rodadas = cards.map(k => ({ k, w: palavraChave(k) })).filter(x => x.w).slice(0, 8);
+    const banco = [...new Set(cards.flatMap(k => String(k.verso).match(/[A-Za-zÀ-ÿ]{5,}/g) || []))];
+    for (const r of rodadas) r.ops = embaralhar([r.w, ...embaralhar(banco.filter(w => semAcentoJ(w).toLowerCase() !== semAcentoJ(r.w).toLowerCase())).slice(0, 3)]);
+    p.jogo = { tipo, rodadas, i: 0, acertos: 0, resp: null };
+  } else {
+    const N = telaCelular() ? 10 : 12, palavras = [...new Set(cards.map(k => semAcentoJ(palavraChave(k, N)).toUpperCase()).filter(w => /^[A-Z]{4,}$/.test(w) && w.length <= N))].slice(0, 6);
+    const g = Array.from({ length: N * N }, () => ""), postas = [];
+    for (const w of palavras) for (let t = 0; t < 60; t++) {
+      const hor = Math.random() < .5, r0 = Math.floor(Math.random() * (hor ? N : N - w.length + 1)), c0 = Math.floor(Math.random() * (hor ? N - w.length + 1 : N));
+      const pos = [...w].map((_, i) => (r0 + (hor ? 0 : i)) * N + c0 + (hor ? i : 0));
+      if (pos.every((q, i) => !g[q] || g[q] === w[i])) { pos.forEach((q, i) => g[q] = w[i]); postas.push({ w, pos }); break; }
+    }
+    const L = "ABCDEFGHIJLMNOPRSTUV"; for (let i = 0; i < g.length; i++) if (!g[i]) g[i] = L[Math.floor(Math.random() * L.length)];
+    p.jogo = { tipo, N, g, postas, achadas: [], ini: null, sel: null, comeco: Date.now() };
+  }
+  render(); window.scrollTo(0, 0);
+}
+function viewJogo(c, p) {
+  const j = p.jogo, es = lsGet("fp-ui", "pt") === "es", nome = (JOGOS.find(x => x[0] === j.tipo) || [])[es ? 2 : 1];
+  const topo = `<div class="jg-topo"><button class="btn small" data-act="jogoSair">← ${TT("Jogos", "Juegos")}</button><b>${esc(nome)}</b><button class="btn small ghost" data-act="jogoAbrir" data-id="${j.tipo}">↻ ${TT("De novo", "Otra vez")}</button></div>`;
+  const fim = (t, sub) => `<div class="card empty" style="max-width:600px;margin:0 auto">${hipoSVG("festa", 90)}<h2 style="margin:8px 0 4px">${t}</h2><p class="muted">${sub}</p><button class="pill" data-act="jogoAbrir" data-id="${j.tipo}">${TT("Jogar de novo", "Jugar otra vez")}</button></div>`;
+  if (j.tipo === "pares") {
+    if (j.ok.size * 2 === j.tiles.length) return topo + fim(TT("Tudo certo!", "¡Todo bien!"), TT(`${Math.round((j.fim - j.ini) / 1000)} s · ${j.erros} erro(s)`, `${Math.round((j.fim - j.ini) / 1000)} s · ${j.erros} error(es)`));
+    return topo + `<div class="pares">${j.tiles.map((t, i) => `<button class="par ${t.frente ? "frente" : ""} ${j.ok.has(t.par) ? "ok" : ""} ${j.sel === i ? "sel" : ""} ${j.erro?.includes(i) ? "erro" : ""}" data-act="parTile" data-id="${i}">${esc(String(t.txt).slice(0, 140))}</button>`).join("")}</div>`;
+  }
+  if (j.tipo === "completar") {
+    if (!j.rodadas.length) return topo + `<div class="card empty">${TT("Ainda não há respostas longas o bastante. Estude mais cartões.", "Aún no hay respuestas largas. Estudia más tarjetas.")}</div>`;
+    if (j.i >= j.rodadas.length) return topo + fim(TT(`${j.acertos} de ${j.rodadas.length}`, `${j.acertos} de ${j.rodadas.length}`), TT("Palavras completadas certo.", "Palabras completadas bien."));
+    const r = j.rodadas[j.i], verso = esc(r.k.verso).replace(new RegExp(r.w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `<span class="lac">${j.resp != null ? esc(r.w) : "&nbsp;"}</span>`);
+    return topo + `<div class="comp card"><div class="muted" style="font-size:13px">${j.i + 1}/${j.rodadas.length}</div><div class="md" style="font-weight:700;margin:6px 0 10px">${md(r.k.frente)}</div><div style="font-size:17px;line-height:1.6">${verso}</div>
+      <div class="comp-op">${r.ops.map((w, i) => `<button data-act="compOpc" data-id="${i}" class="${j.resp == null ? "" : w === r.w ? "certo" : j.resp === i ? "errado" : ""}">${esc(w)}</button>`).join("")}</div>
+      ${j.resp != null ? `<div style="text-align:right;margin-top:14px"><button class="pill" data-act="compProx">${TT("Próxima →", "Siguiente →")}</button></div>` : ""}</div>`;
+  }
+  if (!j.postas.length) return topo + `<div class="card empty">${TT("Ainda não há termos bons para a grade. Estude mais cartões.", "Aún no hay términos para la cuadrícula. Estudia más tarjetas.")}</div>`;
+  if (j.achadas.length === j.postas.length) return topo + fim(TT("Achou todos!", "¡Encontraste todos!"), TT(`${Math.round((j.fim - j.comeco) / 1000)} s`, `${Math.round((j.fim - j.comeco) / 1000)} s`));
+  const achadas = new Set(j.postas.filter(x => j.achadas.includes(x.w)).flatMap(x => x.pos));
+  return topo + `<div class="muted" style="text-align:center;font-size:13px;margin-bottom:8px">${TT("Toque na primeira e na última letra de cada termo.", "Toca la primera y la última letra de cada término.")}</div>
+    <div class="caca" style="grid-template-columns:repeat(${j.N},1fr)">${j.g.map((l, i) => `<button data-act="cacaCel" data-id="${i}" class="${achadas.has(i) ? "achado" : ""} ${j.sel === i ? "sel" : ""}">${l}</button>`).join("")}</div>
+    <div class="caca-lista">${j.postas.map(x => `<span class="${j.achadas.includes(x.w) ? "ok" : ""}">${x.w}</span>`).join("")}</div>`;
+}
+function jogada(c, act, id) {
+  const j = S.player?.jogo; if (!j) return;
+  if (act === "parTile") {
+    const i = +id, t = j.tiles[i]; if (j.ok.has(t.par)) return; j.erro = null;
+    if (j.sel == null || j.sel === i) j.sel = j.sel === i ? null : i;
+    else { const a = j.tiles[j.sel]; if (a.par === t.par) { j.ok.add(t.par); if (j.ok.size * 2 === j.tiles.length) { j.fim = Date.now(); ganharXP(5, c); } } else { j.erros++; j.erro = [j.sel, i]; } j.sel = null; }
+  } else if (act === "compOpc") {
+    if (j.resp != null) return; const r = j.rodadas[j.i]; j.resp = +id; if (r.ops[+id] === r.w) { j.acertos++; ganharXP(1, c); }
+  } else if (act === "compProx") { j.i++; j.resp = null; }
+  else if (act === "cacaCel") {
+    const i = +id; if (j.sel == null) { j.sel = i; return render(); }
+    const a = j.sel; j.sel = null;
+    const x = j.postas.find(x => !j.achadas.includes(x.w) && ((x.pos[0] === a && x.pos.at(-1) === i) || (x.pos[0] === i && x.pos.at(-1) === a)));
+    if (x) { j.achadas.push(x.w); ganharXP(1, c); if (j.achadas.length === j.postas.length) j.fim = Date.now(); }
+  }
+  render();
 }
 function iniciarFlash(deckId, tudo) {
   const d = atual().decks.find(x => x.id === deckId);
@@ -5704,7 +5906,7 @@ document.addEventListener("click", async e => {
     case "verMat": S.verMat = S.verMat === id ? null : id; render(); break;
     case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; guardarRestantes(c, S.player); S.atual = id; S.player = null; S.verDeck = null; render(); prepararBanco(atual()); break;
     case "railMais": S.railMais = !S.railMais; render(); break;
-    case "aba": S.railMais = false; fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); render(); break;
+    case "aba": S.railMais = false; fecharVoz(); if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; lerForm(); guardarRestantes(c, S.player); S.aba = id; S.player = null; clearInterval(S.timer); if (id === "flash" && ativos(c).length) { iniciarFlashSeguido(c); break; } render(); break;
     case "renomear": pedirTexto("Renomear caderno", c.nome, async v => { if (v) { c.nome = v; await salvar(c); render(); } }); break;
     case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await apagarCaderno(c); toast("🗑 Caderno apagado."); render(); } break;
     case "escolher": $("#arquivo").click(); break;
@@ -5716,12 +5918,21 @@ document.addEventListener("click", async e => {
     case "lerRapido": lerRapido(id); break;
     case "gerar": gerar(id); break;
     case "excluir": if (confirm("Excluir este item?")) { c[el.dataset.tipo] = c[el.dataset.tipo].filter(x => x.id !== id); await salvar(c); render(); } break;
-    case "sair": fecharVoz(); if (S.player?.tipo === "louco") { labParar(); S.lab = null; S.aba = "quiz"; } if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
+    case "sair": fecharVoz(); if (S.player?.tipo === "flashseq") { S.player = null; S.aba = "materiais"; render(); break; } if (S.player?.tipo === "louco") { labParar(); S.lab = null; S.aba = "quiz"; } if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
     case "estudarDeck": iniciarFlash(id, false); break;
     case "estudarTudo": iniciarFlash(id, true); break;
     case "verDeck": S.verDeck = S.verDeck === id ? null : id; render(); break;
-    case "virar": if (!S.player.virado) { S.player.virado = true; render(); } break;
+    case "virar": if (S.player?.tipo === "flashseq") { S.player.virado = !S.player.virado; render(); break; } if (S.player && !S.player.virado) { S.player.virado = true; render(); } break;
     case "avaliar": avaliar(+id); break;
+    case "flashAvaliar": flashAvaliarSeq(c, +id); break;
+    case "flVista": S.player.jogo = null; S.player.vista = id; render(); window.scrollTo(0, 0); break;
+    case "flGear": S.player.ajuste = !S.player.ajuste; render(); if (S.player.ajuste) $("#flashFocoAo")?.focus(); break;
+    case "flApagarCard": { const [did, i] = id.split(":"), dk = c.decks.find(x => x.id === did); if (!dk || !confirm(TT("Apagar este cartão?", "¿Borrar esta tarjeta?"))) break; dk.cards.splice(+i, 1); S.player.fila = S.player.fila.filter(x => x.did !== did).concat(S.player.fila.filter(x => x.did === did && x.i !== +i).map(x => ({ ...x, i: x.i > +i ? x.i - 1 : x.i }))); await salvar(c); render(); break; }
+    case "jogoAbrir": iniciarJogo(c, id); break;
+    case "jogoSair": S.player.jogo = null; S.player.vista = "jogos"; render(); break;
+    case "parTile": case "compOpc": case "compProx": case "cacaCel": jogada(c, act, id); break;
+    case "flashMais": flashBuscarMais(c, true); break;
+    case "flashFocoMudar": { const p = S.player, f = ($("#flashFocoAo")?.value || "").trim().slice(0, 200); if (!p || f === p.foco) break; p.foco = f; c.flashFoco = f; p.fila = p.fila.slice(0, 1); p.virado = false; salvar(c); flashBuscarMais(c, true); toast(f ? TT("Os próximos cartões serão sobre: ", "Las próximas tarjetas serán sobre: ") + f : TT("Foco tirado.", "Enfoque quitado.")); break; }
     case "fazerQuiz": iniciarQuiz(id); break;
     case "refazerErros": iniciarQuiz(S.player.id, [...S.player.erros]); break;
     case "escolher-alt": quizResponder(c, +id); break;
@@ -5762,6 +5973,7 @@ document.addEventListener("click", async e => {
       $("#dlgComecar").close();
       if (id === "smart") { S.aba = "smart"; smartIniciar(c); break; }
       if (id === "louco") { iniciarQuizLouco(c); break; }
+      if (id === "flash") { fecharVoz(); iniciarFlashSeguido(c); break; }
       fecharVoz(); S.player = null; S.aba = id; render(); window.scrollTo(0, 0); break;
     }
     case "smartIniciar": if (!ativos(c).length) { S.aba = "materiais"; render(); return toast("Adicione materiais primeiro.", true); } S.aba = "smart"; smartIniciar(c); break;
@@ -5835,6 +6047,11 @@ document.addEventListener("keydown", e => {
   if (S.player?.tipo === "revdia") {
     if (e.code === "Space") { e.preventDefault(); if (!S.player.virado && S.player.fila.length) { S.player.virado = true; render(); } }
     else if (S.player.virado && ["1", "2", "3"].includes(e.key)) revAvaliar(+e.key - 1);
+    return;
+  }
+  if (S.player?.tipo === "flashseq" && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || "")) {
+    if (e.code === "Space") { e.preventDefault(); if (!S.player.virado && S.player.fila.length) { S.player.virado = true; render(); } }
+    else if (!S.player.jogo && (S.player.vista || "estudar") === "estudar" && ["1", "2", "3"].includes(e.key)) flashAvaliarSeq(atual(), +e.key - 1);
     return;
   }
   if (S.player?.tipo === "flash") {
