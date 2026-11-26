@@ -64,6 +64,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ri{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px;border-radius:12px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:11.5px;font-weight:700;line-height:1.15;text-align:center}
 .ri svg{width:24px;height:24px}
 svg.ico .b{fill:var(--accent2);stroke:none} svg.ico .a{stroke:var(--accent2)} .ri.on svg.ico .a{stroke:currentColor} .ri.on svg.ico .b{fill:currentColor}
+:root{--icone:#2f6fdc;--icone2:#7b5cf0} /* modo claro: ícones coloridos como no escuro (pedido de 26/11/2026) */
 :root[data-theme="dark"]{--icone:#9fd0ff;--icone2:#c3b1ff}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--icone:#9fd0ff;--icone2:#c3b1ff}}
 .ri svg.ico,.modo svg.ico{color:var(--icone,currentColor)}
@@ -115,6 +116,10 @@ h3{font-size:16px;margin:0 0 6px}
 .criar-top .seta{margin-left:auto;color:var(--muted)}
 .materia{margin-bottom:26px}
 .materia-head{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.mao-mat{width:32px;height:32px;flex:none;border:none;border-radius:10px;background:var(--panel2);color:var(--muted);display:grid;place-items:center;cursor:grab;touch-action:none;padding:0}
+.mao-mat svg{width:18px;height:18px;pointer-events:none}.mao-mat:hover{color:var(--accent)}.mao-mat:active{cursor:grabbing}
+.mat-sombra{position:fixed;top:0;z-index:80;pointer-events:none;background:var(--panel);border:1.5px solid var(--accent);border-radius:14px;padding:8px 10px;box-shadow:0 14px 34px rgba(0,0,0,.3);opacity:.95}
+section.materia.mat-vaga{opacity:.35}
 .materia-head h2{margin:0 6px 0 0;font-size:21px}
 .materia-head .mini{font-size:16px}
 .mkits{display:flex;flex-wrap:wrap;gap:14px}
@@ -340,7 +345,10 @@ h3{font-size:16px;margin:0 0 6px}
 .cst-tab{overflow-x:auto}.cst-tab table{width:100%;border-collapse:collapse;font-size:13px}.cst-tab td,.cst-tab th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}.cst-tab td:first-child,.cst-tab th:first-child{text-align:left}
 #admCustos h4{margin:8px 0 0}
 label.comp-linha{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;gap:10px;align-items:center;cursor:pointer;flex-wrap:nowrap}.comp-linha input{width:auto;flex:none}.comp-linha span{flex:1;text-align:left}.comp-linha small{display:block;color:var(--muted)}
-.importar-mat{margin:0 0 14px}
+.importar-mat{margin:0 0 14px}.mat-acoes{margin:0 0 14px}.mat-acoes .importar-mat{margin:0}
+.mat-acoes .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:14px;font-weight:800;font-size:14.5px;border:1px solid var(--line);background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.mat-acoes .btn:hover{border-color:var(--accent)}.mat-acoes .btn svg{color:var(--accent)}
+.mat-acoes .btn svg{width:17px;height:17px}
 .mkit.claro,.mkit.claro .tres,.mkit.claro .mao{color:#16213a}.mkit.claro b{text-shadow:none}.mkit.claro .mao{background:rgba(0,0,0,.1)}.mkit.claro .barra>div{background:rgba(22,33,58,.6)}
 #corPop{position:absolute;z-index:40;width:250px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}#corPop[hidden]{display:none}
 .cor-bt i{display:block;width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--muted)}
@@ -435,6 +443,17 @@ label.comp-linha{display:flex!important;flex-direction:row!important;justify-con
 .ha-item .ha-resp{padding:0 12px 11px;font-size:13.5px;line-height:1.5}
 .ha-item .ha-resp ul{margin:4px 0 0;padding-left:18px}.ha-item .ha-resp .btn{margin-top:8px}
 .ha-vazio{font-size:13.5px;color:var(--muted);padding:8px 2px}
+.ha-escrever{display:flex;gap:6px;align-items:center;margin:0 12px 10px;flex:none}.ha-escrever .ha-busca{margin:0;flex:1;width:auto!important}
+.ha-enviar{flex:none;width:40px;height:40px;border-radius:12px;border:0;background:#17181f;color:#f3f4f8;display:grid;place-items:center;cursor:pointer}.ha-enviar .icx{width:19px;height:19px}
+:root[data-theme="dark"] .ha-enviar,:root[data-theme="dark"] .ha-msg.eu{background:#f3f4f8;color:#17181f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ha-enviar,:root:not([data-theme="light"]) .ha-msg.eu{background:#f3f4f8;color:#17181f}}
+.ha-msg{max-width:88%;padding:9px 12px;border-radius:14px;font-size:13.5px;line-height:1.5}
+.ha-msg p{margin:0 0 6px}.ha-msg p:last-of-type{margin-bottom:0}.ha-msg ul{margin:2px 0 4px;padding-left:18px}.ha-msg .btn{margin-top:8px}
+.ha-msg.eu{align-self:flex-end;background:#17181f;color:#f3f4f8;border-bottom-right-radius:4px;white-space:pre-wrap}
+.ha-msg.hipo{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.ha-digitando{display:inline-flex;gap:4px;padding:3px 0}.ha-digitando i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:haPonto 1s infinite}.ha-digitando i:nth-child(2){animation-delay:.15s}.ha-digitando i:nth-child(3){animation-delay:.3s}
+@keyframes haPonto{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+.ha-voltar{align-self:center;background:none;border:0;color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;padding:8px}
 .ha-rodape{border-top:1px solid var(--line);padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px;justify-content:space-between}
 @media (max-width:760px){#hipoAjuda{bottom:calc(92px + env(safe-area-inset-bottom));width:52px;height:52px}#hipoAjudaPainel{bottom:calc(152px + env(safe-area-inset-bottom));max-height:calc(100vh - 230px)}}
 @keyframes hipoBoia{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
@@ -481,6 +500,7 @@ label.comp-linha{display:flex!important;flex-direction:row!important;justify-con
 .mkit .barra>div{height:100%;border-radius:999px;background:rgba(255,255,255,.75)}
 .mkit .tres{position:absolute;top:10px;right:8px;width:28px;height:28px;border-radius:8px;border:none;background:transparent;color:#fff;font-size:18px;cursor:pointer;font-weight:900}
 .mkit .tres:hover{background:rgba(0,0,0,.15)}
+.mkit.menu-on{overflow:visible;z-index:30}.mkit.menu-on .marca{visibility:hidden} /* o menu dos 3 pontinhos passava da borda e o "Excluir" sumia */
 .kit-menu{position:absolute;top:40px;right:8px;z-index:5;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column;min-width:190px}
 .kit-menu button{background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13.5px}
 .kit-menu button:hover{background:var(--panel2)}
@@ -841,6 +861,12 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 @keyframes treme{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 .comp{max-width:700px;margin:0 auto}.comp .lac{display:inline-block;min-width:70px;border-bottom:2px solid var(--accent);color:var(--accent);font-weight:800}
 .comp-op{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.comp .lac.ok{color:var(--ok);border-color:var(--ok)}.comp .lac.erro{color:var(--bad);border-color:var(--bad)}.comp .lac{letter-spacing:.06em}
+.comp-dif{display:flex;gap:6px;justify-content:center;max-width:700px;margin:0 auto 12px}
+.comp-dif button{padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-weight:700;font-size:13.5px;cursor:pointer}
+.comp-dif button.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.comp-dig{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.comp-dig input{flex:1;min-width:180px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-size:16px}
+.comp-res{margin-top:16px;padding:12px 14px;border-radius:14px;font-weight:700}.comp-res.certo{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}.comp-res.errado{background:color-mix(in srgb,var(--bad) 12%,transparent)}
 .comp-op button{padding:13px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
 .comp-op button.certo{border-color:var(--ok);color:var(--ok)}.comp-op button.errado{border-color:var(--bad);color:var(--bad)}
 .caca{display:grid;gap:3px;max-width:430px;margin:0 auto;touch-action:manipulation}
@@ -1357,11 +1383,30 @@ async function proximoIA() {
 
 /* ---------- IA local (Ollama) ---------- */
 function textoDoSystem(system) { return Array.isArray(system) ? system.map(b => b.text).join("\n\n") : String(system || ""); }
-function limparJSON(t) {
+// JSON cortado ou quebrado no meio (a IA parou ou errou uma aspa): aproveita o que veio inteiro.
+// Corta logo depois de um "}" ou "]" que fecha um item e fecha os colchetes/chaves que ficaram abertos.
+function consertarJSON(t) {
+  const ini = t.indexOf("{"); if (ini < 0) return null;
+  t = t.slice(ini);
+  const pilha = [], cortes = []; let str = false, esc2 = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (str) { if (esc2) esc2 = false; else if (ch === "\\") esc2 = true; else if (ch === '"') str = false; continue; }
+    if (ch === '"') str = true;
+    else if (ch === "{" || ch === "[") pilha.push(ch === "{" ? "}" : "]");
+    else if (ch === "}" || ch === "]") { if (pilha.pop() !== ch) break; if (pilha.length) cortes.push([i + 1, pilha.slice()]); }
+  }
+  for (const [fim, abertos] of cortes.reverse().slice(0, 40)) {
+    try { const r = JSON.parse(t.slice(0, fim) + abertos.reverse().join("")); console.info("JSON da IA consertado (aproveitei o que veio inteiro)"); return r; } catch {}
+  }
+  return null;
+}
+function limparJSON(t, parcialOk = false) {
   t = t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   try { return JSON.parse(t); } catch {}
   const m = t.match(/\{[\s\S]*\}/);
   if (m) { try { return JSON.parse(m[0]); } catch {} }
+  const salvo = parcialOk && consertarJSON(t); if (salvo) return salvo;
   throw new Error("A IA local devolveu um formato inválido. Tente de novo, peça menos itens ou use um modelo maior.");
 }
 async function chamarOllama(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo }) {
@@ -1480,7 +1525,7 @@ async function enviarUsoIA() {
   } finally { USO_IA_INDO = false; }
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && Date.now() - USO_IA_ULT > 30000 && Object.keys(lsGet("fp-ia-pend", {})).length) enviarUsoIA(); });
-async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo, zoeira, ferr, modelos }) {
+async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, aoParcial, sinal, fundo, zoeira, ferr, modelos, parcialOk }) {
   const { ai, AI } = await motorGemini();
   const sys = textoDoSystem(system) + (schema ? "\n\nResponda SOMENTE com JSON válido que siga exatamente este esquema JSON:\n" + JSON.stringify(schema) : "");
   const contents = messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: partesGemini(m.content) }));
@@ -1514,7 +1559,7 @@ async function chamarGemini(s, { system, messages, schema, maxTokens, rotulo, ao
         registrarIA(ferr, nome, temUso ? usoMeta : { promptTokenCount: (sys.length + messages.reduce((a, m) => a + textoLen(m.content), 0)) / 4, candidatesTokenCount: texto.length / 4 }, { falhou: !pronto, est: !temUso });
       }
       if (!fundo) progressoIA("", null);
-      return schema ? limparJSON(texto) : texto.trim();
+      return schema ? limparJSON(texto, parcialOk) : texto.trim();
     } catch (e) {
       if (!fundo) progressoIA("", null);
       ultimoErro = e;
@@ -1738,17 +1783,26 @@ async function abrirZips(files, nivel = 0) {
 async function adicionarArquivos(files) {
   const c = atual(); if (!c) return;
   files = await abrirZips(files);
-  for (const f of files) {
-    toast("Lendo " + f.name + "…");
-    try {
-      const r = await extrair(f);
-      const novo = { id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r };
-      c.materiais.push(novo);
-      if (temFigura(novo)) await guardarOriginal(novo.id, r.arquivo || f); // para as imagens do Resumo em PDF
-      await salvar(c); render();
-      if (r.poucoTexto) { toast(`${f.name}: tem páginas em imagem. Lendo com IA…`); lerRapido(novo.id); }
-    } catch (e) { toast(`${f.name}: ${e.message}`, true); }
+  toast(files.length > 1 ? `Lendo ${files.length} arquivos…` : "Lendo " + (files[0]?.name || "") + "…");
+  // 3 arquivos ao mesmo tempo (antes era um de cada vez); a ordem da lista continua a mesma da escolha
+  const lidos = Array(files.length); let prox = 0;
+  const ler = async () => {
+    while (prox < files.length) {
+      const i = prox++, f = files[i];
+      try { lidos[i] = { f, r: await extrair(f) }; } catch (e) { toast(`${f.name}: ${e.message}`, true); }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, files.length) }, ler));
+  const paraIA = [];
+  for (const x of lidos) {
+    if (!x) continue;
+    const { f, r } = x, novo = { id: uid(), nome: f.name, ativo: true, criado: Date.now(), ...r };
+    c.materiais.push(novo);
+    if (temFigura(novo)) guardarOriginal(novo.id, r.arquivo || f).catch(e => console.warn("original:", e?.message)); // em segundo plano
+    if (r.poucoTexto) paraIA.push(novo);
   }
+  await salvar(c); render();
+  for (const m of paraIA) { toast(`${m.nome}: tem páginas em imagem. Lendo com IA…`); lerRapido(m.id); }
   toast("Materiais adicionados.");
   if (!c.materia) detectarMateria(c);
 }
@@ -1941,23 +1995,24 @@ async function lerComIA(id) {
       const r = await canvasJPEG(cv); cv.width = cv.height = 0; return [r];
     };
     // 3) lotes de páginas para a IA, vários ao mesmo tempo
-    const LOTE = zip ? 6 : 8, PARALELO = 3, lotes = [];
+    const LOTE = 5, PARALELO = 4, lotes = [];
     for (let i = 0; i < fila.length; i += LOTE) lotes.push(fila.slice(i, i + LOTE));
     const rot = zip ? "Slide" : "Página";
-    const fazerLote = async lote => {
+    const fazerLote = async (lote, repetindo = false) => {
       const content = [];
       for (const n of lote) { const ims = await imagens(n); if (!ims.length) continue; content.push({ type: "text", text: `[${rot} ${n}]` }, ...ims.map(d => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: d } }))); }
       if (!content.length) { lote.forEach(n => { if (zip) m.paginas[n - 1] ||= " "; }); return; }
       content.push({ type: "text", text: `Transcreva TODO o texto de cada ${rot.toLowerCase()} acima, na ordem, fielmente e no idioma original (títulos, tópicos, tabelas em linhas). Em figuras, gráficos e esquemas, descreva em 1 frase entre colchetes o que mostram. Não resuma e não comente. Responda em JSON: {"paginas":[{"n": número, "texto": "..."}]} com um item para cada ${rot.toLowerCase()} enviado.` });
       let erro;
-      for (let vez = 0; vez < 2; vez++) {
-        try {
-          const r = await chamar({ ferr: "leitura", system: "Você transcreve slides e páginas de material de estudo de medicina com fidelidade.", messages: [{ role: "user", content }], schema: obj({ paginas: arr(obj({ n: int, texto: str })) }), maxTokens: 12000, fundo: true });
-          for (const p of r.paginas || []) if (lote.includes(p.n) && limpar(p.texto)) m.paginas[p.n - 1] = (m.paginas[p.n - 1] && zip ? m.paginas[p.n - 1] + "\n" : "") + limpar(p.texto);
-          return;
-        } catch (e) { erro = e; }
-      }
-      console.warn("leitura com IA, lote falhou:", erro);
+      try {
+        // parcialOk: se a resposta vier cortada, fica com as páginas que chegaram inteiras
+        const r = await chamar({ ferr: "leitura", system: "Você transcreve slides e páginas de material de estudo de medicina com fidelidade.", messages: [{ role: "user", content }], schema: obj({ paginas: arr(obj({ n: int, texto: str })) }), maxTokens: 12000, fundo: true, parcialOk: true });
+        for (const p of r.paginas || []) if (lote.includes(p.n) && limpar(p.texto)) m.paginas[p.n - 1] = (m.paginas[p.n - 1] && zip ? m.paginas[p.n - 1] + "\n" : "") + limpar(p.texto);
+      } catch (e) { erro = e; }
+      // o que faltou volta UMA vez, em lotes de 2 (só aquelas páginas)
+      const faltou = lote.filter(n => !m.paginas[n - 1]);
+      if (faltou.length && !repetindo) for (let k = 0; k < faltou.length; k += 2) await fazerLote(faltou.slice(k, k + 2), true);
+      if (erro) console.warn("leitura com IA, lote falhou:", erro);
     };
     let prox = 0;
     const trabalhador = async () => { while (prox < lotes.length) { const lote = lotes[prox++]; await fazerLote(lote); feitas += lote.length; mostrar(); if (prox % 3 === 0) { m.texto = zip ? textoSlides(m.paginas) : juntarPaginas(m.paginas); salvar(c); } } };
@@ -1970,6 +2025,7 @@ async function lerComIA(id) {
     m.faltam = []; m.poucoTexto = false; delete m.b64; if (!zip) delete m.arquivo;
     if (m.texto.replace(/\[(Página|Slide) \d+\]|\s/g, "").length < 20) throw new Error("não encontrei texto nas imagens");
     toast(`${m.nome}: lido em ${Math.max(1, Math.round((Date.now() - inicio) / 1000))} s.`);
+    if (!c.materia) setTimeout(() => detectarMateria(c), 300);
   } catch (e) {
     console.warn("leitura com IA:", e); delete m.transcrevendo; await salvar(c);
     if (!zip) { toast("A leitura rápida falhou; usando o leitor do celular…"); return lerComOCR(id); }
@@ -2567,11 +2623,54 @@ async function lerOrdemKits() { // vale a mudança mais recente entre os aparelh
   try { const s = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, `users/${uid}/conta/ordem`)); if (s.exists() && NUVEM.user?.uid === uid && Array.isArray(s.data().l) && (s.data().q || 0) > ordemKits().q) { lsSet("fp-ordem-kits", { l: s.data().l, q: s.data().q }); if (!atual() && !S.player) render(); } } catch {}
 }
 const ordemDaTela = () => [...document.querySelectorAll("#main .mkit[data-kit]")].map(e => e.dataset.kit);
+// ---------- ordem das MATÉRIAS (mãozinha ao lado do nome). Sem posição: ordem alfabética, depois das arrumadas; "Outros" sempre no fim ----------
+const ordemMaterias = () => lsGet("fp-ordem-materias", { l: [], q: 0 });
+function compararMaterias(a, b) {
+  if (a === SEM_MATERIA || b === SEM_MATERIA) return a === b ? 0 : a === SEM_MATERIA ? 1 : -1;
+  const l = ordemMaterias().l, x = l.indexOf(a), y = l.indexOf(b);
+  return x < 0 && y < 0 ? a.localeCompare(b, "pt-BR") : x < 0 ? 1 : y < 0 ? -1 : x - y;
+}
+function gravarOrdemMaterias() {
+  const v = { l: [...document.querySelectorAll("#main section.materia[data-materia-sec]")].map(e => e.dataset.materiaSec).slice(0, 200), q: Date.now() };
+  lsSet("fp-ordem-materias", v);
+  if (NUVEM.user && NUVEM.F) NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `users/${NUVEM.user.uid}/conta/ordemMaterias`), v).catch(e => console.warn("ordem das matérias:", e?.message));
+}
+async function lerOrdemMaterias() { // vale a mudança mais recente entre os aparelhos da conta
+  const uid = NUVEM.user?.uid; if (!uid) return;
+  try { const s = await NUVEM.F.getDoc(NUVEM.F.doc(NUVEM.db, `users/${uid}/conta/ordemMaterias`)); if (s.exists() && NUVEM.user?.uid === uid && Array.isArray(s.data().l) && (s.data().q || 0) > ordemMaterias().q) { lsSet("fp-ordem-materias", { l: s.data().l, q: s.data().q }); if (!atual() && !S.player) render(); } } catch {}
+}
+document.addEventListener("pointerdown", e => {
+  const mao = e.target.closest?.("[data-maomat]"); if (!mao || (e.button && e.pointerType === "mouse")) return;
+  const sec = mao.closest("section.materia"); if (!sec) return; e.preventDefault();
+  const head = sec.querySelector(".materia-head"), r = head.getBoundingClientRect(), dy = e.clientY - r.top;
+  let py = e.clientY, moveu = false, raf = 0, sombra = null;
+  const comecar = () => { moveu = true; S.arrastandoKit = true; sombra = head.cloneNode(true); sombra.classList.add("mat-sombra"); sombra.style.width = r.width + "px"; sombra.style.left = r.left + "px"; document.body.append(sombra); sec.classList.add("mat-vaga"); };
+  const aplicar = () => { if (!sombra) return;
+    sombra.style.transform = `translateY(${py - dy}px)`;
+    for (const outra of document.querySelectorAll("#main section.materia[data-materia-sec]")) {
+      if (outra === sec || outra.dataset.materiaSec === SEM_MATERIA) continue;
+      const k = outra.getBoundingClientRect(); if (py < k.top || py > k.bottom) continue;
+      const depois = py > k.top + Math.min(k.height / 2, 60);
+      if (depois ? outra.nextElementSibling !== sec : outra.previousElementSibling !== sec) outra.parentElement.insertBefore(sec, depois ? outra.nextElementSibling : outra);
+      break;
+    } };
+  const quadro = () => { raf = 0; if (!sombra) return; const topo = py < 110, pe = py > innerHeight - 100; if (topo || pe) { window.scrollBy(0, topo ? -14 : 14); aplicar(); } raf = requestAnimationFrame(quadro); };
+  const mover = ev => { if (ev.pointerId !== e.pointerId) return; py = ev.clientY; if (!moveu && Math.abs(py - e.clientY) > 5) comecar(); if (moveu) { ev.preventDefault(); aplicar(); if (!raf) raf = requestAnimationFrame(quadro); } };
+  const fim = ev => { if (ev.pointerId !== e.pointerId) return; removeEventListener("pointermove", mover); removeEventListener("pointerup", fim); removeEventListener("pointercancel", fim); cancelAnimationFrame(raf); sombra?.remove(); sombra = null; sec.classList.remove("mat-vaga"); S.arrastandoKit = false; if (moveu) { S.soltouKit = Date.now(); if (ev.type === "pointerup") gravarOrdemMaterias(); render(); } };
+  addEventListener("pointermove", mover, { passive: false }); addEventListener("pointerup", fim); addEventListener("pointercancel", fim);
+});
+document.addEventListener("keydown", e => {
+  const m = e.target.dataset?.maomat; if (!m || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return; e.preventDefault();
+  const sec = e.target.closest("section.materia"), antes = e.key === "ArrowUp" || e.key === "ArrowLeft", v = antes ? sec.previousElementSibling : sec.nextElementSibling;
+  if (!v?.dataset?.materiaSec || v.dataset.materiaSec === SEM_MATERIA) return;
+  sec.parentElement.insertBefore(sec, antes ? v : v.nextElementSibling); gravarOrdemMaterias(); render();
+  document.querySelector(`[data-maomat="${CSS.escape(m)}"]`)?.focus();
+});
 async function soltarKit(id) {
   const el = document.querySelector(`#main .mkit[data-kit="${CSS.escape(id)}"]`), c = S.cadernos.find(x => x.id === id); if (!el || !c) return;
   gravarOrdemKits(ordemDaTela());
   const m = el.closest(".mkits")?.dataset.materia; // soltou em outra matéria: muda a matéria do caderno
-  if (m !== undefined && m !== (c.materia || SEM_MATERIA)) { c.materia = m === SEM_MATERIA ? "" : m; c.materiaAuto = false; await salvar(c); toast(m === SEM_MATERIA ? TT("Caderno sem matéria.", "Cuaderno sin materia.") : TT(`Caderno movido para ${m}.`, `Cuaderno movido a ${m}.`)); }
+  if (m !== undefined && m !== (c.materia || SEM_MATERIA)) { c.materia = m === SEM_MATERIA ? "" : m; c.materiaAuto = false; c.materiaManual = m === SEM_MATERIA; await salvar(c); toast(m === SEM_MATERIA ? TT("Caderno sem matéria.", "Cuaderno sin materia.") : TT(`Caderno movido para ${m}.`, `Cuaderno movido a ${m}.`)); }
   render();
 }
 document.addEventListener("pointerdown", e => {
@@ -2597,11 +2696,11 @@ document.addEventListener("keydown", e => {
 function viewHome() {
   const grupos = {};
   for (const c of S.cadernos) if (!c.oficial) (grupos[c.materia || SEM_MATERIA] ||= []).push(c);
-  const ordem = Object.keys(grupos).sort((a, b) => a === SEM_MATERIA ? 1 : b === SEM_MATERIA ? -1 : a.localeCompare(b, "pt-BR"));
+  const ordem = Object.keys(grupos).sort(compararMaterias);
   const cartao = c => {
     const n = nivelCaderno(c), cor = corMateria(c.materia || SEM_MATERIA);
     const pct = Math.max(4, Math.round(n.geral * 100));
-    return `<div class="mkit${corClara(cor) ? " claro" : ""}" style="background:${cor}" data-act="abrir" data-id="${c.id}" data-kit="${c.id}" role="button" tabindex="0">
+    return `<div class="mkit${corClara(cor) ? " claro" : ""}${S.menuKit === c.id ? " menu-on" : ""}" style="background:${cor}" data-act="abrir" data-id="${c.id}" data-kit="${c.id}" role="button" tabindex="0">
       <b>${esc(c.nome)}</b>
       <span class="sub">${c.materiais.length} material(is) · Nível ${n.nivel}${S.detectando === c.id ? " · identificando matéria…" : ""}</span>
       <span class="marca">${c.icone || "📘"}</span>
@@ -2618,9 +2717,9 @@ function viewHome() {
   const avisoEndereco = (location.hostname.endsWith("github.io") || location.hostname.startsWith("focoprova")) ? `<div class="aviso-nuvem">🐴 O Foco Prova agora se chama <b>Hipocampo Study</b> e mudou de endereço: <a href="https://hipocampo.web.app" style="color:var(--accent);font-weight:800">hipocampo.web.app</a> — entre com o Google aqui antes, para levar seus cadernos para lá.</div>` : "";
   const extras = `${cartaoMeta()}${cartaoRanking()}${cartaoGrupos()}${ATENEO_ATIVO ? cartaoAteneos() : ""}`, cel = telaCelular() && S.cadernos.some(c => !c.oficial); // no celular os cadernos vêm logo depois da saudação
   return `${avisoEndereco}${cartaoPlano()}${cartaoEntrada() || cartaoHipo() + cartaoRevisaoDia()}${cel ? "" : extras}<button class="criar-top" data-act="novo"><span class="ic">✦</span>Criar um caderno de estudo<span class="seta">→</span></button>
-  <button class="btn small ghost importar-mat" data-act="importarMateria">${TT("Importar matéria", "Importar materia")}</button>
-  ${ordem.map(m => `<section class="materia">
-      <div class="materia-head"><h2>${esc(m)}</h2>
+  <div class="row mat-acoes" style="gap:8px;flex-wrap:wrap"><button class="btn mat-nova" data-act="novaMateria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>${TT("Nova matéria", "Nueva materia")}</button><button class="btn importar-mat" data-act="importarMateria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>${TT("Importar matéria", "Importar materia")}</button></div>
+  ${ordem.map(m => `<section class="materia" data-materia-sec="${esc(m)}">
+      <div class="materia-head">${ordem.length > 1 ? `<button class="mao-mat" data-maomat="${esc(m)}" title="${TT("Arrastar para mudar a matéria de lugar (ou use as setas do teclado)", "Arrastra para cambiar la materia de lugar (o usa las flechas del teclado)")}" aria-label="${TT("Mudar a matéria de lugar", "Cambiar la materia de lugar")}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 11V4.8a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v6M17 9.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1.2a6 6 0 0 1-4.6-2.2L4 14.4a1.5 1.5 0 0 1 2.2-2L8 14"/></svg></button>` : ""}<h2>${esc(m)}</h2>
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
         ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button><button class="mini cor-bt" data-act="corLivre" data-id="${esc(m)}" title="${TT("Escolher outra cor", "Elegir otro color")}" aria-label="${TT("Escolher outra cor", "Elegir otro color")}"><i style="background:${esc(corMateria(m))}"></i></button>` : ""}<button class="mini" data-act="compartilharMateria" data-id="${esc(m)}" title="${TT("Compartilhar matéria", "Compartir materia")}" aria-label="${TT("Compartilhar matéria", "Compartir materia")}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/></svg></button><button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
       </div>
@@ -2641,8 +2740,12 @@ function viewHome() {
 }
 
 // A IA lê o começo do material e diz a matéria (reaproveita as que você já tem)
+const temTextoLido = c => ativos(c).reduce((n, m) => n + ((m.texto || "").match(/\p{L}/gu) || []).length, 0) >= 150;
 async function detectarMateria(c, forcar = false) {
-  if (!c || !ativos(c).length || (c.materia && !forcar) || S.detectando) return;
+  if (!c || !ativos(c).length || (c.materia && !forcar)) return;
+  // o texto ainda está sendo lido (PDF escaneado, slides em foto): tenta de novo quando a leitura acabar
+  if (!temTextoLido(c)) { if (forcar) toast(TT("O material ainda não tem texto lido. Tente de novo quando a leitura terminar.", "El material aún no tiene texto leído. Inténtalo cuando termine la lectura."), true); return; }
+  if (S.detectando) { if (S.detectando !== c.id) setTimeout(() => detectarMateria(c, forcar), 3000); return; } // outra matéria sendo identificada: espera a vez
   S.detectando = c.id; render();
   try {
     const existentes = nomesMaterias();
@@ -2651,16 +2754,22 @@ async function detectarMateria(c, forcar = false) {
     const r = await chamar({ ferr: "leitura",
       system: "Você identifica a disciplina acadêmica de materiais de estudo lendo o CONTEÚDO deles.",
       messages: [{ role: "user", content: `Trechos do material:\n${amostra}\n\nO nome que o estudante deu ao caderno é "${c.nome}" — pode ser abreviado ou ambíguo; decida pelo CONTEÚDO dos trechos.\nDisciplinas comuns: Fisiologia, Anatomia, Bioquímica, Biologia Celular, Histologia, Microbiologia, Imunologia, Parasitologia, Genética, Farmacologia, Patologia, Nutrição, Fisioterapia, Enfermagem, Psicologia, Química, Física, Matemática, Português, Literatura, História, Geografia, Direito, Economia.\nAtenção: Fisiologia (como o corpo funciona: líquidos corporais, rins, sistema nervoso, Guyton) é diferente de Fisioterapia (reabilitação, exercícios terapêuticos).\nMatérias que o estudante já tem: ${existentes.length ? existentes.join(", ") : "(nenhuma)"} — se for a MESMA disciplina, use exatamente esse nome; se for outra, crie a nova (1 a 3 palavras, maiúscula inicial).\nResponda a matéria em "materia".` }],
-      schema: obj({ materia: str }), maxTokens: cfg().provider === "anthropic" ? 4000 : 80, rotulo: "Identificando a matéria", urgente: true
+      schema: obj({ materia: str }), maxTokens: cfg().provider === "anthropic" ? 4000 : 300, rotulo: "Identificando a matéria", urgente: true
     });
     const nome = String(r.materia || "").trim().replace(/^["']|["']$/g, "").slice(0, 60);
     if (nome) { c.materia = existentes.find(e => e.toLowerCase() === nome.toLowerCase()) || nome; c.materiaAuto = true; await salvar(c); toast(`“${c.nome}” foi colocado em ${c.materia}.`); }
-  } catch (e) { if (forcar) toast("Não consegui identificar a matéria: " + erroMsg(e), true); }
-  c.materiaTentada = true; S.detectando = null; render();
+    c.materiaTentada = c.materiaTentada2 = true;
+  } catch (e) {
+    if (forcar) toast("Não consegui identificar a matéria: " + erroMsg(e), true);
+    // IA ocupada: tenta de novo daqui a pouco (até 3 vezes); só depois desiste
+    c.materiaFalhas = (c.materiaFalhas || 0) + 1;
+    if (c.materiaFalhas < 3) setTimeout(() => { if (!c.materia) detectarMateria(c); }, 20000 * c.materiaFalhas); else c.materiaTentada = c.materiaTentada2 = true;
+  }
+  S.detectando = null; render();
 }
 // Cadernos antigos sem matéria: identifica um de cada vez, em segundo plano
 function detectarPendentes() {
-  const c = S.cadernos.find(x => !x.materia && !x.materiaTentada && ativos(x).length);
+  const c = S.cadernos.find(x => !x.materia && !x.materiaManual && !x.materiaFalhas && (!x.materiaTentada || !x.materiaTentada2) && temTextoLido(x));
   if (c && !S.detectando && !S.player) detectarMateria(c).then(() => setTimeout(detectarPendentes, 500));
 }
 
@@ -2895,6 +3004,82 @@ function palavraChave(k, max = 99) {
   const ws = (String(k.verso).match(/[A-Za-zÀ-ÿ]{5,}/g) || []).filter(w => w.length <= max && !naFrente.has(semAcentoJ(w).toLowerCase()));
   return ws.sort((a, b) => b.length - a.length)[0] || "";
 }
+// Complete a frase: esconde o TERMO que importa (termo técnico, sigla, nome, número com unidade), nunca palavra vazia
+const COMP_FRACAS = new Set(("diretamente indiretamente principalmente geralmente especialmente rapidamente lentamente somente solamente apenas " +
+  "atraves traves porque quando cuando durante entre sobre tambem tambien muito mucho muita mucha pouco poco maior mayor menor outro otro outra otra outros otros outras otras " +
+  "sendo siendo estar estao estan podem pueden pode puede tiene tienen possui posee importante principal general geral exemplo ejemplo forma parte partes cada todos todas todo toda " +
+  "mesmo mismo misma mesma ainda aunque embora desde hasta depois despues antes sempre siempre nunca mediante contra onde donde assim entao entonces como mais menos nivel " +
+  "efeito efecto efeitos efectos acao accion acoes acciones atua actua actuan atuam aumenta aumentan diminui disminuye disminuyen reduz reduce reducen estimula estimulan inibe inhibe " +
+  "causa causan produz produce producen ocorre ocurre ocurren permite permiten realiza realizan ayuda ajuda forman formam tipo tipos caso casos cual quais cuales sobre bajo baixo alto alta " +
+  "grande grandes pequeno pequena pequeño pequeña nuevo novo nueva nova primero primeiro segunda segundo tercer terceiro final inicio funcao funcion funciones funcoes manera maneira " +
+  "relacion relacao respecto respeito tanto tanta cerca alrededor aproximadamente seguinte siguiente varios varias muchos muchas proceso processo procesos processos").split(" "));
+const COMP_SUFIXO = /(cao|coes|cion|ciones|ose|osis|ina|inas|ase|asas|ismo|emia|uria|algia|ite|itis|oma|cito|citos|plasma|logia|patia|genese|genesis|lise|lisis|stase|stasis|trofia|plasia|ona|onas|ol|eno|ico|ica|ulo|ula|ulos|ulas)$/;
+function compCandidatos(texto, frente = "") {
+  const naFrente = new Set(semAcentoJ(frente).toLowerCase().match(/[a-z0-9]{2,}/g) || []), out = new Map();
+  texto = String(texto).replace(/\(([^()]*)\)/g, (t, d) => /,/.test(d) || d.trim().split(/\s+/).length > 2 ? " " : t); // citação "(Fisiologia renal, aula 3)" não entra
+  const add = (w, tipo, nota) => { const k = semAcentoJ(w).toLowerCase(); if (!out.has(k) || out.get(k).nota < nota) out.set(k, { w, tipo, nota }); };
+  // números com unidade (125 mL/min, 60 mmHg, 65%)
+  for (const m of String(texto).matchAll(/\b\d+(?:[.,]\d+)?\s?(?:%|mmHg|mL\/min|ml\/min|mL|ml|L\/dia|L|mg\/dL|mg|g\/dL|g|mEq\/L|mEq|mmol\/L|mmol|kg|min|h|cm|mm|µm|nm|bpm|°C)(?![A-Za-z])/g)) add(m[0], "num", 7);
+  for (const m of String(texto).matchAll(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9-]*/g)) {
+    const w = m[0], k = semAcentoJ(w).toLowerCase();
+    if (naFrente.has(k) || COMP_FRACAS.has(k)) continue;
+    if (/^[A-Z][A-Z0-9-]{1,6}$/.test(w) && /[A-Z]{2}/.test(w)) { add(w, "sigla", 8); continue; } // LEC, PTH, ADH, NKCC2
+    if (w.length < 5) continue;
+    if (/(mente|ando|endo|indo|iendo)$/.test(k)) continue; // advérbio e gerúndio
+    if (/(ada|ado|adas|ados|ida|ido|idas|idos)$/.test(k) && !COMP_SUFIXO.test(k)) continue; // particípio (secretada, formado)
+    if (/(ar|er|ir|am|em|an|en|aram|eram|iram|aba|ava|ia)$/.test(k) && !COMP_SUFIXO.test(k) && !/(lar|nar|mar)$/.test(k)) continue; // verbo (mas glomerular, extracelular, pulmonar ficam)
+    let nota = Math.min(w.length, 12) * 0.35;
+    if (COMP_SUFIXO.test(k)) nota += 3;
+    if (m.index > 0 && /^[A-ZÀ-Ý]/.test(w)) nota += 2; // nome próprio no meio da frase (Henle, Bowman)
+    add(w, "termo", nota);
+  }
+  return [...out.values()];
+}
+function compSimilar(a, b) {
+  const x = semAcentoJ(a.w).toLowerCase(), y = semAcentoJ(b.w).toLowerCase();
+  let n = 0; if (x.slice(-3) === y.slice(-3)) n += 3; else if (x.slice(-2) === y.slice(-2)) n += 1.5;
+  n -= Math.abs(x.length - y.length) * 0.3; if (x[0] === y[0]) n += 0.5; return n;
+}
+function compNumerosFalsos(w) {
+  const m = /^(\d+(?:[.,]\d+)?)(\s?)(.*)$/.exec(w); if (!m) return [];
+  const v = parseFloat(m[1].replace(",", ".")), dec = (m[1].split(/[.,]/)[1] || "").length;
+  return [...new Set([0.5, 2, 1.5, 0.75, 3].map(f => +(v * f).toFixed(dec)).filter(x => x !== v && x > 0))].map(x => String(x).replace(".", m[1].includes(",") ? "," : ".") + m[2] + m[3]);
+}
+function montarCompletar(cards, dif) {
+  const todos = cards.map(k => ({ k, cands: compCandidatos(k.verso, k.frente) }));
+  const banco = todos.flatMap(x => x.cands);
+  const rodadas = [];
+  for (const { k, cands } of embaralhar(todos)) {
+    const ok = cands.filter(x => dif === "facil" ? x.tipo !== "num" : true).sort((a, b) => b.nota - a.nota);
+    const alvo = ok[0]; if (!alvo || alvo.nota < 2.5) continue;
+    const r = { k, w: alvo.w, tipo: alvo.tipo };
+    if (dif !== "dificil") {
+      const nOps = dif === "facil" ? 2 : 3, igual = x => semAcentoJ(x).toLowerCase() === semAcentoJ(alvo.w).toLowerCase();
+      let falsos = [];
+      if (alvo.tipo === "num") {
+        const un = alvo.w.replace(/^[\d.,\s]+/, "");
+        falsos = embaralhar(banco.filter(x => x.tipo === "num" && x.w.replace(/^[\d.,\s]+/, "") === un && !igual(x.w)).map(x => x.w));
+        falsos = [...new Set([...falsos, ...compNumerosFalsos(alvo.w)])];
+      } else {
+        const mesmos = banco.filter(x => x.tipo === alvo.tipo && !igual(x.w) && !semAcentoJ(k.verso).toLowerCase().includes(semAcentoJ(x.w).toLowerCase()));
+        falsos = dif === "facil" ? embaralhar(mesmos).map(x => x.w) : mesmos.map(x => ({ w: x.w, s: compSimilar(x, alvo) + Math.random() })).sort((a, b) => b.s - a.s).map(x => x.w);
+        if (falsos.length < nOps) falsos.push(...banco.filter(x => x.tipo === "termo" && !igual(x.w)).map(x => ({ w: x.w, s: compSimilar(x, alvo) + Math.random() })).sort((a, b) => b.s - a.s).map(x => x.w)); // poucas siglas: completa com termos
+      }
+      falsos = [...new Set(falsos)].slice(0, nOps);
+      if (falsos.length < nOps) continue; // sem opções boas: pula este cartão
+      r.ops = embaralhar([alvo.w, ...falsos]);
+    }
+    rodadas.push(r); if (rodadas.length >= 8) break;
+  }
+  return rodadas;
+}
+const compNorm = t => semAcentoJ(String(t || "")).toLowerCase().replace(/\s+/g, "").replace(/,/g, ".");
+function compQuaseIgual(a, b) { // digitou certo (aceita 1 letra errada em palavras longas)
+  a = compNorm(a); b = compNorm(b); if (a === b) return true; if (b.length < 7 || Math.abs(a.length - b.length) > 1) return false;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]); for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length] <= 1;
+}
 function iniciarJogo(c, tipo) {
   const p = S.player, cards = embaralhar(todosCards(c).map(x => x.k));
   if (tipo === "pares") {
@@ -2902,10 +3087,8 @@ function iniciarJogo(c, tipo) {
     l.forEach((k, i) => { t.push({ par: i, txt: k.frente, frente: true }); t.push({ par: i, txt: k.verso }); });
     p.jogo = { tipo, tiles: embaralhar(t), sel: null, ok: new Set(), erros: 0, ini: Date.now() };
   } else if (tipo === "completar") {
-    const rodadas = cards.map(k => ({ k, w: palavraChave(k) })).filter(x => x.w).slice(0, 8);
-    const banco = [...new Set(cards.flatMap(k => String(k.verso).match(/[A-Za-zÀ-ÿ]{5,}/g) || []))];
-    for (const r of rodadas) r.ops = embaralhar([r.w, ...embaralhar(banco.filter(w => semAcentoJ(w).toLowerCase() !== semAcentoJ(r.w).toLowerCase())).slice(0, 3)]);
-    p.jogo = { tipo, rodadas, i: 0, acertos: 0, resp: null };
+    const dif = lsGet("fp-comp-dif", "medio");
+    p.jogo = { tipo, dif, rodadas: montarCompletar(cards, dif), i: 0, acertos: 0, resp: null };
   } else {
     const N = telaCelular() ? 10 : 12, palavras = [...new Set(cards.map(k => semAcentoJ(palavraChave(k, N)).toUpperCase()).filter(w => /^[A-Z]{4,}$/.test(w) && w.length <= N))].slice(0, 6);
     const g = Array.from({ length: N * N }, () => ""), postas = [];
@@ -2928,11 +3111,18 @@ function viewJogo(c, p) {
     return topo + `<div class="pares">${j.tiles.map((t, i) => `<button class="par ${t.frente ? "frente" : ""} ${j.ok.has(t.par) ? "ok" : ""} ${j.sel === i ? "sel" : ""} ${j.erro?.includes(i) ? "erro" : ""}" data-act="parTile" data-id="${i}">${esc(String(t.txt).slice(0, 140))}</button>`).join("")}</div>`;
   }
   if (j.tipo === "completar") {
-    if (!j.rodadas.length) return topo + `<div class="card empty">${TT("Ainda não há respostas longas o bastante. Estude mais cartões.", "Aún no hay respuestas largas. Estudia más tarjetas.")}</div>`;
+    if (!j.rodadas.length) return topo + `<div class="comp-dif">${[["facil", "Fácil", "Fácil"], ["medio", "Médio", "Medio"], ["dificil", "Difícil", "Difícil"]].map(([k, pt, e]) => `<button class="${j.dif === k ? "on" : ""}" data-act="compDif" data-id="${k}">${es ? e : pt}</button>`).join("")}</div><div class="card empty">${TT("Ainda não há cartões com termos bons para esconder. Estude mais cartões.", "Aún no hay tarjetas con términos buenos para ocultar. Estudia más tarjetas.")}</div>`;
     if (j.i >= j.rodadas.length) return topo + fim(TT(`${j.acertos} de ${j.rodadas.length}`, `${j.acertos} de ${j.rodadas.length}`), TT("Palavras completadas certo.", "Palabras completadas bien."));
-    const r = j.rodadas[j.i], verso = esc(r.k.verso).replace(new RegExp(r.w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `<span class="lac">${j.resp != null ? esc(r.w) : "&nbsp;"}</span>`);
-    return topo + `<div class="comp card"><div class="muted" style="font-size:13px">${j.i + 1}/${j.rodadas.length}</div><div class="md" style="font-weight:700;margin:6px 0 10px">${md(r.k.frente)}</div><div style="font-size:17px;line-height:1.6">${verso}</div>
-      <div class="comp-op">${r.ops.map((w, i) => `<button data-act="compOpc" data-id="${i}" class="${j.resp == null ? "" : w === r.w ? "certo" : j.resp === i ? "errado" : ""}">${esc(w)}</button>`).join("")}</div>
+    const r = j.rodadas[j.i], buraco = j.resp != null ? esc(r.w) : j.dif === "dificil" ? esc(r.w[0]) + "_".repeat(Math.max(2, r.w.length - 1)).split("").join(" ") : "&nbsp;";
+    const verso = esc(r.k.verso).replace(esc(r.w), `<span class="lac${j.resp != null ? (j.certo ? " ok" : " erro") : ""}">${buraco}</span>`);
+    const resp = j.dif === "dificil"
+      ? (j.resp == null ? `<div class="comp-dig"><input id="compIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${TT("Digite a palavra que falta", "Escribe la palabra que falta")}"><button class="pill" data-act="compConferir">${TT("Conferir", "Comprobar")}</button><button class="btn small ghost" data-act="compNaoSei">${TT("Não sei", "No sé")}</button></div>`
+        : `<div class="comp-res ${j.certo ? "certo" : "errado"}">${j.certo ? TT("Certo!", "¡Correcto!") : TT(`Era: <b>${esc(r.w)}</b>${j.digitado ? ` (você escreveu "${esc(j.digitado)}")` : ""}`, `Era: <b>${esc(r.w)}</b>${j.digitado ? ` (escribiste "${esc(j.digitado)}")` : ""}`)}</div>`)
+      : `<div class="comp-op">${r.ops.map((w, i) => `<button data-act="compOpc" data-id="${i}" class="${j.resp == null ? "" : w === r.w ? "certo" : j.resp === i ? "errado" : ""}">${esc(w)}</button>`).join("")}</div>`;
+    const difs = [["facil", "Fácil", "Fácil"], ["medio", "Médio", "Medio"], ["dificil", "Difícil", "Difícil"]];
+    return topo + `<div class="comp-dif">${difs.map(([k, pt, e]) => `<button class="${j.dif === k ? "on" : ""}" data-act="compDif" data-id="${k}">${es ? e : pt}</button>`).join("")}</div>
+      <div class="comp card"><div class="muted" style="font-size:13px">${j.i + 1}/${j.rodadas.length}</div><div class="md" style="font-weight:700;margin:6px 0 10px">${md(r.k.frente)}</div><div style="font-size:17px;line-height:1.6">${verso}</div>
+      ${resp}
       ${j.resp != null ? `<div style="text-align:right;margin-top:14px"><button class="pill" data-act="compProx">${TT("Próxima →", "Siguiente →")}</button></div>` : ""}</div>`;
   }
   if (!j.postas.length) return topo + `<div class="card empty">${TT("Ainda não há termos bons para a grade. Estude mais cartões.", "Aún no hay términos para la cuadrícula. Estudia más tarjetas.")}</div>`;
@@ -2949,8 +3139,13 @@ function jogada(c, act, id) {
     if (j.sel == null || j.sel === i) j.sel = j.sel === i ? null : i;
     else { const a = j.tiles[j.sel]; if (a.par === t.par) { j.ok.add(t.par); if (j.ok.size * 2 === j.tiles.length) { j.fim = Date.now(); ganharXP(5, c); } } else { j.erros++; j.erro = [j.sel, i]; } j.sel = null; }
   } else if (act === "compOpc") {
-    if (j.resp != null) return; const r = j.rodadas[j.i]; j.resp = +id; if (r.ops[+id] === r.w) { j.acertos++; ganharXP(1, c); }
-  } else if (act === "compProx") { j.i++; j.resp = null; }
+    if (j.resp != null) return; const r = j.rodadas[j.i]; j.resp = +id; j.certo = r.ops[+id] === r.w; if (j.certo) { j.acertos++; ganharXP(1, c); }
+  } else if (act === "compConferir" || act === "compNaoSei") {
+    if (j.resp != null) return; const r = j.rodadas[j.i], v = act === "compNaoSei" ? "" : ($("#compIn")?.value || "").trim();
+    if (act === "compConferir" && !v) return $("#compIn")?.focus();
+    j.resp = 0; j.digitado = v; j.certo = !!v && compQuaseIgual(v, r.w); if (j.certo) { j.acertos++; ganharXP(2, c); }
+  } else if (act === "compDif") { lsSet("fp-comp-dif", id); return iniciarJogo(c, "completar"); }
+  else if (act === "compProx") { j.i++; j.resp = null; j.certo = false; j.digitado = ""; }
   else if (act === "cacaCel") {
     const i = +id; if (j.sel == null) { j.sel = i; return render(); }
     const a = j.sel; j.sel = null;
@@ -2958,6 +3153,7 @@ function jogada(c, act, id) {
     if (x) { j.achadas.push(x.w); ganharXP(1, c); if (j.achadas.length === j.postas.length) j.fim = Date.now(); }
   }
   render();
+  if (j.tipo === "completar" && j.dif === "dificil" && j.resp == null) setTimeout(() => $("#compIn")?.focus(), 30);
 }
 function iniciarFlash(deckId, tudo) {
   const d = atual().decks.find(x => x.id === deckId);
@@ -4454,7 +4650,7 @@ async function iniciarNuvem() {
       if (S.excluindo) return; // a conta está sendo apagada: excluirConta cuida do resto
       if (u && trocarDadosDaConta(u.uid)) return; // outra conta: recarrega com o progresso dela
       NUVEM.user = u; NUVEM.menu = false; desenharConta(); render();
-      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosRank(); }).catch(() => {}); lerOcultos(); lerOrdemKits(); sincronizarCores(); }
+      await verificarAcesso(); if (u) { registrarConta(u); sincronizarXP(); conferirPixPendente(); carregarGrupos().then(l => { if (l.length && !atual() && !S.player) render(); enviarPontosRank(); }).catch(() => {}); lerOcultos(); lerOrdemKits(); lerOrdemMaterias(); sincronizarCores(); }
       if ($("#dlgPagar").open) abrirPagamento(null);
       { let pm = ""; try { pm = sessionStorage.getItem("fp-materia-pendente") || ""; if (pm && u) sessionStorage.removeItem("fp-materia-pendente"); } catch {} if (pm) { telaImportar(linkMateria(pm)); if (u) verMateriaLink(); } }
       { let pd = ""; try { pd = sessionStorage.getItem("fp-duelo-pendente") || ""; } catch {}
@@ -5810,6 +6006,8 @@ document.addEventListener("click", async e => {
     case "feedback": hipoAjudaFechar(); abrirFeedback(); break;
     case "hipoAjuda": hipoAjudaAbrir(); break;
     case "hipoAjudaFechar": hipoAjudaFechar(); break;
+    case "haProntas": S.haVerProntas = true; hipoAjudaDesenharLista($("#haBusca")?.value || ""); $("#haLista").scrollTop = 0; break;
+    case "haConversa": S.haVerProntas = false; hipoAjudaDesenharConversa(); break;
     case "haIr": hipoAjudaFechar(); if (id === "feedback") abrirFeedback(); else if (id === "pagar") abrirPagamento(null); else if (id === "entrar") entrarGoogle(); else if (id === "guia") iniciarTour("casa"); else if (id === "config") abrirConfig(); else if (id === "novo") document.querySelector('.criar-top[data-act="novo"]')?.click(); break;
     case "panico": abrirPanico(); break;
     case "panOcultar": if (c?.panico) { c.panico.oculto = !c.panico.oculto; await salvar(c); render(); } break;
@@ -5870,12 +6068,19 @@ document.addEventListener("click", async e => {
     case "rankVer": verRanking(id); break;
     case "compartilharMateria": telaCompartilhar(id); break;
     case "importarMateria": telaImportar(); break;
+    case "novaMateria": pedirTexto(TT("Nome da nova matéria (ex.: Fisiologia, Anatomia)", "Nombre de la nueva materia (ej.: Fisiología, Anatomía)"), "", v => {
+      const nome = String(v || "").trim().slice(0, 60); if (!nome) return;
+      const existe = S.cadernos.some(k => !k.oficial && (k.materia || "").toLowerCase() === nome.toLowerCase());
+      toast(existe ? TT(`A matéria "${nome}" já existe: crie o caderno dentro dela.`, `La materia "${nome}" ya existe: crea el cuaderno dentro de ella.`) : TT(`Agora crie o primeiro caderno de "${nome}" (envie o material).`, `Ahora crea el primer cuaderno de "${nome}" (envía el material).`));
+      abrirNovo([], nome);
+    }); break;
     case "fecharMateria": $("#dlgMateria").close(); break;
     case "compCriar": criarLinkMateria(); break;
     case "compApagar": apagarLink(id); break;
     case "compCopiar": navigator.clipboard?.writeText(linkMateria(id)).then(() => toast(TT("Link copiado.", "Enlace copiado.")), () => toast(TT("Copie o link manualmente.", "Copia el enlace manualmente."))); break;
     case "impVer": verMateriaLink(); break;
     case "impFazer": importarMateriaAgora(); break;
+    case "maoMat": break;
     case "maoKit": if (Date.now() - (S.soltouKit || 0) > 400) toast(TT("Segure a mãozinha e arraste o caderno para onde quiser.", "Mantén la manita y arrastra el cuaderno a donde quieras.")); break;
     case "gruposAbrir": case "grupoVer": case "gruposFechar": case "grupoTela": case "grupoTelaEntrar": case "grupoBuscar": case "grupoCriar": case "grupoEntrar": case "grupoPedir": case "grupoAceitar": case "grupoRecusar": case "grupoRemover": case "grupoPassar": case "grupoSenha": case "grupoSair": case "grupoApagar": cliqueGrupo(act, id); break;
     case "rankSalvarTurma": salvarTurma(); break;
@@ -5930,7 +6135,7 @@ document.addEventListener("click", async e => {
     case "admRemover": admRemover(id); break;
     case "admSalvarPag": admSalvarPag(); break;
     case "menuKit": S.menuKit = S.menuKit === id ? null : id; render(); break;
-    case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; k.materiaAuto = false; k.materiaTentada = true; await salvar(k); render(); }); break; }
+    case "moverKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Mudar de matéria", k.materia || "", async v => { k.materia = v || ""; k.materiaAuto = false; k.materiaTentada = true; k.materiaManual = !k.materia; await salvar(k); render(); }); break; }
     case "renomearKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); pedirTexto("Renomear caderno", k.nome, async v => { if (v) { k.nome = v; await salvar(k); render(); } }); break; }
     case "detectarKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; detectarMateria(k, true); break; }
     case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await apagarCaderno(k); toast("🗑 Caderno apagado."); } render(); break; }
@@ -5958,7 +6163,7 @@ document.addEventListener("click", async e => {
     case "renomear": pedirTexto("Renomear caderno", c.nome, async v => { if (v) { c.nome = v; await salvar(c); render(); } }); break;
     case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await apagarCaderno(c); toast("🗑 Caderno apagado."); render(); } break;
     case "escolher": $("#arquivo").click(); break;
-    case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); break; }
+    case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); if (!c.materia) detectarMateria(c); break; }
     case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = m.ativo === false; await salvar(c); render(); break; }
     case "excluirMat": { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); apagarOriginal(id); await salvar(c); render(); } break; }
     case "transcrever": transcrever(id); break;
@@ -5978,7 +6183,7 @@ document.addEventListener("click", async e => {
     case "flApagarCard": { const [did, i] = id.split(":"), dk = c.decks.find(x => x.id === did); if (!dk || !confirm(TT("Apagar este cartão?", "¿Borrar esta tarjeta?"))) break; dk.cards.splice(+i, 1); S.player.fila = S.player.fila.filter(x => x.did !== did).concat(S.player.fila.filter(x => x.did === did && x.i !== +i).map(x => ({ ...x, i: x.i > +i ? x.i - 1 : x.i }))); await salvar(c); render(); break; }
     case "jogoAbrir": iniciarJogo(c, id); break;
     case "jogoSair": S.player.jogo = null; S.player.vista = "jogos"; render(); break;
-    case "parTile": case "compOpc": case "compProx": case "cacaCel": jogada(c, act, id); break;
+    case "parTile": case "compOpc": case "compProx": case "cacaCel": case "compConferir": case "compNaoSei": case "compDif": jogada(c, act, id); break;
     case "flashMais": flashBuscarMais(c, true); break;
     case "flashFocoMudar": { const p = S.player, f = ($("#flashFocoAo")?.value || "").trim().slice(0, 200); if (!p || f === p.foco) break; p.foco = f; c.flashFoco = f; p.fila = p.fila.slice(0, 1); p.virado = false; salvar(c); flashBuscarMais(c, true); toast(f ? TT("Os próximos cartões serão sobre: ", "Las próximas tarjetas serán sobre: ") + f : TT("Foco tirado.", "Enfoque quitado.")); break; }
     case "fazerQuiz": iniciarQuiz(id); break;
@@ -6111,7 +6316,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-26-0242";
+const VERSAO_APP = "2026-11-26-0416";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6135,6 +6340,7 @@ $("#perfilFoto").addEventListener("change", async e => {
 });
 $("#txtValor").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("[data-act=txtOk]").click(); } });
 $("#novoNome").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); criarCaderno(); } });
+document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target?.id === "compIn") { e.preventDefault(); document.querySelector('[data-act="compConferir"]')?.click(); } });
 const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 if (IOS) { document.documentElement.classList.add("ios"); ["#arquivo", "#novoArquivo", "#provaAntigaIn", "#origIn"].forEach(q => $(q)?.removeAttribute("accept")); }
 $("#arquivo").addEventListener("change", e => { adicionarArquivos([...e.target.files]); e.target.value = ""; });
@@ -7174,7 +7380,49 @@ function hipoAjudaMostrar(sim) {
   b.hidden = !sim;
   if (!sim) hipoAjudaFechar();
 }
+// texto da IA → HTML simples (negrito e listas com "- "), sempre escapado
+function haFormatar(t) {
+  const linhas = esc(String(t || "")).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").split(/\n+/).map(l => l.trim()).filter(Boolean);
+  let out = "", lista = false;
+  for (const l of linhas) {
+    const item = /^[-•*]\s+/.test(l);
+    if (item && !lista) { out += "<ul>"; lista = true; } else if (!item && lista) { out += "</ul>"; lista = false; }
+    out += item ? `<li>${l.replace(/^[-•*]\s+/, "")}</li>` : `<p>${l}</p>`;
+  }
+  return out + (lista ? "</ul>" : "");
+}
+const HA_ACAO = { feedback: ["Falar com a equipe", "Hablar con el equipo"], pagar: ["Abrir a tela do Pro", "Abrir la pantalla del Pro"], entrar: ["Entrar com o Google", "Entrar con Google"], guia: ["Abrir o guia", "Abrir la guía"], config: ["Abrir os Ajustes", "Abrir los Ajustes"], novo: ["Criar um caderno", "Crear un cuaderno"] };
+function hipoAjudaDesenharConversa() {
+  const L = $("#haLista"); if (!L) return;
+  const es = lsGet("fp-ui", "pt") === "es", conv = S.haConversa || [];
+  L.innerHTML = conv.map(m => m.quem === "pessoa" ? `<div class="ha-msg eu">${esc(m.texto)}</div>`
+    : `<div class="ha-msg hipo">${m.pensando ? `<span class="ha-digitando"><i></i><i></i><i></i></span>` : haFormatar(m.texto)}${m.acao && HA_ACAO[m.acao] && !(m.acao === "entrar" && NUVEM.user) ? `<div><button class="btn small" data-act="haIr" data-id="${m.acao}">${HA_ACAO[m.acao][es ? 1 : 0]}</button></div>` : ""}</div>`).join("")
+    + `<button class="ha-voltar" data-act="haProntas">${TT("Ver as dúvidas mais comuns", "Ver las dudas más comunes")}</button>`;
+  L.scrollTop = L.scrollHeight;
+}
+async function hipoAjudaPerguntar() {
+  const inp = $("#haBusca"), pergunta = (inp?.value || "").trim();
+  if (pergunta.length < 2 || S.haPensando) return;
+  S.haConversa = S.haConversa || [];
+  const historico = S.haConversa.filter(m => !m.pensando).slice(-6).map(({ quem, texto }) => ({ quem, texto }));
+  S.haConversa.push({ quem: "pessoa", texto: pergunta });
+  const resp = { quem: "hipo", pensando: true }; S.haConversa.push(resp);
+  inp.value = ""; S.haPensando = true; S.haVerProntas = false; hipoAjudaDesenharConversa();
+  try {
+    const idToken = NUVEM.user ? await NUVEM.user.getIdToken().catch(() => "") : "";
+    const r = await prazo(fetch(PAG_AUTO + "/ajuda", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pergunta, historico, idioma: lsGet("fp-ui", "pt"), idToken, logado: !!NUVEM.user, pro: !!ACESSO.liberado }) }), 30000);
+    const d = await r.json().catch(() => ({}));
+    if (d.codigo === "limite") Object.assign(resp, { texto: TT("Você já me fez muitas perguntas hoje. Veja as dúvidas mais comuns ou fale com a equipe.", "Ya me hiciste muchas preguntas hoy. Mira las dudas más comunes o habla con el equipo."), acao: "feedback" });
+    else if (!r.ok || !d.texto) throw new Error(d.erro || "sem resposta");
+    else Object.assign(resp, { texto: d.texto, acao: d.acao || "" });
+  } catch (e) {
+    console.warn("central de ajuda:", e?.message || e);
+    Object.assign(resp, { texto: TT("Agora não consegui pensar numa resposta. Dá uma olhada nas dúvidas mais comuns ou fale com a equipe.", "Ahora no pude pensar en una respuesta. Mira las dudas más comunes o habla con el equipo."), acao: "feedback" });
+  } finally { resp.pensando = false; S.haPensando = false; }
+  hipoAjudaDesenharConversa();
+}
 function hipoAjudaDesenharLista(filtro = "") {
+  if (S.haConversa?.length && !S.haVerProntas) return hipoAjudaDesenharConversa();
   const es = lsGet("fp-ui", "pt") === "es", L = $("#haLista"); if (!L) return;
   const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const f = norm(filtro.trim()), itens = ajudaItens().filter(it => !f || norm(it[1] + " " + it[2] + " " + it[3] + " " + it[4]).replace(/<[^>]+>/g, " ").includes(f));
@@ -7183,6 +7431,7 @@ function hipoAjudaDesenharLista(filtro = "") {
     if (g !== grupo) { grupo = g; html += `<div class="ha-grupo">${AJUDA_GRUPOS[g][es ? 1 : 0]}</div>`; }
     html += `<details class="ha-item"><summary>${esc(es ? pe : pp)}</summary><div class="ha-resp">${es ? re : rp}${bt && (bt[0] !== "entrar" || !NUVEM.user) ? `<div><button class="btn small" data-act="haIr" data-id="${bt[0]}">${es ? bt[2] : bt[1]}</button></div>` : ""}</div></details>`;
   }
+  if (S.haConversa?.length) html = `<button class="ha-voltar" data-act="haConversa">${TT("← Voltar para a conversa", "← Volver a la conversación")}</button>` + html;
   L.innerHTML = html || `<div class="ha-vazio">${TT("Não achei nada sobre isso. Mande sua dúvida para a equipe aqui embaixo.", "No encontré nada sobre eso. Manda tu duda al equipo aquí abajo.")}</div>`;
 }
 function hipoAjudaAbrir() {
@@ -7190,13 +7439,15 @@ function hipoAjudaAbrir() {
   if (p && !p.hidden) return hipoAjudaFechar();
   if (!p) { p = Object.assign(document.createElement("div"), { id: "hipoAjudaPainel" }); p.setAttribute("role", "dialog"); document.body.append(p); }
   p.setAttribute("aria-label", TT("Central de ajuda", "Centro de ayuda"));
-  p.innerHTML = `<div class="ha-topo"><span class="hipo-mono">${hipoSVG("feliz", 44)}</span><div><b>${TT("Oi! Precisa de ajuda?", "¡Hola! ¿Necesitas ayuda?")}</b><small>${TT("Toque numa dúvida para ver a resposta.", "Toca una duda para ver la respuesta.")}</small></div><button class="ha-x" data-act="hipoAjudaFechar" aria-label="${TT("Fechar", "Cerrar")}">✕</button></div>
-    <input class="ha-busca" id="haBusca" type="search" placeholder="${TT("Procurar (ex.: pagamento, voz, arquivo)", "Buscar (ej.: pago, voz, archivo)")}" autocomplete="off">
+  p.innerHTML = `<div class="ha-topo"><span class="hipo-mono">${hipoSVG("feliz", 44)}</span><div><b>${TT("Oi! Precisa de ajuda?", "¡Hola! ¿Necesitas ayuda?")}</b><small>${TT("Escreva sua dúvida ou toque numa das comuns.", "Escribe tu duda o toca una de las comunes.")}</small></div><button class="ha-x" data-act="hipoAjudaFechar" aria-label="${TT("Fechar", "Cerrar")}">✕</button></div>
     <div class="ha-lista" id="haLista"></div>
-    <div class="ha-rodape"><span class="muted">${TT("Não achou sua dúvida?", "¿No encontraste tu duda?")}</span><button class="btn small" data-act="feedback">${TT("Falar com a equipe", "Hablar con el equipo")}</button></div>`;
+    <form class="ha-escrever" id="haForm"><input class="ha-busca" id="haBusca" type="text" maxlength="600" enterkeyhint="send" placeholder="${TT("Escreva sua dúvida para o Hipo…", "Escribe tu duda para Hipo…")}" autocomplete="off"><button class="ha-enviar" type="submit" aria-label="${TT("Enviar", "Enviar")}">${iconeSVG("envio")}</button></form>
+    <div class="ha-rodape"><span class="muted">${TT("Prefere falar com uma pessoa?", "¿Prefieres hablar con una persona?")}</span><button class="btn small" data-act="feedback">${TT("Falar com a equipe", "Hablar con el equipo")}</button></div>`;
   p.hidden = false;
-  $("#haBusca").oninput = e => hipoAjudaDesenharLista(e.target.value);
+  $("#haBusca").oninput = e => { if (!S.haConversa?.length) hipoAjudaDesenharLista(e.target.value); };
+  $("#haForm").onsubmit = e => { e.preventDefault(); hipoAjudaPerguntar(); };
   hipoAjudaDesenharLista("");
+  if (!telaCelular()) setTimeout(() => $("#haBusca")?.focus(), 60);
   if (!S.haFora) {
     S.haFora = true;
     document.addEventListener("pointerdown", e => { const q = $("#hipoAjudaPainel"); if (q && !q.hidden && !e.target.closest("#hipoAjudaPainel,#hipoAjuda")) hipoAjudaFechar(); });
@@ -8829,18 +9080,55 @@ async function labGerarFalas(q) {
   });
   return r.falas;
 }
-async function labGerarPergunta(c, L, segunda = false) {
+// Perguntas do Quiz louco em LOTES: 1 pedido = até 5 perguntas, com um PEDAÇO do material (não ele inteiro).
+// Antes era 1 pergunta por pedido com o material todo (~39 mil tokens cada); agora ~4 mil tokens para 5 perguntas.
+const LAB_LOTE = 5, LAB_MATERIAL = 14000;
+async function labLote(c, L, segunda = false) {
+  const vistas = (S.labVistas?.[c.id] || []).map(fatoDe), evitar = [...L.feitas.slice(-40)];
   const r = await chamar({ ferr: "louco",
-    system: [{ type: "text", text: labSistema() }, { type: "text", text: blocoMateriais(c, ""), cache_control: { type: "ephemeral" } }],
-    schema: obj({ topico: str, enunciado: str, termos: arr(str), alternativas: arr(str), correta: int, falas: arr(str) }), maxTokens: 2000, rotulo: "Criando a pergunta", fundo: true, zoeira: labJeito() !== "fofo",
-    messages: [{ role: "user", content: `Crie exatamente 1 pergunta de múltipla escolha com 4 alternativas sobre um ponto importante do material acima ("correta" = índice da certa, "topico" = assunto em 2-4 palavras).\n${REGRAS_PERGUNTA}\nA pergunta e as alternativas também em ${labIdioma() === "es" ? "espanhol" : "português do Brasil"}.${L.feitas.length ? `\nNão repita estas:\n${L.feitas.slice(-40).map(x => "- " + x).join("\n")}` : ""}\n\n${LAB_REGRA_FALAS}` }]
+    system: [{ type: "text", text: labSistema() }, { type: "text", text: blocoMateriais(c, "", LAB_MATERIAL) }],
+    schema: obj({ perguntas: arr(obj({ topico: str, enunciado: str, termos: arr(str), alternativas: arr(str), correta: int, falas: arr(str) })) }),
+    maxTokens: 5000, parcialOk: true, rotulo: "Criando as perguntas", fundo: true, zoeira: labJeito() !== "fofo",
+    messages: [{ role: "user", content: `Crie ${LAB_LOTE} perguntas de múltipla escolha, cada uma com 4 alternativas, sobre pontos importantes e DIFERENTES do material acima ("correta" = índice da certa, "topico" = assunto em 2-4 palavras). Cada pergunta tem o seu próprio "falas" (uma fala para cada alternativa, na mesma ordem).
+${REGRAS_PERGUNTA}
+IMPORTANTE: escreva TUDO (enunciado, alternativas, termos, tópico e falas) em ${labIdioma() === "es" ? "ESPANHOL, mesmo que o material esteja em português" : "PORTUGUÊS DO BRASIL, mesmo que o material esteja em espanhol"}.${evitar.length ? `
+Não repita estas:
+${evitar.map(x => "- " + x).join("\n")}` : ""}
+
+${LAB_REGRA_FALAS}
+
+${labIdioma() === "es" ? "MUY IMPORTANTE: escribe TODO en español (topico, enunciado, termos, alternativas y falas), con tildes y ñ, aunque el material esté en portugués." : "MUITO IMPORTANTE: escreva TUDO em português do Brasil, com acentos, mesmo que o material esteja em espanhol."}` }]
   });
-  arrumarTextos(r); if (Array.isArray(r.falas)) r.falas = r.falas.map(textoIA);
-  if (!(r.alternativas?.length >= 2 && r.correta >= 0 && r.correta < r.alternativas.length)) throw new Error("a IA não devolveu uma pergunta válida");
-  // mesma pergunta com outras palavras: pede outra uma única vez (para não gastar cota à toa)
-  if (!segunda && (semValorAcademico(r) || repetida(r, (S.labVistas?.[c.id] || []).map(fatoDe)))) return labGerarPergunta(c, { ...L, feitas: [...L.feitas, String(r.enunciado).slice(0, 100)] }, true);
-  const vistas = ((S.labVistas ||= {})[c.id] ||= []); vistas.push({ enunciado: r.enunciado, alternativas: [...r.alternativas], correta: r.correta }); if (vistas.length > 120) vistas.shift();
-  return { ...r, falasDe: labChave() };
+  gastar(); // 1 uso por pedido (vale para as 5 perguntas)
+  const boas = [], fatos = [...vistas];
+  for (const q of Array.isArray(r?.perguntas) ? r.perguntas : []) {
+    arrumarTextos(q); if (Array.isArray(q.falas)) q.falas = q.falas.map(textoIA);
+    if (!(q.alternativas?.length >= 2 && q.correta >= 0 && q.correta < q.alternativas.length)) continue;
+    if (semValorAcademico(q) || repetida(q, fatos)) continue;
+    fatos.push(fatoDe(q)); boas.push(q);
+  }
+  // todas vieram repetidas ou ruins: tenta mais uma vez só (para não gastar cota à toa)
+  if (!boas.length && !segunda) return labLote(c, { ...L, feitas: [...L.feitas, ...(r?.perguntas || []).map(q => String(q?.enunciado || "").slice(0, 100))] }, true);
+  if (!boas.length) throw new Error("a IA não devolveu uma pergunta válida");
+  return boas;
+}
+// entrega 1 pergunta: tira da fila do lote; se a fila acabou, pede um lote novo (um pedido por vez)
+async function labGerarPergunta(c, L) {
+  const k = c.id + "|" + labChave(), filas = (S.labFila ||= {}), pedindo = (S.labPedindo ||= {});
+  for (let volta = 0; volta < 3; volta++) {
+    const fila = (filas[k] ||= []), vistas = ((S.labVistas ||= {})[c.id] ||= []);
+    while (fila.length) {
+      const q = fila.shift();
+      if (repetida(q, vistas.map(fatoDe))) continue;
+      vistas.push({ enunciado: q.enunciado, alternativas: [...q.alternativas], correta: q.correta }); if (vistas.length > 120) vistas.shift();
+      // sobrou 1 ou nenhuma na fila: já busca o próximo lote em segundo plano (sem a pessoa esperar)
+      if (fila.length <= 1 && !pedindo[k] && podeUsarSilencioso()) pedindo[k] = labLote(c, { ...L, feitas: [...L.feitas, String(q.enunciado).slice(0, 100)] }).then(lista => { (filas[k] ||= []).push(...lista); }).catch(() => {}).finally(() => { delete pedindo[k]; });
+      return { ...q, falasDe: labChave() };
+    }
+    if (!pedindo[k]) pedindo[k] = labLote(c, L).then(lista => { (filas[k] ||= []).push(...lista); }).finally(() => { delete pedindo[k]; });
+    await pedindo[k];
+  }
+  throw new Error("a IA não devolveu uma pergunta válida");
 }
 // garante as falas da pergunta e já prepara a 1ª frase de cada uma na voz
 function labGarantirFalas(q) {
@@ -9029,7 +9317,7 @@ async function proxLab() {
   }
   if (!podeUsar()) { L.gerando = false; return; }
   L.q = null; L.gerando = true; desenharLab();
-  try { const q = await labGerarPergunta(c, L); gastar(); if (S.lab !== L) return; L.q = q; L.feitas.push(String(q.enunciado).slice(0, 100)); }
+  try { const q = await labGerarPergunta(c, L); if (S.lab !== L) return; L.q = q; L.feitas.push(String(q.enunciado).slice(0, 100)); }
   catch (e) { if (S.lab !== L) return; toast("Não consegui criar a pergunta: " + erroMsg(e), true); L.gerando = false; L.fonte = "exemplos"; return proxLab(); }
   L.gerando = false; desenharLab(); labGarantirFalas(L.q); labPreparar();
 }
@@ -9037,7 +9325,7 @@ async function proxLab() {
 function labPreparar() {
   const L = S.lab, c = labCad(); if (!c || L.pronta || !podeUsarSilencioso()) return;
   const fonte = L.fonte, chave = labChave();
-  L.pronta = { fonte, chave, promessa: labGerarPergunta(c, { feitas: [...L.feitas, String(L.q?.enunciado || "").slice(0, 100)] }).then(q => { gastar(); L.feitas.push(String(q.enunciado).slice(0, 100)); return q; }) };
+  L.pronta = { fonte, chave, promessa: labGerarPergunta(c, { feitas: [...L.feitas, String(L.q?.enunciado || "").slice(0, 100)] }).then(q => { L.feitas.push(String(q.enunciado).slice(0, 100)); return q; }) };
   L.pronta.promessa.then(() => { if (S.lab === L && L.escolha != null) labAdiantarVozes(L); }, () => { if (L.pronta?.fonte === fonte) L.pronta = null; });
 }
 // já respondeu esta: grava as vozes da PRÓXIMA pergunta (a fila espera o Hipo terminar de falar)

@@ -7,6 +7,7 @@
 //         POST /assinatura { idToken }         → situação da assinatura; libera os meses já cobrados que ainda não foram somados
 //         POST /cancelar-assinatura { idToken } → cancela a renovação (o Pro vai até o fim do que já foi pago)
 //         POST /ia { idToken, system, prompt, json, maxTokens } → IA RESERVA (quando a cota grátis do Gemini acaba): Groq → Cloudflare → OpenRouter
+//         POST /ajuda { pergunta, historico, idioma, idToken? } → agente da Central de ajuda (manual em ajuda.js)
 //         POST /grupo { idToken, acao, ... } → grupos por sala e matéria (grupos.js)
 //         POST /webhook (aviso do Mercado Pago) → confere o pedido e libera
 // Segredos (wrangler secret put): MP_TOKEN (Access Token do Mercado Pago), SA_JSON (chave da conta de serviço do Firebase)
@@ -14,6 +15,7 @@
 import { rotaGrupo, bancoFirestore } from "./grupos.js";
 import { rotaLembrete, enviarLembretes } from "./lembrete.js";
 import { liberarPro, estornarPro, precoDe, podeIA } from "./pro.js";
+import { montarPedidoAjuda, lerRespostaAjuda, podeAjuda } from "./ajuda.js";
 
 const ORIGENS = ["https://hipocampo.web.app", "https://hipocampo.firebaseapp.com", "https://focoprova.web.app", "https://focoprova.firebaseapp.com", "http://localhost:47821", "http://localhost:47822"];
 
@@ -35,6 +37,7 @@ export default {
       if (rota === "/webhook") return await webhook(req, env);
       if (rota === "/ia-saude") return json(req, await saudeIA(req, env)); // conferência das reservas (protegida por SAUDE_CHAVE)
       const corpo = await req.json().catch(() => ({}));
+      if (rota === "/ajuda") return await rotaAjuda(req, env, corpo); // central de ajuda: também para quem não entrou
       const email = await emailDoLogin(env, corpo.idToken);
       if (!email) return json(req, { erro: "faça login com o Google de novo" }, 401);
       if (rota === "/grupo") return json(req, await grupo(env, corpo));
@@ -80,6 +83,22 @@ async function iaComLimite(req, env, email, corpo) {
   try { ok = await podeIA(await banco(env), email, email === ADMIN_EMAIL); } catch (e) { console.log("limite da IA reserva:", e.message); } // banco fora do ar: não deixa a pessoa sem estudar
   if (!ok) return json(req, { erro: "limite diário da IA reserva", codigo: "limite" }, 429);
   return json(req, await iaReserva(env, corpo));
+}
+
+// Central de ajuda: Qwen 3.8 27B no Groq primeiro (cota própria, não disputa com os estudos; ~6 mil tokens/min,
+// por isso respostas curtas); depois as reservas de sempre. Manual fixo no servidor (ajuda.js).
+async function rotaAjuda(req, env, corpo) {
+  const pedido = montarPedidoAjuda(corpo);
+  if (!pedido) return json(req, { erro: "escreva sua dúvida" }, 400);
+  const email = corpo.idToken ? await emailDoLogin(env, corpo.idToken).catch(() => null) : null;
+  const ip = req.headers.get("CF-Connecting-IP") || "sem-ip";
+  const chave = email || "ip_" + Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip)))).slice(0, 12).map(b => b.toString(16).padStart(2, "0")).join("");
+  let ok = true;
+  if (email !== ADMIN_EMAIL) { try { ok = await podeAjuda(await banco(env), chave); } catch (e) { console.log("limite da ajuda:", e.message); } }
+  if (!ok) return json(req, { erro: "limite de perguntas de hoje", codigo: "limite" }, 429);
+  const envRapido = { ...env, GROQ_MODELOS: env.AJUDA_GROQ || "qwen/qwen3.8-27b,openai/gpt-oss-20b" };
+  const r = await iaReserva(envRapido, { ...pedido, maxTokens: 450, rapido: true });
+  return json(req, { ...lerRespostaAjuda(r.texto), via: r.via });
 }
 
 async function mp(env, caminho, opcoes = {}) {
@@ -330,7 +349,7 @@ async function avisoAssinatura(env, tipo, id) {
 // testados em 23/11/2026 (todos acertaram a pergunta de teste; o DeepSeek dá 403 nesta conta)
 // ordem pedida pelo usuário: GPT primeiro, Llama por último
 const MODELOS_CF = ["@cf/openai/gpt-oss-120b", "@cf/openai/gpt-oss-20b", "@cf/qwen/qwen3.8-27b", "@cf/google/gemma-4-26b-a4b-it", "@cf/meta/llama-3.3-70b-instruct-fp8-fast"];
-async function iaReserva(env, { system = "", prompt = "", json: querJSON = false, maxTokens = 2500 }) {
+async function iaReserva(env, { system = "", prompt = "", json: querJSON = false, maxTokens = 2500, rapido = false }) {
   system = String(system).slice(0, 16000); prompt = String(prompt).slice(0, 9000);
   const messages = [{ role: "system", content: system }, { role: "user", content: prompt }];
   const max = Math.min(4000, Math.max(200, Number(maxTokens) || 2500)), erros = [];
@@ -345,7 +364,7 @@ async function iaReserva(env, { system = "", prompt = "", json: querJSON = false
   if (env.GROQ_KEY) for (const m of String(env.GROQ_MODELOS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",")) {
     try { const t = await openai("https://api.groq.com/openai/v1/chat/completions", env.GROQ_KEY, m.trim()); if (t) return { texto: t, via: "groq " + m.trim(), uso: ultUso }; } catch (e) { erros.push("groq " + m + ": " + e.message); }
   }
-  if (env.AI) for (const m of MODELOS_CF) {
+  if (env.AI) for (const m of rapido ? ["@cf/openai/gpt-oss-20b", ...MODELOS_CF.filter(x => !x.endsWith("gpt-oss-20b"))] : MODELOS_CF) {
     try {
       const r = await env.AI.run(m, { messages, max_tokens: max, temperature: 0.3 });
       let t = typeof r?.response === "string" ? r.response : r?.response ? JSON.stringify(r.response) : r?.choices?.[0]?.message?.content || r?.output_text || "";
