@@ -414,6 +414,29 @@ label.comp-linha{display:flex!important;flex-direction:row!important;justify-con
 #hipoBalao .hipo-svg{flex:none;animation:hipoBoia 2.4s ease-in-out infinite}
 .hipo-fala{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:10px 14px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.22);margin-bottom:28px}
 @media (max-width:760px){#hipoBalao{bottom:calc(92px + env(safe-area-inset-bottom))}}
+/* Central de ajuda: Hipo preto e branco no canto (só na tela inicial) */
+.hipo-mono [fill="#ffd76a"]{fill:#f3f4f8}.hipo-mono [fill="#f5b83a"]{fill:#b9bdc9}.hipo-mono [stroke="#ffc94a"],.hipo-mono [stroke="#ffd76a"]{stroke:#f3f4f8}.hipo-mono [stroke="#f5b83a"]{stroke:#b9bdc9}
+.hipo-mono [fill="#ff9fb2"]{display:none}.hipo-mono [stroke="#b9741c"]{stroke:#1b1c24}.hipo-mono [fill="#2d2a3e"]{fill:#1b1c24}
+#hipoAjuda{position:fixed;right:16px;bottom:22px;z-index:40;width:58px;height:58px;border-radius:50%;border:1.5px solid rgba(255,255,255,.22);background:#17181f;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:0;transition:transform .15s}
+#hipoAjuda:hover{transform:scale(1.06)}#hipoAjuda[hidden]{display:none}
+#hipoAjuda .hipo-svg{margin-top:4px}
+#hipoAjudaPainel{position:fixed;right:16px;bottom:92px;z-index:41;width:min(370px,calc(100vw - 32px));max-height:min(560px,calc(100vh - 130px));display:flex;flex-direction:column;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 44px rgba(0,0,0,.4);overflow:hidden}
+#hipoAjudaPainel[hidden]{display:none}
+.ha-topo{display:flex;align-items:center;gap:10px;padding:12px 12px 10px 14px;background:#17181f;color:#f3f4f8}
+.ha-topo b{font-size:15px;display:block}.ha-topo small{opacity:.75;font-size:12.5px}
+.ha-topo .ha-x{margin-left:auto;background:none;border:0;color:#f3f4f8;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:8px}
+.ha-busca{width:calc(100% - 24px)!important;box-sizing:border-box;flex:none;margin:10px 12px 4px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-size:14px}
+.ha-lista{overflow:auto;padding:4px 12px 8px;display:flex;flex-direction:column;gap:6px}
+.ha-grupo{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:8px 2px 0}
+.ha-item{border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.ha-item summary{cursor:pointer;padding:10px 12px;font-weight:700;font-size:14px;color:var(--text);list-style:none;display:flex;gap:8px;align-items:center}
+.ha-item summary::-webkit-details-marker{display:none}
+.ha-item summary::after{content:"+";margin-left:auto;font-weight:900;color:var(--muted)}.ha-item[open] summary::after{content:"−"}
+.ha-item .ha-resp{padding:0 12px 11px;font-size:13.5px;line-height:1.5}
+.ha-item .ha-resp ul{margin:4px 0 0;padding-left:18px}.ha-item .ha-resp .btn{margin-top:8px}
+.ha-vazio{font-size:13.5px;color:var(--muted);padding:8px 2px}
+.ha-rodape{border-top:1px solid var(--line);padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+@media (max-width:760px){#hipoAjuda{bottom:calc(92px + env(safe-area-inset-bottom));width:52px;height:52px}#hipoAjudaPainel{bottom:calc(152px + env(safe-area-inset-bottom));max-height:calc(100vh - 230px)}}
 @keyframes hipoBoia{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-5px) rotate(2deg)}}
 @keyframes hipoIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .fb-chip{color:var(--text);font-weight:700}
@@ -565,6 +588,7 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .sync{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
 .conta-menu{position:absolute;top:44px;right:0;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 34px rgba(0,0,0,.2);padding:12px;min-width:250px;display:flex;flex-direction:column;gap:6px}
 .pro-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-weight:900;font-size:12.5px;background:linear-gradient(135deg,#ffd76a,#f5a623);color:#3a2500;white-space:nowrap;box-shadow:0 2px 10px rgba(245,166,35,.35)}
+.pro-chip .ice-coroa{color:#1a1200;width:1.25em;height:1.25em}.pro-chip .ice-coroa .icx{stroke-width:2.3}.pro-chip .ice-coroa path{fill:#fff}
 .av-wrap{position:relative;display:inline-grid}
 .av-wrap .coroa{position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(-12deg);font-size:15px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4));pointer-events:none}
 .idioma-opcoes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -2460,6 +2484,7 @@ function render() {
   desenharConta();
   if (c && !emEstudo) setTimeout(talvezTourCaderno, 0);
   $("#main").innerHTML = c ? viewCaderno(c, emEstudo) : S.player?.tipo === "revdia" ? playerRevisaoDia() : S.player?.tipo === "duelo" ? playerDuelo() : viewHome();
+  hipoAjudaMostrar(!c && !S.player);
 
 }
 
@@ -5782,7 +5807,10 @@ document.addEventListener("click", async e => {
     case "publico": abrirPublico(); break;
     case "fecharPublico": $("#dlgPublico").close(); break;
     case "admRecusar": admRecusar(id); break;
-    case "feedback": abrirFeedback(); break;
+    case "feedback": hipoAjudaFechar(); abrirFeedback(); break;
+    case "hipoAjuda": hipoAjudaAbrir(); break;
+    case "hipoAjudaFechar": hipoAjudaFechar(); break;
+    case "haIr": hipoAjudaFechar(); if (id === "feedback") abrirFeedback(); else if (id === "pagar") abrirPagamento(null); else if (id === "entrar") entrarGoogle(); else if (id === "guia") iniciarTour("casa"); else if (id === "config") abrirConfig(); else if (id === "novo") document.querySelector('.criar-top[data-act="novo"]')?.click(); break;
     case "panico": abrirPanico(); break;
     case "panOcultar": if (c?.panico) { c.panico.oculto = !c.panico.oculto; await salvar(c); render(); } break;
     case "provaAntigaEnviar": $("#provaAntigaIn").click(); break;
@@ -6083,7 +6111,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-26-0124";
+const VERSAO_APP = "2026-11-26-0242";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -7076,6 +7104,106 @@ function cartaoHipo() {
   else fala = es ? "¿Vamos a empezar la racha de hoy? Una pregunta ya cuenta." : "Bora começar a sequência de hoje? Uma pergunta já conta.";
   return `<div class="hipo-card">${hipoSVG(humor, 70)}<div><b>${oi}${nome ? `, ${esc(nome)}` : ""}!</b><div class="hipo-txt">${esc(fala)}</div></div></div>`;
 }
+
+/* ================= Central de ajuda do Hipo (canto da tela inicial, respostas prontas, sem gastar IA) ================= */
+// cada item: [grupo, pergunta pt, pergunta es, resposta pt (HTML), resposta es (HTML), botão opcional [ação, rótulo pt, rótulo es]]
+function ajudaItens() {
+  return [
+    ["prob", "Encontrou algum problema?", "¿Encontraste algún problema?",
+      `Conta pra gente! Descreva o que aconteceu (o que você tocou e o que apareceu na tela) e, se puder, em qual aparelho e navegador. A equipe lê todas as mensagens e corrige o mais rápido possível.`,
+      `¡Cuéntanos! Describe lo que pasó (qué tocaste y qué apareció en la pantalla) y, si puedes, en qué dispositivo y navegador. El equipo lee todos los mensajes y lo corrige lo antes posible.`,
+      ["feedback", "Relatar um problema", "Reportar un problema"]],
+    ["prob", "O microfone não está funcionando", "El micrófono no funciona",
+      `<ul><li>Permita o microfone quando o navegador pedir (se negou sem querer, toque no cadeado ao lado do endereço do site e libere).</li><li>No <b>Brave</b> o microfone costuma vir mudo: desligue os escudos (o leão) ou use o Chrome/Edge.</li><li>Em <b>Ajustes → Microfone</b> você escolhe o microfone certo e testa.</li><li>Feche outros apps que estejam usando o microfone (chamada, gravador).</li></ul>`,
+      `<ul><li>Permite el micrófono cuando el navegador lo pida (si lo negaste sin querer, toca el candado junto a la dirección del sitio y habilítalo).</li><li>En <b>Brave</b> el micrófono suele llegar mudo: desactiva los escudos (el león) o usa Chrome/Edge.</li><li>En <b>Ajustes → Micrófono</b> eliges el micrófono correcto y lo pruebas.</li><li>Cierra otras apps que estén usando el micrófono (llamada, grabadora).</li></ul>`,
+      ["config", "Abrir os Ajustes", "Abrir los Ajustes"]],
+    ["prob", "A voz não está funcionando", "La voz no funciona",
+      `<ul><li>Na primeira vez a voz é baixada para o aparelho, então pode demorar um pouco. Depois fica rápida.</li><li>No iPhone, <b>toque na tela</b> uma vez: ele só deixa tocar som depois de um toque. Tire também do modo silencioso.</li><li>Confira o volume e se não tem fone conectado por Bluetooth sem você perceber.</li><li>Com internet muito fraca, a voz pode demorar para baixar.</li></ul>`,
+      `<ul><li>La primera vez la voz se descarga al dispositivo, así que puede tardar un poco. Después es rápida.</li><li>En iPhone, <b>toca la pantalla</b> una vez: solo deja sonar audio después de un toque. Quítalo también del modo silencio.</li><li>Revisa el volumen y que no haya auriculares Bluetooth conectados sin que lo notes.</li><li>Con internet muy débil, la voz puede tardar en descargarse.</li></ul>`],
+    ["prob", "A IA está demorando ou deu erro", "La IA está tardando o dio error",
+      `Às vezes a IA fica sobrecarregada. O app espera e tenta de novo sozinho, e troca para outra IA se precisar. Confira sua internet e, se travar, recarregue a página. Seus cadernos não se perdem.`,
+      `A veces la IA está sobrecargada. La app espera y lo intenta de nuevo sola, y cambia a otra IA si hace falta. Revisa tu internet y, si se traba, recarga la página. Tus cuadernos no se pierden.`],
+    ["prob", "Meu arquivo não abre ou veio vazio", "Mi archivo no abre o salió vacío",
+      `<ul><li>O app lê PDF, Word, PowerPoint, fotos e .zip.</li><li>PDF escaneado ou slide que é só imagem leva um pouco mais: a leitura é feita por imagem.</li><li>No iPhone, se o arquivo não aparece na lista, salve antes em <b>Arquivos</b> e escolha de lá.</li><li>Arquivo com senha não abre: tire a senha antes.</li></ul>`,
+      `<ul><li>La app lee PDF, Word, PowerPoint, fotos y .zip.</li><li>Un PDF escaneado o una diapositiva que es solo imagen tarda un poco más: se lee como imagen.</li><li>En iPhone, si el archivo no aparece en la lista, guárdalo antes en <b>Archivos</b> y elígelo desde ahí.</li><li>Un archivo con contraseña no abre: quítale la contraseña antes.</li></ul>`],
+    ["prob", "Uma pergunta veio errada ou repetida", "Una pregunta salió mal o repetida",
+      `A IA pode errar de vez em quando. Pule a pergunta e siga estudando; o app evita repetir o que você já respondeu. Se for algo grave (resposta certa marcada como errada, por exemplo), mande para a equipe dizendo o caderno e a pergunta.`,
+      `La IA puede equivocarse de vez en cuando. Salta la pregunta y sigue estudiando; la app evita repetir lo que ya respondiste. Si es algo grave (una respuesta correcta marcada como incorrecta, por ejemplo), mándalo al equipo diciendo el cuaderno y la pregunta.`,
+      ["feedback", "Avisar a equipe", "Avisar al equipo"]],
+    ["prob", "O site está lento, travado ou estranho", "El sitio está lento, trabado o raro",
+      `<ul><li>Recarregue a página (no computador, <b>Ctrl + F5</b>). O app se atualiza sozinho e seus dados ficam guardados.</li><li>No celular, feche outras abas e apps abertos: a voz e a leitura de arquivos usam bastante memória.</li><li>Se continuar, tente pelo Chrome ou pelo Edge.</li></ul>`,
+      `<ul><li>Recarga la página (en la computadora, <b>Ctrl + F5</b>). La app se actualiza sola y tus datos se quedan guardados.</li><li>En el celular, cierra otras pestañas y apps abiertas: la voz y la lectura de archivos usan bastante memoria.</li><li>Si sigue, prueba con Chrome o Edge.</li></ul>`],
+    ["conta", "Não consigo entrar com o Google", "No puedo entrar con Google",
+      `<ul><li>Deixe o navegador abrir a janelinha do Google (permita pop-ups para este site).</li><li>No <b>Brave</b>, desligue os escudos (o leão) para este site.</li><li>No iPhone, use o Safari atualizado.</li><li>Ainda não deu? Tente pelo Chrome ou pelo Edge.</li></ul>`,
+      `<ul><li>Deja que el navegador abra la ventanita de Google (permite ventanas emergentes para este sitio).</li><li>En <b>Brave</b>, desactiva los escudos (el león) para este sitio.</li><li>En iPhone, usa Safari actualizado.</li><li>¿Todavía no? Prueba con Chrome o Edge.</li></ul>`,
+      ["entrar", "Entrar com o Google", "Entrar con Google"]],
+    ["conta", "Sumiram meus cadernos / troquei de aparelho", "Desaparecieron mis cuadernos / cambié de dispositivo",
+      `Seus cadernos ficam guardados na sua conta. Entre com a <b>mesma conta Google</b> que você usava e espere alguns segundos para eles aparecerem. Se entrou com outra conta, saia e entre na certa pelo menu da sua foto.`,
+      `Tus cuadernos se guardan en tu cuenta. Entra con la <b>misma cuenta de Google</b> que usabas y espera unos segundos a que aparezcan. Si entraste con otra cuenta, sal y entra con la correcta desde el menú de tu foto.`],
+    ["conta", "Como mudo o idioma ou o modo escuro?", "¿Cómo cambio el idioma o el modo oscuro?",
+      `Toque na sua <b>foto</b> no canto de cima: lá ficam o idioma (Português/Español) e a chavinha do modo escuro.`,
+      `Toca tu <b>foto</b> en la esquina de arriba: ahí están el idioma (Português/Español) y el interruptor del modo oscuro.`],
+    ["uso", "Como começo a estudar?", "¿Cómo empiezo a estudiar?",
+      `Toque em <b>Criar um caderno de estudo</b> e mande o seu material (PDF, Word, PowerPoint, fotos ou .zip). O app lê tudo e cria as perguntas, flashcards, guia e mapa mental daquele conteúdo.`,
+      `Toca <b>Crear un cuaderno de estudio</b> y envía tu material (PDF, Word, PowerPoint, fotos o .zip). La app lee todo y crea las preguntas, flashcards, guía y mapa mental de ese contenido.`,
+      ["novo", "Criar um caderno", "Crear un cuaderno"]],
+    ["uso", "Qual a diferença entre os modos de estudo?", "¿Cuál es la diferencia entre los modos de estudio?",
+      `O <b>Guia do app</b> mostra cada modo na tela, passo a passo: Estudo inteligente, Quiz, Teste, Flashcards, Tutor e os outros.`,
+      `La <b>Guía de la app</b> muestra cada modo en la pantalla, paso a paso: Estudio inteligente, Quiz, Test, Flashcards, Tutor y los demás.`,
+      ["guia", "Abrir o guia", "Abrir la guía"]],
+    ["uso", "Tenho uma ideia para o app", "Tengo una idea para la app",
+      `Adoramos ideias! Muita coisa do app nasceu de sugestão de estudante. Mande a sua para a equipe.`,
+      `¡Nos encantan las ideas! Mucho de la app nació de sugerencias de estudiantes. Manda la tuya al equipo.`,
+      ["feedback", "Mandar minha ideia", "Enviar mi idea"]],
+    ["outros", "Dúvida sobre o Pro ou o pagamento", "Duda sobre el Pro o el pago",
+      `<ul><li>O plano grátis dá <b>30 interações e 2 Ateneos a cada 5 horas</b>; depois disso o limite volta sozinho.</li><li>Pagou e o Pro não liberou? Espere 1 ou 2 minutos e abra a tela do Pro de novo: ela confere o pagamento sozinha. Se ainda não liberar, use "Pagou e o Pro não liberou?" nessa tela.</li><li>Para cancelar a assinatura, o botão fica na tela do Pro.</li></ul>`,
+      `<ul><li>El plan gratis da <b>30 interacciones y 2 Ateneos cada 5 horas</b>; después el límite vuelve solo.</li><li>¿Pagaste y el Pro no se activó? Espera 1 o 2 minutos y abre de nuevo la pantalla del Pro: revisa el pago sola. Si aún no se activa, usa "¿Pagaste y el Pro no se activó?" en esa pantalla.</li><li>Para cancelar la suscripción, el botón está en la pantalla del Pro.</li></ul>`,
+      ["pagar", "Abrir a tela do Pro", "Abrir la pantalla del Pro"]]
+  ];
+}
+const AJUDA_GRUPOS = { prob: ["Algo não funciona?", "¿Algo no funciona?"], conta: ["Conta e login", "Cuenta e inicio de sesión"], uso: ["Como usar", "Cómo usar"], outros: ["Outras dúvidas", "Otras dudas"] };
+function hipoAjudaMostrar(sim) {
+  let b = $("#hipoAjuda");
+  if (!b) {
+    b = Object.assign(document.createElement("button"), { id: "hipoAjuda", type: "button" });
+    b.dataset.act = "hipoAjuda";
+    document.body.append(b);
+  }
+  b.title = TT("Central de ajuda", "Centro de ayuda"); b.setAttribute("aria-label", b.title);
+  if (!b.innerHTML) b.innerHTML = `<span class="hipo-mono">${hipoSVG("normal", 46)}</span>`;
+  b.hidden = !sim;
+  if (!sim) hipoAjudaFechar();
+}
+function hipoAjudaDesenharLista(filtro = "") {
+  const es = lsGet("fp-ui", "pt") === "es", L = $("#haLista"); if (!L) return;
+  const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const f = norm(filtro.trim()), itens = ajudaItens().filter(it => !f || norm(it[1] + " " + it[2] + " " + it[3] + " " + it[4]).replace(/<[^>]+>/g, " ").includes(f));
+  let html = "", grupo = "";
+  for (const [g, pp, pe, rp, re, bt] of itens) {
+    if (g !== grupo) { grupo = g; html += `<div class="ha-grupo">${AJUDA_GRUPOS[g][es ? 1 : 0]}</div>`; }
+    html += `<details class="ha-item"><summary>${esc(es ? pe : pp)}</summary><div class="ha-resp">${es ? re : rp}${bt && (bt[0] !== "entrar" || !NUVEM.user) ? `<div><button class="btn small" data-act="haIr" data-id="${bt[0]}">${es ? bt[2] : bt[1]}</button></div>` : ""}</div></details>`;
+  }
+  L.innerHTML = html || `<div class="ha-vazio">${TT("Não achei nada sobre isso. Mande sua dúvida para a equipe aqui embaixo.", "No encontré nada sobre eso. Manda tu duda al equipo aquí abajo.")}</div>`;
+}
+function hipoAjudaAbrir() {
+  let p = $("#hipoAjudaPainel");
+  if (p && !p.hidden) return hipoAjudaFechar();
+  if (!p) { p = Object.assign(document.createElement("div"), { id: "hipoAjudaPainel" }); p.setAttribute("role", "dialog"); document.body.append(p); }
+  p.setAttribute("aria-label", TT("Central de ajuda", "Centro de ayuda"));
+  p.innerHTML = `<div class="ha-topo"><span class="hipo-mono">${hipoSVG("feliz", 44)}</span><div><b>${TT("Oi! Precisa de ajuda?", "¡Hola! ¿Necesitas ayuda?")}</b><small>${TT("Toque numa dúvida para ver a resposta.", "Toca una duda para ver la respuesta.")}</small></div><button class="ha-x" data-act="hipoAjudaFechar" aria-label="${TT("Fechar", "Cerrar")}">✕</button></div>
+    <input class="ha-busca" id="haBusca" type="search" placeholder="${TT("Procurar (ex.: pagamento, voz, arquivo)", "Buscar (ej.: pago, voz, archivo)")}" autocomplete="off">
+    <div class="ha-lista" id="haLista"></div>
+    <div class="ha-rodape"><span class="muted">${TT("Não achou sua dúvida?", "¿No encontraste tu duda?")}</span><button class="btn small" data-act="feedback">${TT("Falar com a equipe", "Hablar con el equipo")}</button></div>`;
+  p.hidden = false;
+  $("#haBusca").oninput = e => hipoAjudaDesenharLista(e.target.value);
+  hipoAjudaDesenharLista("");
+  if (!S.haFora) {
+    S.haFora = true;
+    document.addEventListener("pointerdown", e => { const q = $("#hipoAjudaPainel"); if (q && !q.hidden && !e.target.closest("#hipoAjudaPainel,#hipoAjuda")) hipoAjudaFechar(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") hipoAjudaFechar(); });
+  }
+}
+function hipoAjudaFechar() { const p = $("#hipoAjudaPainel"); if (p) p.hidden = true; }
 
 
 /* ================= 🧠 Mapa do cérebro: cada tópico é um neurônio que acende conforme você domina ================= */
