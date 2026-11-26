@@ -49,7 +49,7 @@ MODOS DE ESTUDO (botão "Começar a estudar" dentro do caderno, ou as abas)
 - Teste: simulado; a pessoa escolhe quantas questões de cada tipo e o tempo limite ao tocar em "Fazer".
 - Flashcards: abre direto no cartão; abas Lista, Estudar e Jogos (Pares, Complete a frase, Caça-termos); 3 botões de rosto para dizer se lembrou. No Complete a frase dá para escolher a dificuldade: Fácil (3 opções), Médio (4 opções parecidas) e Difícil (digitar a palavra que falta).
 - Tutor: chat que responde dúvidas da matéria com base no material do caderno.
-- Guia de estudo: resumo organizado do material; pode virar PDF e resumo em áudio.
+- Guia de estudo: resumo organizado do material e resumo em áudio. Lá fica o "Gerar PDF", com 2 estilos: "Guia completo" (texto detalhado, tabelas, algumas imagens dos seus slides e simulado; para estudar a matéria) e "Ficha visual" (uma página por tema, colunas coloridas comparando os itens, quadro comparativo e pontos-chave para a prova; para revisar rápido). As imagens só entram quando os arquivos originais foram enviados neste aparelho.
 - Mapa mental: estilos Galáxia 3D, Neurônios 3D, Clássico, Árvore e "Seu estilo"; dá para editar, arrastar tópicos ("Meu mapa"), mudar cores e baixar como imagem.
 - Quiz louco: o Hipo responde com voz engraçada e zoeira (jeitos Fofo, Zoeiro e Sem filtro +18); fica em "Começar a estudar", abaixo do Quiz.
 - Estilo da prova (botão no topo do caderno): a pessoa envia provas antigas ou exemplos de questões e o app imita o estilo do professor(a) nos modos de dentro dessa tela.

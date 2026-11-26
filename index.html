@@ -725,6 +725,10 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .icons-pick{display:flex;flex-wrap:wrap;gap:6px}
 .icons-pick button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);font-size:19px;cursor:pointer}
 .icons-pick button.on{border-color:var(--accent);background:var(--accent-soft)}
+.pdf-estilos{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media (max-width:560px){.pdf-estilos{grid-template-columns:1fr}}
+.pdf-estilo{display:flex;gap:10px;align-items:flex-start;text-align:left;padding:11px 12px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;cursor:pointer}
+.pdf-estilo .icx{width:22px;height:22px;flex:none;color:var(--accent);margin-top:1px}.pdf-estilo small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:2px}
+.pdf-estilo.on{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
 .novo-separar{display:flex!important;flex-direction:row!important;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer;font-weight:500}
 .novo-separar input{width:18px!important;height:18px;flex:none;margin-top:2px;accent-color:var(--accent)}.novo-separar small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}.novo-separar[hidden],#novoNomeWrap[hidden]{display:none!important}
 .nfiles{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;max-height:120px;overflow:auto}
@@ -6139,6 +6143,7 @@ document.addEventListener("click", async e => {
     case "mmEstilo": S.mmEstilo = id; S.mmDesc = $("#mmDesc")?.value ?? S.mmDesc; render(); break;
     case "mmIdeia": { const t = $("#mmDesc"); if (t) { t.value = id; S.mmDesc = id; } break; }
     case "rpGerar": gerarResumoPDF(); break;
+    case "pdfEstilo": lsSet("fp-pdf-estilo", id); render(); break;
     case "rpBaixar": baixarResumoPDF(id); break;
     case "rpJuntar": $("#origIn").click(); break;
     case "rpApagar": if (confirm(TT("Excluir este resumo em PDF?", "¿Eliminar este resumen en PDF?"))) { const r = c.resumosPdf.find(x => x.id === id); r?.secoes.forEach(s => (s.figs || []).forEach(f => apagarOriginal(f.id))); c.resumosPdf = c.resumosPdf.filter(x => x.id !== id); await salvar(c); render(); } break;
@@ -6426,7 +6431,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-26-0939";
+const VERSAO_APP = "2026-11-26-1911";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -9807,8 +9812,146 @@ async function pedirRP(system, content) {
 }
 const RP_LOTE = 90000, RP_LOTES = 3; let RP_ESPERA = 6000;
 const hashRP = t => { let a = 5381, b = 52711; for (let i = 0; i < t.length; i++) { const k = t.charCodeAt(i); a = (a * 33 ^ k) >>> 0; b = (b * 31 + k) >>> 0; } return a.toString(36) + b.toString(36) + t.length.toString(36); };
+/* ================= Ficha visual: 1 página por tema, colunas coloridas, quadro comparativo e pontos-chave =================
+   1 pedido à IA (só o conteúdo, em JSON); o próprio app desenha a ficha no PDF. */
+const estiloPDF = () => lsGet("fp-pdf-estilo", "guia");
+const NAO_APLICA = /^(n[aã]o|no)\s+(se\s+)?(aplica|consta|corresponde|hay|h[aá])\b|^n\/?a$|^-+$/i;
+const FICHA_CORES = [{ b: "#2f6fdc", f: "#eaf2fd" }, { b: "#2e9b57", f: "#e9f7ee" }, { b: "#e07b1a", f: "#fff2e4" }, { b: "#7b5cf0", f: "#f1ecfd" }];
+const SCH_FICHA = obj({ fichas: arr(obj({ titulo: str, subtitulo: str, colunas: arr(obj({ nome: str, sub: str, topicos: arr(obj({ titulo: str, itens: arr(str) })) })), tabela: obj({ cabecalho: arr(str), linhas: arr(arr(str)) }), pontos: arr(str) })) });
+const REGRAS_FICHA = `Você monta FICHAS VISUAIS de revisão para prova (como um cartaz-resumo de uma página por tema), só com o que está no material.
+- De 1 a 3 fichas: uma por grande tema do material (ex.: "Enterobacteriaceae", "Mycoplasma"). Se houver guia do estudante, siga só o que ela pede.
+- Em cada ficha, "colunas" = de 1 a 4 itens do mesmo grupo para COMPARAR lado a lado (bactérias, doenças, hormônios, fármacos, estruturas). Se o tema não tem itens para comparar, use 1 a 3 colunas como blocos (ex.: "Características gerais", uma espécie, outra espécie).
+- "nome" = nome do item; "sub" = 1 linha curta que o define (pode ficar vazio).
+- Tópicos: de 4 a 7, com os MESMOS títulos e na MESMA ordem em todas as colunas da ficha. Escolha títulos que façam sentido para ESTE assunto e que o material realmente cobre (ex.: microbiologia → Características, Transmissão, Fatores de virulência, Clínica, Diagnóstico, Tratamento; fisiologia → Onde ocorre, Função, Mecanismo, Regulação, Valores normais, Alterações; farmacologia → Mecanismo, Indicações, Efeitos adversos, Contraindicações). NUNCA use tópico que não se aplica ao assunto e NUNCA escreva "não se aplica", "no aplica" ou "não consta": se não há o que dizer, não crie o tópico.
+- Cada tópico: de 1 a 3 itens, telegráficos (no máximo 9 palavras cada, sem frase longa, sem ponto final). Nada de repetir a mesma informação.
+- "tabela": quadro comparativo das colunas: "cabecalho" = ["Característica", nome de cada coluna] e de 3 a 6 linhas com valores de 1 a 4 palavras. Só faça se houver 2 ou mais colunas; senão deixe cabecalho e linhas vazios.
+- "pontos": de 4 a 6 pontos-chave para a prova, cada um com no máximo 14 palavras, no formato "Nome: fato que mais cai".
+- Seja fiel ao material: nunca invente valores, doses ou classificações. Escreva com acentuação correta (tildes, ñ, ç, ã). Sem emojis, sem negrito, sem LaTeX.
+Responda SOMENTE neste formato de texto (cada marca no começo da linha):
+@@FICHA título da ficha | subtítulo curto
+@@COLUNA nome do item | linha curta que o define
+## Título do tópico
+- item curto
+- item curto
+## Outro tópico
+- item curto
+@@COLUNA outro item | ...
+(mesmos tópicos, mesma ordem)
+@@TABELA
+Característica | nome da coluna 1 | nome da coluna 2
+linha | valor | valor
+@@PONTOS
+- Nome: fato que mais cai
+@@FICHA próxima ficha | ...
+@@FIM`;
+// lê o texto com marcas; aproveita o que veio inteiro se a IA parar no meio
+function lerFicha(t) {
+  const fichas = []; let f = null, k = null, tp = null, onde = "", fim = false;
+  const corta = v => v.replace(/\*\*/g, "").replace(/^[-•*]\s*/, "").trim();
+  for (const l0 of String(t || "").split(/\r?\n/)) {
+    const l = l0.trim(); if (!l) continue;
+    const m = l.match(/^(?:[#*`>\s]*)@@\s*(FICHA|COLUNA|TABELA|PONTOS|FIM)\b[:\s]*(.*)$/i);
+    if (m) {
+      const tag = m[1].toUpperCase(), [a = "", b = ""] = m[2].split("|").map(x => corta(x));
+      if (tag === "FIM") { fim = true; break; }
+      if (tag === "FICHA") { f = { titulo: a, subtitulo: b, colunas: [], tabela: { cabecalho: [], linhas: [] }, pontos: [] }; fichas.push(f); k = tp = null; onde = ""; }
+      else if (!f) continue;
+      else if (tag === "COLUNA") { k = { nome: a, sub: b, topicos: [] }; f.colunas.push(k); tp = null; onde = "col"; }
+      else if (tag === "TABELA") { onde = "tab"; k = tp = null; }
+      else if (tag === "PONTOS") { onde = "pts"; k = tp = null; }
+      continue;
+    }
+    if (!f) continue;
+    if (onde === "col" && k) {
+      if (/^#{1,4}\s*/.test(l)) { tp = { titulo: corta(l.replace(/^#{1,4}\s*/, "").replace(/:$/, "")), itens: [] }; k.topicos.push(tp); }
+      else if (tp) tp.itens.push(corta(l));
+      else { tp = { titulo: corta(l.replace(/:$/, "")), itens: [] }; k.topicos.push(tp); }
+    } else if (onde === "tab" && l.includes("|")) {
+      if (/^\|?\s*:?-{2,}/.test(l)) continue; // linha de separação do markdown
+      const cel = l.replace(/^\||\|$/g, "").split("|").map(x => corta(x));
+      if (!f.tabela.cabecalho.length) f.tabela.cabecalho = cel; else f.tabela.linhas.push(cel);
+    } else if (onde === "pts") f.pontos.push(corta(l));
+  }
+  return { fichas, fim };
+}
+async function gerarFicha(c) {
+  if (!ativos(c).length) return toast(TT("Adicione materiais primeiro.", "Agrega materiales primero."), true);
+  if (!NUVEM.user) return toast(TT("Entre com o Google para gerar o PDF.", "Inicia sesión con Google para generar el PDF."), true);
+  if (!podeUsar()) return;
+  const guia = (S.rpGuia?.[c.id] || "").trim().slice(0, 6000);
+  S.rp = { cid: c.id, txt: "" }; render();
+  const status = t => { if (S.rp) S.rp.txt = t; const el = $("#rpStatus"); if (el) el.textContent = t; };
+  try {
+    status(TT("Montando a ficha visual… (uns 30 segundos)", "Armando la ficha visual… (unos 30 segundos)"));
+    await cotaPDF("pedir");
+    const material = partesDoMapa(ativos(c), guia, 1, 60000)[0];
+    let texto = "";
+    try {
+      texto = await chamarGemini(cfg(), {
+        system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\n" + REGRAS_FICHA }, { type: "text", text: `<materiais>\n${material}\n</materiais>` }],
+        messages: [{ role: "user", content: `Monte as fichas visuais deste material, no formato com marcas @@.${guia ? `\nGuia do estudante (siga só isto):\n<guia>\n${guia}\n</guia>` : ""}` }],
+        maxTokens: 9000, fundo: true, ferr: "pdf", modelos: MODELOS_GEMINI.slice(0, 1), aoParcial: t => texto = t
+      });
+    } catch (e) { if (!texto) throw e; } // caiu no meio: aproveita o que chegou
+    const r = lerFicha(texto);
+    const limpa = t => textoIA(String(t || "")).replace(/\s+/g, " ").trim();
+    const fichas = (r?.fichas || []).map(f => ({
+      titulo: limpa(f.titulo), subtitulo: limpa(f.subtitulo),
+      colunas: (f.colunas || []).slice(0, 4).map(k => ({ nome: limpa(k.nome), sub: limpa(k.sub), topicos: (k.topicos || []).slice(0, 9).map(t => ({ titulo: limpa(t.titulo), itens: (t.itens || []).map(limpa).filter(x => x && !NAO_APLICA.test(x)).slice(0, 4) })).filter(t => t.titulo && t.itens.length) })).filter(k => k.nome && k.topicos.length),
+      tabela: { cabecalho: (f.tabela?.cabecalho || []).map(limpa), linhas: (f.tabela?.linhas || []).slice(0, 7).map(l => (l || []).map(limpa)) },
+      pontos: (f.pontos || []).map(limpa).filter(x => x && !NAO_APLICA.test(x)).slice(0, 6)
+    })).filter(f => f.titulo && f.colunas.length).slice(0, 3);
+    if (!fichas.length) throw new Error(TT("A IA está ocupada agora. Tente de novo em alguns minutos.", "La IA está ocupada ahora. Intenta de nuevo en unos minutos."));
+    const res = { id: uid(), criado: Date.now(), ficha: true, titulo: fichas.length === 1 ? fichas[0].titulo : fichas.map(f => f.titulo).join(" · ").slice(0, 120), es: idiomaCaderno(c) === "es", fichas, fontes: ativos(c).map(m => m.nome), secoes: [] };
+    gastar(); cotaPDF("pronto").catch(() => {});
+    const cad = S.cadernos.find(x => x.id === c.id) || c; (cad.resumosPdf ||= []).unshift(res); cad.resumosPdf = cad.resumosPdf.slice(0, 12); await salvar(cad);
+    S.rp = null; render();
+    toast(TT(`Ficha visual pronta (${fichas.length} ${fichas.length === 1 ? "página" : "páginas"}).`, `Ficha visual lista (${fichas.length} ${fichas.length === 1 ? "página" : "páginas"}).`));
+    baixarResumoPDF(res.id, cad.id);
+  } catch (e) { toast(e.cota ? e.message : erroMsg(e), true); }
+  finally { S.rp = null; if (atual()?.id === c.id) render(); }
+}
+// desenho da ficha (pdfmake): A4 deitado, uma ficha por página
+function iconeFicha(titulo, cor) {
+  const t = normRP(titulo), nome = /caracter|defini|geral/.test(t) ? "dna" : /morfo|tinc|color|gram|estrutura|anatom/.test(t) ? "frasco" : /reserv|habitat|onde|local/.test(t) ? "globo" : /transm|via|contag/.test(t) ? "repetir"
+    : /virul|patog|toxin|risco|fator/.test(t) ? "alerta" : /clinic|sintom|quadro|alterac|doenc/.test(t) ? "estetoscopio" : /diagn|exame|labor/.test(t) ? "lupa" : /tratam|farmac|terap|droga/.test(t) ? "pilula"
+    : /mecan|funcao|fisio|acao|efeito/.test(t) ? "engrenagem" : /regula|control/.test(t) ? "balanca" : /valor|numer|dose/.test(t) ? "grafico" : "ponto";
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="${ICX[nome]}" fill="none" stroke="${cor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`, width: 8.5, margin: [0, 0.5, 3, 0] };
+}
+function docFicha(r) {
+  const L = (pt, e) => r.es ? e : pt, paginas = [];
+  for (const [i, f] of r.fichas.entries()) {
+    const n = f.colunas.length, letras = Math.max(...f.colunas.map(k => k.topicos.reduce((a, t) => a + t.titulo.length + t.itens.join(" ").length, 0)));
+    const fs = Math.max(5.6, Math.min(9, (n >= 4 ? 7.6 : n === 3 ? 8.2 : 8.8) - Math.max(0, (letras - (n >= 3 ? 650 : 900)) / 240)));
+    const caixa = (t, cor) => ({ table: { widths: ["*"], body: [[{ stack: [{ columns: [iconeFicha(t.titulo, cor.b), { text: limpaPDF(t.titulo), bold: true, color: cor.b, fontSize: fs + .6 }] }, { ul: t.itens.map(limpaPDF), fontSize: fs, margin: [2, 1.5, 0, 0], markerColor: cor.b }], fillColor: cor.f, margin: [4, 3, 4, 3] }]] }, layout: { hLineWidth: () => 0, vLineWidth: () => 0 }, margin: [0, 0, 0, 3] });
+    const coluna = (k, j) => { const cor = FICHA_CORES[j % 4]; return { width: "*", stack: [
+      { table: { widths: ["*"], body: [[{ stack: [{ text: limpaPDF(k.nome), bold: true, fontSize: fs + 4.5, color: "#fff", alignment: "center" }, ...(k.sub ? [{ text: limpaPDF(k.sub), fontSize: fs, color: "#fff", alignment: "center", italics: true }] : [])], fillColor: cor.b, margin: [4, 3, 4, 3] }]] }, layout: { hLineWidth: () => 0, vLineWidth: () => 0 }, margin: [0, 0, 0, 4] },
+      ...k.topicos.map(t => caixa(t, cor))] }; };
+    let corpo;
+    if (n === 1) { // tema único: os tópicos viram uma grade de 3 colunas
+      const k = f.colunas[0], cor = FICHA_CORES[0], grupos = [[], [], []]; k.topicos.forEach((t, j) => grupos[j % 3].push(caixa(t, FICHA_CORES[j % 4])));
+      corpo = [{ table: { widths: ["*"], body: [[{ text: limpaPDF(k.nome) + (k.sub ? " — " + limpaPDF(k.sub) : ""), bold: true, color: "#fff", fontSize: fs + 3, fillColor: cor.b, margin: [6, 3, 6, 3] }]] }, layout: "noBorders", margin: [0, 0, 0, 4] }, { columns: grupos.map(g => ({ width: "*", stack: g })), columnGap: 6 }];
+    } else corpo = [{ columns: f.colunas.map(coluna), columnGap: 6 }];
+    const tab = f.tabela?.cabecalho?.length > 1 && f.tabela.linhas?.length ? { width: "*", stack: [{ text: L("Quadro comparativo", "Cuadro comparativo"), bold: true, color: "#16324f", fontSize: fs + 2, margin: [0, 0, 0, 2] },
+      { table: { headerRows: 1, widths: f.tabela.cabecalho.map((_, j) => j ? "*" : "auto"), body: [f.tabela.cabecalho.map(h => ({ text: limpaPDF(h), bold: true, color: "#fff", fontSize: fs })), ...f.tabela.linhas.map(l => f.tabela.cabecalho.map((_, j) => ({ text: limpaPDF(l[j] || ""), fontSize: fs, bold: !j })))] },
+        layout: { hLineWidth: () => .4, vLineWidth: () => .4, hLineColor: () => "#b9c5d3", vLineColor: () => "#b9c5d3", fillColor: x => x === 0 ? "#16324f" : x % 2 ? "#f4f7fb" : null, paddingLeft: () => 3, paddingRight: () => 3, paddingTop: () => 1.5, paddingBottom: () => 1.5 } }] } : null;
+    const pontos = f.pontos.length ? { width: tab ? 250 : "*", table: { widths: ["*"], body: [[{ stack: [{ text: L("Pontos-chave para a prova", "Puntos clave para el examen"), bold: true, color: "#9a5b00", fontSize: fs + 2, margin: [0, 0, 0, 2] }, { ul: f.pontos.map(limpaPDF), fontSize: fs, markerColor: "#e0a100" }], fillColor: "#fff7e0", margin: [6, 4, 6, 4] }]] }, layout: { hLineWidth: () => .8, vLineWidth: () => .8, hLineColor: () => "#f0c860", vLineColor: () => "#f0c860" } } : null;
+    paginas.push({ ...(i ? { pageBreak: "before" } : {}), stack: [
+      { table: { widths: ["*"], body: [[{ stack: [{ text: limpaPDF(f.titulo).toUpperCase(), bold: true, fontSize: 19, color: "#fff", alignment: "center", characterSpacing: .5 }, ...(f.subtitulo ? [{ text: limpaPDF(f.subtitulo), fontSize: 9, color: "#dfe8f3", alignment: "center" }] : [])], fillColor: "#16324f", margin: [8, 5, 8, 5] }]] }, layout: "noBorders", margin: [0, 0, 0, 6] },
+      ...corpo,
+      ...(tab || pontos ? [{ columns: [tab, pontos].filter(Boolean), columnGap: 8, margin: [0, 4, 0, 0] }] : [])
+    ] });
+  }
+  return {
+    pageSize: "A4", pageOrientation: "landscape", pageMargins: [18, 16, 18, 22], info: { title: limpaPDF(r.titulo), creator: "Hipocampo Study" },
+    defaultStyle: { fontSize: 7.5, lineHeight: 1.08, color: "#1c2733" },
+    footer: (p, n) => ({ columns: [{ text: L("Fontes: ", "Fuentes: ") + limpaPDF(r.fontes.slice(0, 8).join(" · ")).slice(0, 220), color: "#778", fontSize: 6.5 }, { text: `Hipocampo Study · ${p}/${n}`, alignment: "right", color: "#889", fontSize: 6.5, width: 110 }], margin: [18, 6, 18, 0] }),
+    content: paginas
+  };
+}
 async function gerarResumoPDF() {
   const c = atual(); if (!c || S.rp) return;
+  if (estiloPDF() === "ficha") return gerarFicha(c);
   if (!ativos(c).length) return toast(TT("Adicione materiais primeiro.", "Agrega materiales primero."), true);
   if (!NUVEM.user) return toast(TT("Entre com o Google para gerar o resumo em PDF.", "Inicia sesión con Google para generar el resumen en PDF."), true);
   if (!podeUsar()) return;
@@ -9975,7 +10118,7 @@ async function baixarResumoPDF(id, cid) {
     const base = "https://cdn.jsdelivr.net/npm/pdfmake@0.2.12/build/";
     if (!window.pdfMake) await carregarScript(base + "pdfmake.min.js");
     if (!window.pdfMake?.vfs) await carregarScript(base + "vfs_fonts.js");
-    const dd = await docResumo(r, S.rpSim === false ? [] : questoesDoCaderno(c, r.foco)), blob = await new Promise((ok, erro) => { try { pdfMake.createPdf(dd).getBlob(ok); setTimeout(() => erro(new Error(TT("o PDF demorou demais", "el PDF tardó demasiado"))), 120000); } catch (e) { erro(e); } });
+    const dd = r.ficha ? docFicha(r) : await docResumo(r, S.rpSim === false ? [] : questoesDoCaderno(c, r.foco)), blob = await new Promise((ok, erro) => { try { pdfMake.createPdf(dd).getBlob(ok); setTimeout(() => erro(new Error(TT("o PDF demorou demais", "el PDF tardó demasiado"))), 120000); } catch (e) { erro(e); } });
     const nome = limpaPDF(r.titulo).replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 80) || "Resumo";
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: nome + ".pdf" });
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
@@ -9987,12 +10130,15 @@ function cartaoResumoPDF(c) {
   const aqui = S.rp?.cid === c.id, mats = ativos(c).filter(m => temFigura(m) && !m.oficial);
   S.rpGuia ||= {};
   if (mats.length && S.rpVisto !== c.id) { S.rpVisto = c.id; conferirOriginais(c); }
-  return `<div class="card stack"><div><h2 style="margin:0">${TT("Guia de estudo em PDF", "Guía de estudio en PDF")}</h2><div class="muted" style="font-size:13px">${TT("A IA monta um PDF completo: resumo, tabelas, imagens dos seus próprios materiais e um simulado com as perguntas dos seus quizzes e testes.", "La IA arma un PDF completo: resumen, tablas, imágenes de tus propios materiales y un simulacro con las preguntas de tus quizzes y exámenes.")}</div></div>
+  const ficha = estiloPDF() === "ficha";
+  const opcao = (id, ic, pt, es, dpt, des) => `<button class="pdf-estilo ${estiloPDF() === id ? "on" : ""}" data-act="pdfEstilo" data-id="${id}">${iconeSVG(ic)}<span><b>${TT(pt, es)}</b><small>${TT(dpt, des)}</small></span></button>`;
+  return `<div class="card stack"><div><h2 style="margin:0">${TT("Gerar PDF", "Generar PDF")}</h2><div class="muted" style="font-size:13px">${TT("Escolha o estilo:", "Elige el estilo:")}</div></div>
+    <div class="pdf-estilos">${opcao("guia", "livro", "Guia completo", "Guía completa", "Texto detalhado, tabelas, imagens dos seus materiais e simulado. Para estudar a matéria.", "Texto detallado, tablas, imágenes de tus materiales y simulacro. Para estudiar la materia.")}${opcao("ficha", "grafico", "Ficha visual", "Ficha visual", "Uma página por tema, em colunas coloridas, com quadro comparativo e pontos-chave. Para revisar rápido.", "Una página por tema, en columnas de colores, con cuadro comparativo y puntos clave. Para repasar rápido.")}</div>
     <label>${TT("O que vai cair na prova ou o que você quer (opcional)", "Lo que entra en el examen o lo que quieres (opcional)")}<textarea id="rpGuia" rows="3" maxlength="12000" placeholder="${TT("Cole aqui o que vai cair na prova. O PDF segue só isso.", "Pega aquí lo que entra en el examen. El PDF sigue solo eso.")}">${esc(S.rpGuia[c.id] || "")}</textarea></label>
-    <div class="row"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rpFig" style="width:auto" ${S.rpFig === false ? "" : "checked"}> ${TT("Incluir imagens", "Incluir imágenes")}</label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rpSim" style="width:auto" ${S.rpSim === false ? "" : "checked"}> ${TT("Incluir simulado", "Incluir simulacro")} (${questoesDoCaderno(c).length} ${TT("perguntas", "preguntas")})</label></div>
-    <div id="rpOrig">${S.rpFalta?.cid === c.id ? avisoOriginais(S.rpFalta.n) : ""}</div>
-    <div class="row" style="align-items:center"><button class="btn primary" data-act="rpGerar" ${S.rp ? "disabled" : ""}>${aqui ? `<span class="spin"></span> ${TT("Gerando…", "Generando…")}` : TT("Gerar guia em PDF", "Generar guía en PDF")}</button><span class="muted" style="font-size:12.5px">${ACESSO.liberado ? TT("Até 3 por dia.", "Hasta 3 por día.") : TT("1 por dia no plano grátis.", "1 por día en el plan gratis.")}</span><span class="muted" id="rpStatus" style="font-size:13px">${aqui ? esc(S.rp.txt) : ""}</span></div>
-    ${(c.resumosPdf || []).map(r => `<div class="row" style="align-items:center;justify-content:space-between;border-top:1px solid var(--line,rgba(128,128,128,.25));padding-top:10px"><div class="grow"><b>${esc(r.titulo)}</b><div class="muted" style="font-size:12.5px">${fmtData(r.criado)} · ${r.secoes.reduce((n, s) => n + (s.figs?.length || 0), 0)} ${TT("imagens", "imágenes")}</div></div><button class="btn small primary" data-act="rpBaixar" data-id="${r.id}">${iconeSVG("baixar")} ${TT("Baixar PDF", "Descargar PDF")}</button><button class="btn small danger" data-act="rpApagar" data-id="${r.id}">${TT("Excluir", "Eliminar")}</button></div>`).join("")}</div>`;
+    <div class="row" ${ficha ? 'style="display:none"' : ""}><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rpFig" style="width:auto" ${S.rpFig === false ? "" : "checked"}> ${TT("Incluir imagens", "Incluir imágenes")}</label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rpSim" style="width:auto" ${S.rpSim === false ? "" : "checked"}> ${TT("Incluir simulado", "Incluir simulacro")} (${questoesDoCaderno(c).length} ${TT("perguntas", "preguntas")})</label></div>
+    <div id="rpOrig">${!ficha && S.rpFalta?.cid === c.id ? avisoOriginais(S.rpFalta.n) : ""}</div>
+    <div class="row" style="align-items:center"><button class="btn primary" data-act="rpGerar" ${S.rp ? "disabled" : ""}>${aqui ? `<span class="spin"></span> ${TT("Gerando…", "Generando…")}` : ficha ? TT("Gerar ficha visual", "Generar ficha visual") : TT("Gerar guia em PDF", "Generar guía en PDF")}</button><span class="muted" style="font-size:12.5px">${ACESSO.liberado ? TT("Até 3 por dia.", "Hasta 3 por día.") : TT("1 por dia no plano grátis.", "1 por día en el plan gratis.")}</span><span class="muted" id="rpStatus" style="font-size:13px">${aqui ? esc(S.rp.txt) : ""}</span></div>
+    ${(c.resumosPdf || []).map(r => `<div class="row" style="align-items:center;justify-content:space-between;border-top:1px solid var(--line,rgba(128,128,128,.25));padding-top:10px"><div class="grow"><b>${esc(r.titulo)}</b><div class="muted" style="font-size:12.5px">${fmtData(r.criado)} · ${r.ficha ? TT(`Ficha visual · ${r.fichas.length} ${r.fichas.length === 1 ? "página" : "páginas"}`, `Ficha visual · ${r.fichas.length} ${r.fichas.length === 1 ? "página" : "páginas"}`) : `${r.secoes.reduce((n, s) => n + (s.figs?.length || 0), 0)} ${TT("imagens", "imágenes")}`}</div></div><button class="btn small primary" data-act="rpBaixar" data-id="${r.id}">${iconeSVG("baixar")} ${TT("Baixar PDF", "Descargar PDF")}</button><button class="btn small danger" data-act="rpApagar" data-id="${r.id}">${TT("Excluir", "Eliminar")}</button></div>`).join("")}</div>`;
 }
 const avisoOriginais = n => n ? `<div class="mm-aviso">${iconeSVG("imagem")}<div>${TT(`Para usar as imagens, falta o arquivo original de <b>${n}</b> ${n === 1 ? "material" : "materiais"} neste aparelho (enviados antes desta novidade ou em outro aparelho).`, `Para usar las imágenes, falta el archivo original de <b>${n}</b> ${n === 1 ? "material" : "materiales"} en este dispositivo (subidos antes de esta novedad o en otro dispositivo).`)}<div class="mm-aviso-bts"><button class="btn small" data-act="rpJuntar">${TT("Escolher os arquivos", "Elegir los archivos")}</button></div></div></div>` : "";
 async function conferirOriginais(c) {
