@@ -725,6 +725,8 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 .icons-pick{display:flex;flex-wrap:wrap;gap:6px}
 .icons-pick button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);font-size:19px;cursor:pointer}
 .icons-pick button.on{border-color:var(--accent);background:var(--accent-soft)}
+.novo-separar{display:flex!important;flex-direction:row!important;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer;font-weight:500}
+.novo-separar input{width:18px!important;height:18px;flex:none;margin-top:2px;accent-color:var(--accent)}.novo-separar small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}.novo-separar[hidden],#novoNomeWrap[hidden]{display:none!important}
 .nfiles{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;max-height:120px;overflow:auto}
 /* ---- celular: trilho vira barra inferior ---- */
 @media (max-width:760px){
@@ -913,11 +915,12 @@ table.cards td,table.cards th{border-bottom:1px solid var(--line);padding:8px;te
 <dialog id="dlgNovo">
   <h2 style="margin-bottom:14px">Novo caderno</h2>
   <div class="stack">
-    <label>Nome<input type="text" id="novoNome" placeholder="ex.: Fisiologia 2 – Prova final" maxlength="80"></label>
+    <label id="novoNomeWrap">Nome<input type="text" id="novoNome" placeholder="ex.: Fisiologia 2 – Prova final" maxlength="80"></label>
     <label>Matéria <span style="font-weight:500">(deixe em branco para a IA identificar sozinha)</span><input type="text" id="novoMateria" list="listaMaterias" placeholder="ex.: Nutrição Clínica" maxlength="60"></label>
     <div><div class="muted" style="font-size:13px;font-weight:600;margin-bottom:6px">Ícone</div><div class="icons-pick" id="novoIcones"></div></div>
     <div class="dropzone-hint" id="novoDrop" data-act="novoArquivos">📎 Adicionar arquivos agora (opcional) — clique ou arraste aqui</div><div class="dica-ios">No iPhone: toque em <b>Escolher Arquivo</b> para ver o app Arquivos, ou em <b>Fototeca</b> / <b>Tirar Foto</b>. PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em <b>Salvar em Arquivos</b>.</div>
     <div class="nfiles" id="novoLista"></div>
+    <label id="novoSepararWrap" class="novo-separar" hidden><input type="checkbox" id="novoSeparar"> <span><b>Um caderno para cada arquivo</b><small>Cada PDF ou slide vira um caderno separado dentro da matéria (como capítulos). Para estudar tudo junto depois, use "Estudar todo o caderno".</small></span></label>
     <div class="row" style="justify-content:flex-end">
       <button class="btn" data-act="fecharNovo">Cancelar</button>
       <button class="pill" data-act="criarCaderno">Criar caderno</button>
@@ -1804,11 +1807,11 @@ async function abrirZips(files, nivel = 0) {
   }
   return out;
 }
-async function adicionarArquivos(files) {
-  const c = atual(); if (!c) return;
+async function adicionarArquivos(files, destino = null, quieto = false) {
+  const c = destino || atual(); if (!c) return;
   if (ehTodos(c)) return toast(TT("Adicione o material no caderno do capítulo: ele aparece aqui sozinho.", "Agrega el material en el cuaderno del capítulo: aparece aquí solo."), true);
   files = await abrirZips(files);
-  toast(files.length > 1 ? `Lendo ${files.length} arquivos…` : "Lendo " + (files[0]?.name || "") + "…");
+  if (!quieto) toast(files.length > 1 ? `Lendo ${files.length} arquivos…` : "Lendo " + (files[0]?.name || "") + "…");
   // 3 arquivos ao mesmo tempo (antes era um de cada vez); a ordem da lista continua a mesma da escolha
   const lidos = Array(files.length); let prox = 0;
   const ler = async () => {
@@ -1827,8 +1830,8 @@ async function adicionarArquivos(files) {
     if (r.poucoTexto) paraIA.push(novo);
   }
   await salvar(c); render();
-  for (const m of paraIA) { toast(`${m.nome}: tem páginas em imagem. Lendo com IA…`); lerRapido(m.id); }
-  toast("Materiais adicionados.");
+  for (const m of paraIA) { if (!quieto) toast(`${m.nome}: tem páginas em imagem. Lendo com IA…`); lerRapido(m.id); }
+  if (!quieto) toast("Materiais adicionados.");
   if (!c.materia) detectarMateria(c);
 }
 /* ---------- OCR grátis no próprio app (Tesseract) ---------- */
@@ -2736,6 +2739,7 @@ function viewHome() {
         <button data-act="moverKit" data-id="${c.id}">📂 Mudar de matéria</button>
         <button data-act="renomearKit" data-id="${c.id}">✏️ Renomear</button>
         <button data-act="detectarKit" data-id="${c.id}">✨ Identificar matéria com IA</button>
+        ${c.materiais.length > 1 ? `<button data-act="separarKit" data-id="${c.id}">${iconeSVG("pasta")} ${TT("Separar em cadernos", "Separar en cuadernos")}</button>` : ""}
         <button data-act="excluirKit" data-id="${c.id}" style="color:var(--bad)">🗑 Excluir</button></div>` : ""}
     </div>`;
   };
@@ -2820,6 +2824,28 @@ async function estudarTodos(materia) {
   $("#dlgPerfil").close();
   S.atual = c.id; S.aba = "materiais"; S.player = null; S.verDeck = null; render(); window.scrollTo(0, 0);
   setTimeout(() => document.querySelector('[data-act="comecar"]')?.click(), 150); // já abre "Como você quer estudar?"
+}
+// "Separar em cadernos": cada material vira um caderno na mesma matéria. O caderno original fica com o 1º material
+// (e guarda o progresso dele); os outros ganham cópia com id novo (sobe para a nuvem como material novo e o antigo é retirado)
+async function separarCaderno(c) {
+  if (!c || c.combinado || c.oficial || c.materiais.length < 2) return;
+  const mats = [...c.materiais].sort((a, b) => a.nome.localeCompare(b.nome, "pt", { numeric: true }));
+  if (!confirm(TT(`Separar "${c.nome}" em ${mats.length} cadernos, um para cada material?\n\nO primeiro material fica neste caderno (com o progresso dele); os outros viram cadernos novos na mesma matéria. Nenhum material é apagado.`, `¿Separar "${c.nome}" en ${mats.length} cuadernos, uno por material?\n\nEl primer material se queda en este cuaderno (con su progreso); los otros pasan a cuadernos nuevos en la misma materia. No se borra ningún material.`))) return;
+  const nomeDe = m => String(m.nome).split(" › ").pop().replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").trim().slice(0, 80) || "Caderno";
+  const novos = [];
+  for (const m of mats.slice(1)) {
+    const nc = novoCaderno(nomeDe(m)); nc.icone = c.icone; nc.materia = c.materia || ""; nc.materiaAuto = c.materiaAuto; nc.materiaTentada = c.materiaTentada; nc.materiaTentada2 = c.materiaTentada2; if (c.idioma) nc.idioma = c.idioma;
+    const { _sync, ...resto } = m, novo = { ...resto, id: uid() };
+    try { const b = await original(m); if (b) await guardarOriginal(novo.id, b); } catch {} // as imagens do guia em PDF continuam funcionando
+    nc.materiais = [novo]; S.cadernos.push(nc); novos.push(nc);
+  }
+  c.materiais = [mats[0]]; c.nome = nomeDe(mats[0]);
+  gravarOrdemKits([...ordemKits().l.flatMap(id => id === c.id ? [c.id, ...novos.map(n => n.id)] : [id]), ...(ordemKits().l.includes(c.id) ? [] : [c.id, ...novos.map(n => n.id)])]);
+  for (const nc of novos) await salvar(nc);
+  await salvar(c);
+  for (const m of mats.slice(1)) apagarOriginal(m.id);
+  render();
+  toast(TT(`Pronto: ${mats.length} cadernos${c.materia ? ` em ${c.materia}` : ""}.`, `Listo: ${mats.length} cuadernos${c.materia ? ` en ${c.materia}` : ""}.`));
 }
 // Cadernos antigos sem matéria: identifica um de cada vez, em segundo plano
 function detectarPendentes() {
@@ -5898,9 +5924,31 @@ function abrirNovo(arquivos = [], materia = "") {
 function desenharNovo() {
   $("#novoIcones").innerHTML = ICONES_KIT.map(i => `<button type="button" class="${i === S.novo.icone ? "on" : ""}" data-act="novoIcone" data-id="${i}">${i}</button>`).join("");
   $("#novoLista").innerHTML = S.novo.arquivos.map(f => `<span>📄 ${esc(f.name)}</span>`).join("");
+  const varios = S.novo.arquivos.length > 1 || S.novo.arquivos.some(ehZip);
+  if (S.novo.separar === undefined && varios) S.novo.separar = true; // padrão: separado, como os capítulos do Renal
+  $("#novoSepararWrap").hidden = !varios; $("#novoSeparar").checked = !!S.novo.separar;
+  $("#novoNomeWrap").hidden = varios && S.novo.separar;
 }
 // Cria e salva o caderno na hora; os arquivos são lidos logo em seguida
+// vários arquivos de uma vez → um caderno para cada arquivo (nome = nome do arquivo), na mesma matéria e na ordem dos nomes
+async function criarCadernosSeparados(files, mat) {
+  files = (await abrirZips(files)).sort((a, b) => a.name.localeCompare(b.name, "pt", { numeric: true }));
+  if (!files.length) return;
+  const materia = mat ? (nomesMaterias().find(e => e.toLowerCase() === mat.toLowerCase()) || mat) : "";
+  $("#dlgNovo").close(); S.atual = null; S.player = null;
+  toast(TT(`Criando ${files.length} cadernos…`, `Creando ${files.length} cuadernos…`));
+  const novos = files.map(f => { const nc = novoCaderno(f.name.split(" › ").pop().replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").trim().slice(0, 80) || "Caderno"); nc.icone = S.novo.icone; if (materia) nc.materia = materia; S.cadernos.push(nc); return nc; });
+  gravarOrdemKits([...novos.map(n => n.id), ...ordemKits().l.filter(id => !novos.some(n => n.id === id))]);
+  for (const nc of novos) await salvar(nc);
+  render();
+  let prox = 0; // 3 arquivos lidos ao mesmo tempo
+  await Promise.all(Array.from({ length: Math.min(3, files.length) }, async () => { while (prox < files.length) { const i = prox++; await adicionarArquivos([files[i]], novos[i], true).catch(e => console.warn(e)); render(); } }));
+  toast(TT(`${novos.length} cadernos criados${materia ? ` em ${materia}` : ""}.`, `${novos.length} cuadernos creados${materia ? ` en ${materia}` : ""}.`));
+  if (!materia) for (const nc of novos) if (!nc.materia) detectarMateria(nc); // a IA escolhe a matéria de cada um
+  setTimeout(() => document.querySelector(`#main .mkit[data-kit="${CSS.escape(novos[0].id)}"]`)?.closest("section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
+}
 async function criarCaderno() {
+  if (S.novo.separar && (S.novo.arquivos.length > 1 || S.novo.arquivos.some(ehZip))) return criarCadernosSeparados(S.novo.arquivos, $("#novoMateria").value.trim());
   const nome = $("#novoNome").value.trim() || (S.novo.arquivos[0]?.name.replace(/\.[^.]+$/, "")) || `Caderno ${S.cadernos.length + 1}`;
   const nc = novoCaderno(nome); nc.icone = S.novo.icone;
   const mat = $("#novoMateria").value.trim(); if (mat) nc.materia = nomesMaterias().find(e => e.toLowerCase() === mat.toLowerCase()) || mat;
@@ -6214,6 +6262,7 @@ document.addEventListener("click", async e => {
     case "novoIcone": S.novo.icone = el.dataset.id; desenharNovo(); break;
     case "fecharNovo": $("#dlgNovo").close(); break;
     case "criarCaderno": criarCaderno(); break;
+    case "separarKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; render(); separarCaderno(k); break; }
     case "mostrarColar": S.colar = !S.colar; render(); if (S.colar) $("#colarTexto")?.focus(); break;
     case "verMat": S.verMat = S.verMat === id ? null : id; render(); break;
     case "abrir": if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Sair da prova em andamento?")) return; guardarRestantes(c, S.player); S.atual = id; S.player = null; S.verDeck = null; render(); prepararBanco(atual()); break;
@@ -6377,7 +6426,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-26-0437";
+const VERSAO_APP = "2026-11-26-0937";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -6436,7 +6485,7 @@ const UI_ES = {
   "Comece sua sequência hoje!": "¡Empieza tu racha hoy!", "Meta de hoje:": "Meta de hoy:", "perguntas": "preguntas", "mudar meta": "cambiar meta",
   "▶ Começar a estudar": "▶ Empezar a estudiar", "📂 Mudar de matéria": "📂 Cambiar de materia", "✏️ Renomear": "✏️ Renombrar",
   "✨ Identificar matéria com IA": "✨ Identificar materia con IA", "🗑 Excluir": "🗑 Eliminar", "Excluir": "Eliminar", "🗑️ Excluir": "🗑️ Eliminar",
-  "＋ Adicionar": "＋ Agregar", "✍️ Colar texto": "✍️ Pegar texto", "Adicionar texto": "Agregar texto", "Cancelar": "Cancelar",
+  "＋ Adicionar": "＋ Agregar", "✍️ Colar texto": "✍️ Pegar texto", "Adicionar texto": "Agregar texto", "Um caderno para cada arquivo": "Un cuaderno para cada archivo", "Cada PDF ou slide vira um caderno separado dentro da matéria (como capítulos). Para estudar tudo junto depois, use \"Estudar todo o caderno\".": "Cada PDF o diapositiva se vuelve un cuaderno separado dentro de la materia (como capítulos). Para estudiar todo junto después, usa \"Estudiar todo el cuaderno\".", "Cancelar": "Cancelar",
   "📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá": "📎 Arrastra PDFs, diapositivas (.pptx), Word, textos o fotos aquí",
   "🔍 Ler texto": "🔍 Leer texto", "reenvie o arquivo": "vuelve a subir el archivo", "sem texto": "sin texto", "não usado no estudo": "no se usa en el estudio",
   "domínio geral": "dominio general", "respondidas": "respondidas", "de acerto": "de aciertos", "Domínio por tópico": "Dominio por tema",
@@ -9978,6 +10027,7 @@ async function juntarOriginais(files) {
   await conferirOriginais(c);
 }
 document.addEventListener("input", e => { if (e.target.id === "rpGuia" && S.atual) (S.rpGuia ||= {})[S.atual] = e.target.value; });
+document.addEventListener("change", e => { if (e.target.id === "novoSeparar") { S.novo.separar = e.target.checked; desenharNovo(); } });
 document.addEventListener("change", e => { if (e.target.id === "rpFig") S.rpFig = e.target.checked; if (e.target.id === "rpSim") S.rpSim = e.target.checked; });
 $("#origIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; if (fs.length) juntarOriginais(fs); });
 setTimeout(() => limparOriginais().catch(() => {}), 60000);

@@ -32,7 +32,8 @@ O QUE É O SITE
 - Criar matéria: botão "Nova matéria" na tela inicial (abaixo de "Criar um caderno de estudo"); também dá para digitar uma matéria nova no campo "Matéria" ao criar um caderno. Se deixar a matéria em branco, a IA lê o material e coloca o caderno na matéria certa sozinha (se errar, use "Mudar de matéria").
 - Mudar a ORDEM das matérias: segure a mãozinha ao lado do nome da matéria e arraste para cima ou para baixo. Mudar a ordem dos cadernos: segure a mãozinha no cartão do caderno e arraste (soltar em outra matéria muda o caderno de matéria). A ordem fica salva na conta.
 - "Estudar todo o caderno" (botão ao lado do nome da matéria, quando ela tem 2 ou mais cadernos): junta os cadernos DAQUELA matéria (ex.: todos os capítulos de Renal) para estudar tudo de uma vez no Estudo inteligente, Quiz, Teste, Flashcards, Tutor ou guia em PDF. Abre uma lista com caixinhas para marcar o que entra; dentro dele, as chavinhas dos materiais tiram um material do estudo. Não copia nada: material novo se adiciona no caderno do capítulo e aparece ali sozinho. As outras matérias não entram.
-- Os 3 pontinhos do cartão do caderno: Mudar de matéria, Renomear, Identificar matéria com IA e Excluir.
+- Vários arquivos de uma vez: ao criar um caderno escolhendo 2 ou mais arquivos, a caixinha "Um caderno para cada arquivo" vem marcada e cada PDF/slide vira um caderno separado na matéria (como capítulos). Desmarcando, tudo fica num caderno só.
+- Os 3 pontinhos do cartão do caderno: Mudar de matéria, Renomear, Identificar matéria com IA, "Separar em cadernos" (quando o caderno tem vários materiais: cada material vira um caderno na mesma matéria, sem apagar nada) e Excluir.
 - "Importar matéria": abre uma matéria que alguém compartilhou com você por link.
 - Conta: entrar com o Google (botão no topo). Com a conta, cadernos e progresso ficam salvos e aparecem em qualquer aparelho. Sem conta dá para testar, mas o que fizer fica só naquele navegador.
 
