@@ -992,7 +992,24 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "lib/pdf.worker.min.js";
 const $ = s => document.querySelector(s);
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const md = s => DOMPurify.sanitize(marked.parse(String(s ?? "")));
+// A IA às vezes escreve fórmulas em LaTeX ($K^+$, $Ca^{2+}$, $\pm$, $\beta$). O app não desenha LaTeX:
+// troca por símbolos normais (K⁺, Ca²⁺, ±, β). Só mexe em trechos entre $…$ que têm ^, _ ou \ (preços como "R$ 10" ficam).
+const SOBRE = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻", "−": "⁻", "=": "⁼", "(": "⁽", ")": "⁾", "n": "ⁿ", "i": "ⁱ" };
+const SUB = { "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉", "+": "₊", "-": "₋", "=": "₌", "(": "₍", ")": "₎", "a": "ₐ", "e": "ₑ", "o": "ₒ", "x": "ₓ" };
+const LATEX = { pm: "±", mp: "∓", times: "×", cdot: "·", div: "÷", alpha: "α", beta: "β", gamma: "γ", delta: "δ", Delta: "Δ", epsilon: "ε", theta: "θ", lambda: "λ", mu: "µ", pi: "π", rho: "ρ", sigma: "σ", Sigma: "Σ", tau: "τ", phi: "φ", omega: "ω", Omega: "Ω",
+  rightarrow: "→", to: "→", leftarrow: "←", leftrightarrow: "↔", Rightarrow: "⇒", uparrow: "↑", downarrow: "↓", rightleftharpoons: "⇌", leq: "≤", le: "≤", geq: "≥", ge: "≥", neq: "≠", approx: "≈", sim: "~", infty: "∞", circ: "°", degree: "°", ldots: "…", cdots: "…", "%": "%", ",": " ", ";": " ", " ": " " };
+function trechoLatex(t) {
+  const ind = (x, mapa) => [...x].map(ch => mapa[ch] ?? ch).join("");
+  return t.replace(/\\(?:text|mathrm|mathbf|textbf|mathit|operatorname)\s*\{([^{}]*)\}/g, "$1")
+    .replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, "$1/$2").replace(/\\sqrt\s*\{([^{}]*)\}/g, "√$1")
+    .replace(/\\([A-Za-z]+|[%,; ])/g, (m, k) => LATEX[k] ?? k)
+    .replace(/\^\s*\{([^{}]*)\}|\^\s*([^\s{}])/g, (m, a, b) => ind(a ?? b, SOBRE))
+    .replace(/_\s*\{([^{}]*)\}|_\s*([^\s{}])/g, (m, a, b) => ind(a ?? b, SUB))
+    .replace(/[{}]/g, "").trim();
+}
+const semLatex = s => String(s ?? "").replace(/\$\$([^$]{1,200}?)\$\$|\$([^$\n]{1,80}?)\$/g, (m, a, b) => { const t = a ?? b; return /[\\^_]/.test(t) ? trechoLatex(t) : m; })
+  .replace(/\\\(([^\n]{1,80}?)\\\)/g, (m, t) => trechoLatex(t));
+const md = s => DOMPurify.sanitize(marked.parse(semLatex(s)));
 const DIA = 86400000;
 const fmtData = t => new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 const LETRAS = "ABCDEFGH";
@@ -1074,7 +1091,10 @@ Regras:
 - Use SOMENTE o conteúdo dos materiais fornecidos. Não invente fatos que não estejam neles.
 - Escreva de forma clara e didática, no idioma indicado abaixo.
 - Priorize os conceitos mais importantes e com maior chance de cair em prova.
-- Quando útil, indique de onde veio a informação (nome do documento, página ou slide).`;
+- Quando útil, indique de onde veio a informação (nome do documento, página ou slide).
+- Fórmulas e símbolos: NUNCA use LaTeX nem cifrões ($K^+$, $\\pm$, $\\beta$, \\frac…). Escreva com caracteres normais: K⁺, Na⁺, Ca²⁺, HCO₃⁻, CO₂, ±, β, α, Δ, →, ≤, ≥, ×, °C.
+- Fale DIRETAMENTE com quem estuda (você / tú), nunca na terceira pessoa ("ele", "ela", "él", "el estudiante").
+- TUDO no idioma indicado abaixo, inclusive títulos e rótulos (em espanhol, por exemplo, "Para recordar", nunca "Para lembrar").`;
 
 // Quantos caracteres de material cabem no contexto da IA escolhida (IA local/navegador têm pouco espaço)
 function limiteMateriais() {
@@ -1991,7 +2011,7 @@ const ROTULO_RESPOSTA = /^\s*(correta|correto|certa|errada|errado|incorreta|corr
 // Descarta questões com alternativas vazias, repetidas ou sem gabarito (comum em IAs pequenas)
 // a IA às vezes manda lista ou objeto onde devia vir texto (travava a tela ao responder: só "Pular" funcionava)
 function textoIA(v) {
-  if (typeof v === "string") return v;
+  if (typeof v === "string") return semLatex(v);
   if (v == null) return "";
   if (Array.isArray(v)) return v.map(textoIA).filter(Boolean).map(t => /^\s*[-•]/.test(t) || v.length < 2 ? t : "- " + t).join("\n");
   if (typeof v === "object") return textoIA(v.texto ?? v.text ?? v.alternativa ?? v.explicacao ?? Object.values(v).filter(x => typeof x === "string").join(" "));
@@ -4249,7 +4269,7 @@ async function perguntar(txt) {
   S.ocupado = "tutor"; render(); window.scrollTo(0, document.body.scrollHeight);
   try {
     const resposta = await chamar({ ferr: "tutor",
-      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. ORGANIZE para leitura rápida: comece com uma citação Markdown (linha iniciada por >) e a resposta direta em 1 ou 2 frases; depois títulos curtos (##), listas, tabela quando comparar coisas, termos-chave em **negrito** e, no fim, a seção ### Para lembrar com até 3 pontos. Pergunta simples pede resposta curta, sem encher. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado." + linhaPronome() }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + `\nVocê agora é um tutor paciente. Responda em Markdown, de forma didática, com exemplos. ORGANIZE para leitura rápida: comece com uma citação Markdown (linha iniciada por >) e a resposta direta em 1 ou 2 frases; depois títulos curtos (##), listas, tabela quando comparar coisas, termos-chave em **negrito** e, no fim, a seção ### ${idiomaCaderno(c) === "es" ? "Para recordar" : "Para lembrar"} com até 3 pontos. Pergunta simples pede resposta curta, sem encher. Se a pergunta não for coberta pelos materiais, avise e responda com cuidado.` + linhaPronome() }, { type: "text", text: blocoMateriais(c, txt), cache_control: { type: "ephemeral" } }],
       messages: c.chat.map(m => ({ role: m.role, content: m.content })),
       maxTokens: 16000
     });
@@ -4613,8 +4633,8 @@ const pronome = () => PERFIL.pronome || lsGet("fp-pronome", null) || { k: "nao",
 const limparPronome = t => String(t || "").replace(/[^\p{L}\p{N} /,.'-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 30);
 function linhaPronome() {
   const p = pronome(), t = limparPronome(p.t);
-  if (p.k === "ele") return "\nAo falar com quem estuda, trate SEMPRE no masculino (ele).";
-  if (p.k === "ela") return "\nAo falar com quem estuda, trate SEMPRE no feminino (ela).";
+  if (p.k === "ele") return "\nAo falar com quem estuda, fale direto com a pessoa (você/tú) e use o masculino só na concordância (ex.: \"preparado\"); nunca escreva \"ele\"/\"él\" se referindo a ela.";
+  if (p.k === "ela") return "\nAo falar com quem estuda, fale direto com a pessoa (você/tú) e use o feminino só na concordância (ex.: \"preparada\"); nunca escreva \"ela\"/\"ella\" se referindo a ela.";
   if (p.k === "outro" && t) return `\nQuem estuda pediu para ser tratado pelos pronomes "${t}". Use-os ao falar com a pessoa; onde ficar estranho, prefira uma frase sem gênero.`;
   return "\nAo falar com quem estuda, use frases SEM gênero: só \"você\" (ou \"tú\" em espanhol), nunca adjetivos ou apelidos no masculino ou no feminino (nada de \"preparada\", \"burro\", \"sua lesada\", \"amigo\"). Não escreva com x, @ ou \"(a)\".";
 }
