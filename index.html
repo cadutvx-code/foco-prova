@@ -116,6 +116,16 @@ h3{font-size:16px;margin:0 0 6px}
 .criar-top .seta{margin-left:auto;color:var(--muted)}
 .materia{margin-bottom:26px}
 .materia-head{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.todos-bt{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-weight:800;font-size:13px;cursor:pointer;box-shadow:var(--shadow);margin-left:4px}
+.todos-bt .icx{width:16px;height:16px;color:var(--accent)}.todos-bt:hover{border-color:var(--accent)}
+@media (max-width:760px){.todos-bt span{display:none}.todos-bt{padding:7px}}
+.todos-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px}
+.todos-lista{display:flex;flex-direction:column;gap:6px;max-height:min(52vh,420px);overflow:auto}
+.todos-lista .todos-item{flex-direction:row;text-align:left;margin:0}
+.todos-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer}
+.todos-item input{width:19px;height:19px;flex:none;accent-color:var(--accent)}.todos-item small{display:block;font-size:12px}
+.todos-cor{width:10px;height:10px;border-radius:50%;flex:none}
+.todos-aviso{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.todos-aviso>.icx{width:20px;height:20px;color:var(--accent);flex:none}
 .mao-mat{width:32px;height:32px;flex:none;border:none;border-radius:10px;background:var(--panel2);color:var(--muted);display:grid;place-items:center;cursor:grab;touch-action:none;padding:0}
 .mao-mat svg{width:18px;height:18px;pointer-events:none}.mao-mat:hover{color:var(--accent)}.mao-mat:active{cursor:grabbing}
 .mat-sombra{position:fixed;top:0;z-index:80;pointer-events:none;background:var(--panel);border:1.5px solid var(--accent);border-radius:14px;padding:8px 10px;box-shadow:0 14px 34px rgba(0,0,0,.3);opacity:.95}
@@ -1118,7 +1128,20 @@ const dbDel = id => tx("readwrite", s => s.delete(id));
 const S = { novo: { icone: "📘", arquivos: [] }, colar: false, verMat: null, cadernos: [], atual: null, aba: "materiais", player: null, ocupado: null, form: { qtd: 15, dif: "mista", foco: "" }, verDeck: null, timer: null };
 const atual = () => S.cadernos.find(c => c.id === S.atual);
 const ativos = c => c.materiais.filter(m => m.ativo !== false && m.texto?.trim());
-async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } agendarSync(c); }
+async function salvar(c) { c.atualizado = Date.now(); try { await dbPut(c.combinado ? { ...c, materiais: [] } : c); } catch (e) { toast("Erro ao salvar: " + e.message, true); } agendarSync(c); }
+/* ---------- "Estudar todos os cadernos" de uma matéria ----------
+   É um caderno especial (c.combinado = { materia, foraCad: [ids de cadernos desmarcados], foraMat: [ids de materiais desligados] }).
+   Os materiais são montados na hora a partir dos cadernos da matéria (ids "j:" + id original): nada é copiado,
+   nada vai para a nuvem e apagar este caderno não mexe nos materiais dos outros. Caderno novo na matéria entra sozinho. */
+const ehTodos = c => !!c?.combinado;
+function cadernosDaMateria(materia) { return S.cadernos.filter(k => !k.oficial && !k.combinado && (k.materia || SEM_MATERIA) === materia).sort(compararKits); }
+function montarTodos(c) {
+  if (!ehTodos(c)) return;
+  const cb = c.combinado, fora = new Set(cb.foraCad || []), foraMat = new Set(cb.foraMat || []);
+  c.materiais = cadernosDaMateria(cb.materia).filter(k => !fora.has(k.id)).flatMap(k => k.materiais.map(m => ({
+    ...m, id: "j:" + m.id, de: k.id, nome: `${k.nome} › ${m.nome}`, ativo: m.ativo !== false && !foraMat.has(m.id), b64: undefined, arquivo: undefined
+  })));
+}
 function novoCaderno(nome) {
   return { id: uid(), nome, criado: Date.now(), atualizado: Date.now(), materiais: [], resumos: [], decks: [], quizzes: [], provas: [], chat: [] };
 }
@@ -1782,6 +1805,7 @@ async function abrirZips(files, nivel = 0) {
 }
 async function adicionarArquivos(files) {
   const c = atual(); if (!c) return;
+  if (ehTodos(c)) return toast(TT("Adicione o material no caderno do capítulo: ele aparece aqui sozinho.", "Agrega el material en el cuaderno del capítulo: aparece aquí solo."), true);
   files = await abrirZips(files);
   toast(files.length > 1 ? `Lendo ${files.length} arquivos…` : "Lendo " + (files[0]?.name || "") + "…");
   // 3 arquivos ao mesmo tempo (antes era um de cada vez); a ordem da lista continua a mesma da escolha
@@ -2513,7 +2537,7 @@ addEventListener("scroll", () => { const k = document.querySelector("#main .kit-
 document.addEventListener("pointerdown", e => { if (S.railMais && !e.target.closest?.('#maisMenu,[data-act="railMais"]')) { S.railMais = false; render(); } });
 function render() {
   if (S.arrastandoKit) return; // não redesenha no meio de um arraste (o fim do arraste redesenha)
-  const c = atual();
+  const c = atual(); montarTodos(c);
   const emEstudo = !!S.player;
   // As opções de estudo só aparecem depois de escolher um caderno
   const abas = c ? ABAS.filter(([k]) => k !== "oral" || (c.oficial && ATENEO_ATIVO)) : [], botaoAba = ([k, n]) => `<button class="ri ${S.aba === k ? "on" : ""}" data-act="aba" data-id="${k}">${svg(k)}<span class="ri-l">${n}</span><span class="ri-c">${NOME_CURTO[n] || n}</span></button>`;
@@ -2695,7 +2719,7 @@ document.addEventListener("keydown", e => {
 });
 function viewHome() {
   const grupos = {};
-  for (const c of S.cadernos) if (!c.oficial) (grupos[c.materia || SEM_MATERIA] ||= []).push(c);
+  for (const c of S.cadernos) if (!c.oficial && !c.combinado) (grupos[c.materia || SEM_MATERIA] ||= []).push(c);
   const ordem = Object.keys(grupos).sort(compararMaterias);
   const cartao = c => {
     const n = nivelCaderno(c), cor = corMateria(c.materia || SEM_MATERIA);
@@ -2720,6 +2744,7 @@ function viewHome() {
   <div class="row mat-acoes" style="gap:8px;flex-wrap:wrap"><button class="btn mat-nova" data-act="novaMateria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>${TT("Nova matéria", "Nueva materia")}</button><button class="btn importar-mat" data-act="importarMateria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>${TT("Importar matéria", "Importar materia")}</button></div>
   ${ordem.map(m => `<section class="materia" data-materia-sec="${esc(m)}">
       <div class="materia-head">${ordem.length > 1 ? `<button class="mao-mat" data-maomat="${esc(m)}" title="${TT("Arrastar para mudar a matéria de lugar (ou use as setas do teclado)", "Arrastra para cambiar la materia de lugar (o usa las flechas del teclado)")}" aria-label="${TT("Mudar a matéria de lugar", "Cambiar la materia de lugar")}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 11V4.8a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v6M17 9.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1.2a6 6 0 0 1-4.6-2.2L4 14.4a1.5 1.5 0 0 1 2.2-2L8 14"/></svg></button>` : ""}<h2>${esc(m)}</h2>
+        ${grupos[m].length > 1 ? `<button class="todos-bt" data-act="todosAbrir" data-id="${esc(m)}" title="${TT(`Estudar todo o caderno de ${m} de uma vez (você escolhe o que entra)`, `Estudiar todo el cuaderno de ${m} de una vez (eliges qué entra)`)}">${iconeSVG("livros")}<span>${TT("Estudar todo o caderno", "Estudiar todo el cuaderno")}</span></button>` : ""}
         <button class="mais-mat" data-act="novoNaMateria" data-id="${esc(m)}" title="Adicionar material em ${esc(m)}">+</button>
         ${m !== SEM_MATERIA ? `<button class="mini" data-act="renomearMateria" data-id="${esc(m)}" title="Renomear matéria">✏️</button><button class="mini" data-act="corMateria" data-id="${esc(m)}" title="Trocar cor">🎨</button><button class="mini cor-bt" data-act="corLivre" data-id="${esc(m)}" title="${TT("Escolher outra cor", "Elegir otro color")}" aria-label="${TT("Escolher outra cor", "Elegir otro color")}"><i style="background:${esc(corMateria(m))}"></i></button>` : ""}<button class="mini" data-act="compartilharMateria" data-id="${esc(m)}" title="${TT("Compartilhar matéria", "Compartir materia")}" aria-label="${TT("Compartilhar matéria", "Compartir materia")}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/></svg></button><button class="mini" data-act="apagarMateria" data-id="${esc(m)}" title="Apagar a matéria inteira">🗑</button>
       </div>
@@ -2766,6 +2791,34 @@ async function detectarMateria(c, forcar = false) {
     if (c.materiaFalhas < 3) setTimeout(() => { if (!c.materia) detectarMateria(c); }, 20000 * c.materiaFalhas); else c.materiaTentada = c.materiaTentada2 = true;
   }
   S.detectando = null; render();
+}
+// Janela "Estudar todos os cadernos": caixinhas para escolher quais cadernos da matéria entram
+function abrirTodos(materia) {
+  const lista = cadernosDaMateria(materia); if (!lista.length) return;
+  const ex = S.cadernos.find(k => k.combinado?.materia === materia), fora = new Set(ex?.combinado.foraCad || []);
+  $("#perfilCorpo").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${TT(`Estudar todo o caderno de ${esc(materia)}`, `Estudiar todo el cuaderno de ${esc(materia)}`)}</h2><button class="icon-btn" data-act="perfilCancelar" title="${TT("Fechar", "Cerrar")}">${iconeSVG("x")}</button></div>
+    <div class="muted" style="font-size:13.5px">${TT(`Marque o que entra no estudo (só de <b>${esc(materia)}</b>, as outras matérias ficam de fora). Depois é só escolher: Estudo inteligente, Quiz, Teste, Flashcards, Tutor ou o guia em PDF, com tudo junto.`, `Marca lo que entra en el estudio (solo de <b>${esc(materia)}</b>, las otras materias quedan fuera). Después elige: Estudio inteligente, Quiz, Test, Flashcards, Tutor o la guía en PDF, con todo junto.`)}</div>
+    <div class="todos-topo"><span id="todosConta" class="muted"></span><button class="btn small ghost" data-act="todosMarcar">${TT("Marcar / desmarcar todos", "Marcar / desmarcar todos")}</button></div>
+    <div id="todosLista" class="todos-lista">${lista.map(k => `<label class="todos-item"><input type="checkbox" value="${esc(k.id)}" ${fora.has(k.id) ? "" : "checked"}><span class="todos-cor" style="background:${esc(corMateria(materia))}"></span><span style="flex:1;min-width:0"><b>${esc(k.nome)}</b><small class="muted">${k.materiais.length} ${TT("material(is)", "material(es)")}</small></span></label>`).join("")}</div>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="perfilCancelar">${TT("Cancelar", "Cancelar")}</button><button class="pill" data-act="todosEstudar" data-id="${esc(materia)}">${TT("Estudar", "Estudiar")} →</button></div>`;
+  $("#todosLista").onchange = atualizarTodosConta; atualizarTodosConta();
+  const d = $("#dlgPerfil"); if (!d.open) d.showModal();
+}
+function atualizarTodosConta() {
+  const ck = [...document.querySelectorAll("#todosLista input[type=checkbox]")], n = ck.filter(x => x.checked).length, el = $("#todosConta");
+  if (el) el.textContent = TT(`${n} de ${ck.length} marcados`, `${n} de ${ck.length} marcados`);
+  const bt = document.querySelector('[data-act="todosEstudar"]'); if (bt) bt.disabled = !n;
+}
+async function estudarTodos(materia) {
+  const ck = [...document.querySelectorAll("#todosLista input[type=checkbox]")];
+  if (!ck.some(x => x.checked)) return toast(TT("Marque pelo menos um.", "Marca al menos uno."), true);
+  let c = S.cadernos.find(k => k.combinado?.materia === materia);
+  if (!c) { c = novoCaderno(TT(`${materia}: todo o caderno`, `${materia}: todo el cuaderno`)); c.materia = materia; c.icone = "📚"; c.combinado = { materia, foraCad: [], foraMat: [] }; S.cadernos.push(c); }
+  c.combinado.foraCad = ck.filter(x => !x.checked).map(x => x.value);
+  montarTodos(c); await salvar(c);
+  $("#dlgPerfil").close();
+  S.atual = c.id; S.aba = "materiais"; S.player = null; S.verDeck = null; render(); window.scrollTo(0, 0);
+  setTimeout(() => document.querySelector('[data-act="comecar"]')?.click(), 150); // já abre "Como você quer estudar?"
 }
 // Cadernos antigos sem matéria: identifica um de cada vez, em segundo plano
 function detectarPendentes() {
@@ -2820,9 +2873,10 @@ function viewMateriais(c) {
   const totalChars = ativos(c).reduce((s, m) => s + m.texto.length, 0);
   const tokens = Math.round(totalChars / 4);
   const n = c.materiais.length;
+  const todosAviso = ehTodos(c) ? `<div class="aviso-nuvem todos-aviso">${iconeSVG("livros")}<span style="flex:1;min-width:200px">${TT(`Aqui estão juntos os materiais de <b>${cadernosDaMateria(c.combinado.materia).filter(k => !(c.combinado.foraCad || []).includes(k.id)).length}</b> partes de <b>${esc(c.combinado.materia)}</b>. Desligue a chavinha de um material para tirá-lo do estudo. Para pôr material novo, adicione no caderno do capítulo: ele aparece aqui sozinho.`, `Aquí están juntos los materiales de <b>${cadernosDaMateria(c.combinado.materia).filter(k => !(c.combinado.foraCad || []).includes(k.id)).length}</b> partes de <b>${esc(c.combinado.materia)}</b>. Apaga el interruptor de un material para sacarlo del estudio. Para agregar material nuevo, agrégalo en el cuaderno del capítulo: aparece aquí solo.`)}</span><button class="btn small" data-act="todosAbrir" data-id="${esc(c.combinado.materia)}">${TT("Escolher o que entra", "Elegir qué entra")}</button></div>` : "";
   return `<div class="sec-tabs"><button class="on">${n} ${n === 1 ? "Material" : "Materiais"} <span title="Os materiais marcados como ativos são usados para criar o estudo" style="opacity:.6">ⓘ</span></button></div>
-  <div class="stack" style="gap:12px">
-    <div class="row" style="align-items:center;gap:8px">
+  <div class="stack" style="gap:12px">${todosAviso}
+    <div class="row" style="align-items:center;gap:8px${ehTodos(c) ? ";display:none" : ""}">
       <button class="btn" data-act="escolher">＋ Adicionar</button>
       <button class="btn ghost small" data-act="mostrarColar">✍️ Colar texto</button>
     </div>
@@ -2847,7 +2901,7 @@ function viewMateriais(c) {
           ${S.verMat === m.id && m.texto ? `<div class="mdet"><pre class="prev">${esc(m.texto.slice(0, 20000))}${m.texto.length > 20000 ? "\n…" : ""}</pre></div>` : ""}`;
       }).join("")}
     </div>
-    <div class="dropzone-hint" id="drop" data-act="escolher">📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá</div><div class="dica-ios">No iPhone: toque em <b>Escolher Arquivo</b> para ver o app Arquivos, ou em <b>Fototeca</b> / <b>Tirar Foto</b>. PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em <b>Salvar em Arquivos</b>.</div>
+    ${ehTodos(c) ? "" : `<div class="dropzone-hint" id="drop" data-act="escolher">📎 Arraste PDFs, slides (.pptx), Word, textos, fotos ou .zip para cá</div><div class="dica-ios">No iPhone: toque em <b>Escolher Arquivo</b> para ver o app Arquivos, ou em <b>Fototeca</b> / <b>Tirar Foto</b>. PDFs do WhatsApp ou do e-mail precisam ser salvos antes: abra o arquivo, toque em Compartilhar e em <b>Salvar em Arquivos</b>.</div>`}
     ${n && tokens > 700000 ? `<div class="muted" style="font-size:12px"><b style="color:var(--bad)">Material muito grande: desative alguns arquivos para a IA ler melhor.</b></div>` : ""}
   </div>`;
 }
@@ -5660,7 +5714,7 @@ const caminhoUser = () => `users/${NUVEM.user.uid}`;
 const assinaturaMat = m => `${(m.texto || "").length}|${m.ativo !== false}|${m.nome}|${!!m.poucoTexto}|${m.extra || ""}`;
 // O que vai para a nuvem: o caderno sem os textos (que vão separados) e sem arquivos brutos
 function cadernoLeve(c) {
-  const leve = { ...c, materiais: c.materiais.map(m => m.id) };
+  const leve = { ...c, materiais: c.combinado ? [] : c.materiais.map(m => m.id) };
   delete leve._idsSync; delete leve._nuvem;
   let dados = JSON.stringify(leve);
   if (dados.length > 900000) { leve.chat = (c.chat || []).slice(-20); if (leve.resumosPdf) leve.resumosPdf = leve.resumosPdf.slice(0, 2); if (leve.inteligente) leve.inteligente = { ...leve.inteligente, banco: [] }; dados = JSON.stringify(leve); }
@@ -5743,7 +5797,7 @@ async function subirCaderno(c) {
   const rd = await F.getDoc(F.doc(db, `${base}/cadernos/${c.id}`)), rem = rd.exists() ? rd.data() : null;
   if (rem && !rem.apagado && rem.dados && c._nuvem && rem.atualizado !== c._nuvem) await juntarComNuvem(c, rem);
   const quando = c.atualizado;
-  for (const m of c.materiais) {
+  for (const m of (c.combinado ? [] : c.materiais)) {
     if (m.oficial) continue; // material oficial vem do site, não ocupa a nuvem de cada pessoa
     const ass = assinaturaMat(m);
     if (m._sync === ass) continue;
@@ -5755,12 +5809,12 @@ async function subirCaderno(c) {
     m._sync = ass;
   }
   // materiais removidos deste caderno
-  const atuais = c.materiais.map(m => m.id);
-  for (const id of (c._idsSync || []).filter(id => !atuais.includes(id))) await apagarMaterialRemoto(id);
+  const atuais = c.combinado ? [] : c.materiais.map(m => m.id);
+  if (!c.combinado) for (const id of (c._idsSync || []).filter(id => !atuais.includes(id))) await apagarMaterialRemoto(id);
   c._idsSync = atuais;
   await F.setDoc(F.doc(db, `${base}/cadernos/${c.id}`), { atualizado: quando, dados: cadernoLeve(c), apagado: false });
   c._nuvem = quando;
-  try { await dbPut(c); } catch {}
+  try { await dbPut(c.combinado ? { ...c, materiais: [] } : c); } catch {}
 }
 async function apagarMaterialRemoto(id) {
   const { F, db } = NUVEM, base = caminhoUser();
@@ -5776,7 +5830,7 @@ async function apagarCadernoRemoto(c) {
   if (!NUVEM.user) return;
   try {
     await NUVEM.F.setDoc(NUVEM.F.doc(NUVEM.db, `${caminhoUser()}/cadernos/${c.id}`), { apagado: true, atualizado: Date.now(), dados: "" });
-    for (const m of c.materiais) if (!m.oficial) await apagarMaterialRemoto(m.id).catch(() => {});
+    if (!c.combinado) for (const m of c.materiais) if (!m.oficial) await apagarMaterialRemoto(m.id).catch(() => {});
   } catch (e) { console.warn(e); }
 }
 // Apaga um caderno de vez: neste aparelho e na nuvem
@@ -6068,6 +6122,9 @@ document.addEventListener("click", async e => {
     case "rankVer": verRanking(id); break;
     case "compartilharMateria": telaCompartilhar(id); break;
     case "importarMateria": telaImportar(); break;
+    case "todosAbrir": abrirTodos(id); break;
+    case "todosMarcar": { const ck = [...document.querySelectorAll("#todosLista input[type=checkbox]")], tudo = ck.some(x => !x.checked); ck.forEach(x => x.checked = tudo); atualizarTodosConta(); break; }
+    case "todosEstudar": estudarTodos(id); break;
     case "novaMateria": pedirTexto(TT("Nome da nova matéria (ex.: Fisiologia, Anatomia)", "Nombre de la nueva materia (ej.: Fisiología, Anatomía)"), "", v => {
       const nome = String(v || "").trim().slice(0, 60); if (!nome) return;
       const existe = S.cadernos.some(k => !k.oficial && (k.materia || "").toLowerCase() === nome.toLowerCase());
@@ -6140,13 +6197,14 @@ document.addEventListener("click", async e => {
     case "detectarKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; detectarMateria(k, true); break; }
     case "excluirKit": { const k = S.cadernos.find(x => x.id === id); S.menuKit = null; if (confirm(`Excluir o caderno "${k.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await apagarCaderno(k); toast("🗑 Caderno apagado."); } render(); break; }
     case "apagarMateria": {
-      const lista = S.cadernos.filter(k => !k.oficial && (k.materia || SEM_MATERIA) === id);
+      const lista = S.cadernos.filter(k => !k.oficial && !k.combinado && (k.materia || SEM_MATERIA) === id);
       const nMat = lista.reduce((s, k) => s + k.materiais.length, 0);
       if (!lista.length || !confirm(`Apagar a matéria "${id}" inteira?\n\n${lista.length} caderno(s) e ${nMat} material(is) serão apagados deste aparelho e da nuvem. Isso não pode ser desfeito.`)) break;
       for (const k of lista) await apagarCaderno(k);
+      for (const k of S.cadernos.filter(x => x.combinado?.materia === id)) await apagarCaderno(k); // o "todo o caderno" da matéria vai junto (não apaga material nenhum)
       toast(`🗑 Matéria "${id}" apagada (${lista.length} caderno(s)).`); render(); break;
     }
-    case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo)) { k.materia = v; await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; gravarMaterias(m, v); } render(); }); break; }
+    case "renomearMateria": { const antigo = id; pedirTexto("Renomear matéria", antigo, async v => { if (!v || v === antigo) return; for (const k of S.cadernos.filter(x => x.materia === antigo || x.combinado?.materia === antigo)) { k.materia = v; if (k.combinado) { k.combinado.materia = v; k.nome = TT(`${v}: todo o caderno`, `${v}: todo el cuaderno`); } await salvar(k); } const m = materiasCfg(); if (m[antigo]) { m[v] = m[antigo]; delete m[antigo]; gravarMaterias(m, v); } render(); }); break; }
     case "corMateria": { const m = materiasCfg(), atualCor = corMateria(id); m[id] = { ...(m[id] || {}), cor: CORES_MATERIA[(CORES_MATERIA.indexOf(atualCor) + 1) % CORES_MATERIA.length] }; gravarMaterias(m, id); render(); if (S.corMat?.nome === id) corMudar(corMateria(id)); break; }
     case "corLivre": if (S.corMat?.nome === id) fecharCor(); else abrirCor(id, el); break;
     case "txtCancelar": $("#dlgTexto").close(); break;
@@ -6164,8 +6222,10 @@ document.addEventListener("click", async e => {
     case "excluirCaderno": if (confirm(`Excluir o caderno "${c.nome}" e tudo dentro dele? Isso não pode ser desfeito.`)) { await apagarCaderno(c); toast("🗑 Caderno apagado."); render(); } break;
     case "escolher": $("#arquivo").click(); break;
     case "colar": { const t = $("#colarTexto").value.trim(); if (!t) return toast("Cole algum texto primeiro."); c.materiais.push({ id: uid(), nome: $("#colarNome").value.trim() || "Anotações", tipo: "texto", texto: t, ativo: true, criado: Date.now() }); S.colar = false; await salvar(c); render(); toast("Texto adicionado."); if (!c.materia) detectarMateria(c); break; }
-    case "toggleMat": { const m = c.materiais.find(x => x.id === id); m.ativo = m.ativo === false; await salvar(c); render(); break; }
-    case "excluirMat": { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); apagarOriginal(id); await salvar(c); render(); } break; }
+    case "toggleMat": {
+      if (ehTodos(c)) { const orig = id.replace(/^j:/, ""), f = new Set(c.combinado.foraMat || []); f.has(orig) ? f.delete(orig) : f.add(orig); c.combinado.foraMat = [...f]; await salvar(c); render(); break; }
+      const m = c.materiais.find(x => x.id === id); m.ativo = m.ativo === false; await salvar(c); render(); break; }
+    case "excluirMat": if (ehTodos(c)) { toast(TT("Para tirar este material do estudo, desligue a chavinha. Para apagar de vez, abra o caderno do capítulo.", "Para sacar este material del estudio, apaga el interruptor. Para borrarlo, abre el cuaderno del capítulo.")); break; } { const m = c.materiais.find(x => x.id === id); if (confirm(`Remover "${m.nome}"?`)) { c.materiais = c.materiais.filter(x => x.id !== id); apagarOriginal(id); await salvar(c); render(); } break; }
     case "transcrever": transcrever(id); break;
     case "ocr": lerComOCR(id); break;
     case "lerRapido": lerRapido(id); break;
@@ -6316,7 +6376,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-26-0416";
+const VERSAO_APP = "2026-11-26-0424";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
