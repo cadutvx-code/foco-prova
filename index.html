@@ -1165,6 +1165,7 @@ Regras:
 - Escreva de forma clara e didática, no idioma indicado abaixo.
 - Priorize os conceitos mais importantes e com maior chance de cair em prova.
 - Quando útil, indique de onde veio a informação (nome do documento, página ou slide).
+- Escreva com a acentuação e a ortografia corretas do idioma (ç, ã, õ, é, ê, á, í, ó, ú; ñ e tildes em espanhol). Nunca tire os acentos.
 - Fórmulas e símbolos: NUNCA use LaTeX nem cifrões ($K^+$, $\\pm$, $\\beta$, \\frac…). Escreva com caracteres normais: K⁺, Na⁺, Ca²⁺, HCO₃⁻, CO₂, ±, β, α, Δ, →, ≤, ≥, ×, °C.
 - Fale DIRETAMENTE com quem estuda (você / tú), nunca na terceira pessoa ("ele", "ela", "él", "el estudiante").
 - TUDO no idioma indicado abaixo, inclusive títulos e rótulos (em espanhol, por exemplo, "Para recordar", nunca "Para lembrar").`;
@@ -6376,7 +6377,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-26-0424";
+const VERSAO_APP = "2026-11-26-0437";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -9539,8 +9540,9 @@ async function guardarOriginal(id, file) {
   catch (e) { console.warn("original não guardado:", e); }
   return false;
 }
+const idOriginal = m => String(m.id).replace(/^j:/, "");
 async function original(m) {
-  try { const r = await origTx("readonly", s => s.get(m.id)); if (r?.blob) return r.blob; } catch {}
+  try { const r = await origTx("readonly", s => s.get(idOriginal(m))); if (r?.blob) return r.blob; } catch {}
   if (m.arquivo) return m.arquivo;
   const d = await dadosOriginais(m); return d ? new Blob([d], { type: m.mime || "" }) : null;
 }
@@ -9596,7 +9598,7 @@ async function caixasDaPagina(pdf, n) {
       }
     }
   }
-  return { caixas: caixas.filter(c => c[2] - c[0] > .14 && c[3] - c[1] > .1), vetor };
+  return { caixas: caixas.filter(c => c[2] - c[0] > .14 && c[3] - c[1] > .1), vetor, deitada: vp.width > vp.height * 1.15 };
 }
 const normRP = t => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 // devolve candidatos: { mat, pag, texto, canvas: async () => canvas, inteira } — nada é desenhado ainda
@@ -9610,14 +9612,23 @@ async function figurasDoMaterial(m, notaTexto) {
     // livros grandes: só as páginas mais ligadas ao assunto
     let nums = Array.from({ length: pdf.numPages }, (_, i) => i + 1);
     if (nums.length > 120) nums = nums.map(n => [n, notaTexto(txt(n))]).sort((a, b) => b[1] - a[1]).slice(0, 120).map(x => x[0]).sort((a, b) => a - b);
-    const achados = [];
-    for (const n of nums) {
-      try {
-        const { caixas, vetor } = await caixasDaPagina(pdf, n), texto = txt(n);
-        const cheia = caixas.some(c => (c[2] - c[0]) * (c[3] - c[1]) > .72);
-        if (cheia || (!caixas.length && vetor > 250 && texto.length < 900)) achados.push({ n, c: null, texto });
-        else caixas.forEach(c => achados.push({ n, c, texto }));
-      } catch {}
+    const achados = [], paginas = [];
+    for (const n of nums) { try { paginas.push({ n, ...(await caixasDaPagina(pdf, n)), texto: txt(n) }); } catch {} }
+    // decoração do modelo (galhinho, faixa, logo): a mesma imagem no mesmo lugar em vários slides não é figura
+    const ch = c => c.map(v => Math.round(v * 40)).join(), rep = {};
+    paginas.forEach(pg => new Set(pg.caixas.map(ch)).forEach(k => rep[k] = (rep[k] || 0) + 1));
+    const decor = c => rep[ch(c)] >= 3 && rep[ch(c)] > paginas.length * .2;
+    for (const { n, caixas, vetor, deitada, texto } of paginas) {
+      const area = c => (c[2] - c[0]) * (c[3] - c[1]), cheia = caixas.some(c => area(c) > .72 && !decor(c));
+      const reais = caixas.filter(c => area(c) <= .72 && !decor(c)), letras = (texto.match(/\p{L}/gu) || []).length;
+      if (deitada) {
+        // slide: fundo e decoração não contam; slide só de texto/lista não é figura.
+        // Entra INTEIRO quando tem figura de verdade, desenho com muitos traços ou é uma foto/print sem texto
+        const figGrande = reais.some(c => area(c) > .06);
+        if (figGrande || (vetor > 300 && letras < 700) || (cheia && letras < 120)) achados.push({ n, c: null, texto });
+      }
+      else if (cheia || (!caixas.length && vetor > 250 && texto.length < 900)) achados.push({ n, c: null, texto });
+      else reais.forEach(c => achados.push({ n, c, texto }));
     }
     // logo/cabeçalho que se repete no mesmo lugar em várias páginas não é figura
     const chave = c => c.map(v => Math.round(v * 40)).join(), vezes = {};
@@ -9648,7 +9659,7 @@ async function figurasDoMaterial(m, notaTexto) {
   }
   return out;
 }
-const MAX_FIGS = 16; // figuras mostradas à IA (tudo no mesmo pedido do texto)
+const MAX_FIGS = 24; // figuras mostradas à IA (tudo no mesmo pedido do texto)
 async function coletarFiguras(c, foco, status) {
   const base = foco || ativos(c).map(m => m.nome + " " + m.texto.slice(0, 1500)).join(" ");
   const palavras = [...new Set(normRP(base).split(/[^a-z0-9]+/).filter(p => p.length > 4))].slice(0, 250);
@@ -9773,7 +9784,7 @@ async function gerarResumoPDF() {
         status(nP > 1 ? TT(`Escrevendo o guia… parte ${k + 1} de ${nP}`, `Escribiendo la guía… parte ${k + 1} de ${nP}`) : TT("Escrevendo o guia… (pode levar 1 ou 2 minutos)", "Escribiendo la guía… (puede tardar 1 o 2 minutos)"));
         const system = [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\n" + REGRAS_RP + "\n" + FORMATO_RP }, { type: "text", text: `<materiais>\n${texto}\n</materiais>` }], content = [], meus = figs.map((f, i) => [f, i]).filter(([f]) => nP === 1 || texto.includes("### " + f.mat + "\n"));
         for (const [f, i] of meus) content.push({ type: "text", text: `[Figura ${i}] ${f.mat}, ${f.slide ? "slide" : "página"} ${f.pag}` }, { type: "image", source: { type: "base64", media_type: "image/jpeg", data: await canvasJPEG(reduzir(f.cv, 768), 768) } });
-        content.push({ type: "text", text: `Escreva um RESUMO DE ESTUDO completo para prova. ${guia ? `Siga ESTRITAMENTE esta guia do estudante: todos os itens, na mesma ordem, e nada fora dela.\n<guia>\n${guia}\n</guia>` : "Cubra TODOS os assuntos dos materiais, em ordem lógica: mecanismos, valores, classificações, causas e consequências. Não deixe assunto só citado."}${lote}${meus.length ? `\nFIGURAS: use com "@@FIG" as figuras acima que ENSINAM (esquemas, gráficos, curvas, tabelas, algoritmos, fotos didáticas), de 1 a 3 por seção quando houver, logo depois do texto que elas ilustram e sem repetir a mesma. Recuse logos, capas, decoração e páginas de texto corrido. As quatro coordenadas vão de 0 a 1000 e recortam só a figura com seus rótulos (0,0,1000,1000 se já estiver recortada). Você também pode usar os valores que LÊ nas tabelas e gráficos das figuras.` : "\nNão use @@FIG."}` });
+        content.push({ type: "text", text: `Escreva um RESUMO DE ESTUDO completo para prova. ${guia ? `Siga ESTRITAMENTE esta guia do estudante: todos os itens, na mesma ordem, e nada fora dela.\n<guia>\n${guia}\n</guia>` : "Cubra TODOS os assuntos dos materiais, em ordem lógica: mecanismos, valores, classificações, causas e consequências. Não deixe assunto só citado."}${lote}${meus.length ? `\nFIGURAS: o guia é de TEXTO; imagem só COMPLEMENTA. Use "@@FIG" apenas quando o texto não se explica bem sozinho sem a imagem: estrutura ou parte do corpo (anatomia, localização), esquema de um mecanismo ou via, gráfico ou curva, tabela com valores. Nunca como enfeite, nunca para repetir o que o texto já diz, nunca slide de texto, lista ou tópicos. No máximo 1 por seção e no máximo ${Math.max(2, Math.min(6, Math.round(lido?.secoes?.length || 5)))} no guia todo; muitas seções não terão nenhuma. Coloque logo depois do parágrafo que ela complementa e escolha a que mostra o ponto mais importante. No recorte, pegue a figura inteira com os rótulos e o título dela. As quatro coordenadas vão de 0 a 1000 e recortam só a figura com seus rótulos (0,0,1000,1000 se já estiver recortada). Você também pode usar os valores que LÊ nas tabelas e gráficos das figuras.` : "\nNão use @@FIG."}` });
         let r, txt = feitas[k] || ""; lido ||= lerMarcasRP("");
         try { if (!lido.secoes.length) { r = await pedirRP(system, content); txt = r.texto || ""; lido = lerMarcasRP(txt); if (r.erro) erroRP = r.erro; } } catch (e) { erroRP = e; if (e.cota && !k && !Object.keys(feitas).length) throw e; faltaram.push(k); continue; }
         if (!lido.fim) {
@@ -9804,7 +9815,7 @@ async function gerarResumoPDF() {
       const partes = [], fs = [];
       for (const p of s.partes) {
         if (p.md !== undefined) { partes.push({ md: p.md }); continue; }
-        if (!figs[p.fig] || usadas.has(p.fig) || fs.length >= 4) continue;
+        if (!figs[p.fig] || usadas.has(p.fig) || fs.length >= 1 || usadas.size >= 6) continue; // poucas imagens: só onde complementam
         usadas.add(p.fig);
         try { const f = figuraFinal(figs[p.fig], p), id = "fig-" + uid(); await origTx("readwrite", st => st.put({ id, data: f.data })); delete f.data; fs.push({ id, ...f }); partes.push({ fig: id }); } catch (e) { console.warn("figura não guardada:", e); }
       }
@@ -9814,7 +9825,7 @@ async function gerarResumoPDF() {
     const cad = S.cadernos.find(x => x.id === c.id) || c; (cad.resumosPdf ||= []).unshift(res); cad.resumosPdf = cad.resumosPdf.slice(0, 12); await salvar(cad);
     S.rp = null; render();
     const nf = res.secoes.reduce((n, s) => n + s.figs.length, 0);
-    const tem = await idsOriginais(), semOrig = comFig && ativos(c).some(m => temFigura(m) && !m.arquivo && !m.b64 && !tem.has(m.id));
+    const tem = await idsOriginais(), semOrig = comFig && ativos(c).some(m => temFigura(m) && !m.oficial && !m.arquivo && !m.b64 && !tem.has(idOriginal(m)));
     toast(res.faltou.length ? TT("Resumo pronto, mas a IA foi interrompida antes do fim.", "Resumen listo, pero la IA se cortó antes del final.")
       : !nf && semOrig ? TT("Resumo pronto, sem imagens: junte os arquivos originais para incluir as figuras.", "Resumen listo, sin imágenes: agrega los archivos originales para incluir las figuras.")
       : TT(`Resumo pronto, com ${nf} ${nf === 1 ? "imagem" : "imagens"}.`, `Resumen listo, con ${nf} ${nf === 1 ? "imagen" : "imágenes"}.`));
@@ -9936,7 +9947,7 @@ function cartaoResumoPDF(c) {
 }
 const avisoOriginais = n => n ? `<div class="mm-aviso">${iconeSVG("imagem")}<div>${TT(`Para usar as imagens, falta o arquivo original de <b>${n}</b> ${n === 1 ? "material" : "materiais"} neste aparelho (enviados antes desta novidade ou em outro aparelho).`, `Para usar las imágenes, falta el archivo original de <b>${n}</b> ${n === 1 ? "material" : "materiales"} en este dispositivo (subidos antes de esta novedad o en otro dispositivo).`)}<div class="mm-aviso-bts"><button class="btn small" data-act="rpJuntar">${TT("Escolher os arquivos", "Elegir los archivos")}</button></div></div></div>` : "";
 async function conferirOriginais(c) {
-  const tem = await idsOriginais(), n = ativos(c).filter(m => temFigura(m) && !m.oficial && !m.arquivo && !m.b64 && !tem.has(m.id)).length;
+  const tem = await idsOriginais(), n = ativos(c).filter(m => temFigura(m) && !m.oficial && !m.arquivo && !m.b64 && !tem.has(idOriginal(m))).length;
   S.rpFalta = { cid: c.id, n };
   const el = $("#rpOrig"); if (el && atual()?.id === c.id) el.innerHTML = avisoOriginais(n);
 }
@@ -9949,8 +9960,8 @@ async function juntarOriginais(files) {
   const c = atual(); if (!c) return;
   files = await abrirZips(files);
   const chave = n => normRP(n).split(/[\\/›]/).pop().replace(/\.[a-z0-9]{2,4}$/, "").replace(/[^a-z0-9]+/g, " ").trim();
-  const tem = await idsOriginais(), livres = () => c.materiais.filter(m => temFigura(m) && !m.oficial && !ligados.has(m.id)), falta = m => !m.arquivo && !m.b64 && !tem.has(m.id), ligados = new Set(); let ok = 0, sobra = [];
-  const ligar = async (m, f) => { if (!m || !await guardarOriginal(m.id, f)) return false; ligados.add(m.id); ok++; return true; };
+  const tem = await idsOriginais(), livres = () => c.materiais.filter(m => temFigura(m) && !m.oficial && !ligados.has(m.id)), falta = m => !m.arquivo && !m.b64 && !tem.has(idOriginal(m)), ligados = new Set(); let ok = 0, sobra = [];
+  const ligar = async (m, f) => { if (!m || !await guardarOriginal(idOriginal(m), f)) return false; ligados.add(m.id); ok++; return true; };
   for (const f of files) { const ms = livres().filter(m => m.tipo === tipoArquivo(f) && chave(m.nome) === chave(f.name)); let feito = false; for (const m of ms) if (await ligar(m, f)) feito = true; if (!feito) sobra.push(f); }
   const resto = [];
   for (const f of sobra) {
