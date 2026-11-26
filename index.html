@@ -29,17 +29,17 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#110b2e; --panel:#1b1446; --panel2:#251d5c; --rail:#0c0824; --text:#ffffff; --muted:#c4c0ec; --line:#342b74;
-    --accent:#4d8dff; --accent2:#8b6bff; --accent-soft:#22357a; --navy:#2a2170;
-    --ok:#3fd18c; --ok-soft:#123a2e; --bad:#ff6b7c; --bad-soft:#47203a; --warn:#ffc35a; --warn-soft:#3d3018; --shadow:0 4px 18px rgba(0,0,0,.25);
-    --elev:#1b1446; --textura:none;
+    --bg:#1d1f33; --panel:#272a44; --panel2:#313552; --rail:#191a2c; --text:#ecebf6; --muted:#b6b8d2; --line:#3b3f60;
+    --accent:#5b97ff; --accent2:#9479ff; --accent-soft:#2b3c6e; --navy:#363a78;
+    --ok:#4cd295; --ok-soft:#1d3d36; --bad:#ff7a89; --bad-soft:#4a2c3c; --warn:#ffc867; --warn-soft:#433824; --shadow:0 4px 18px rgba(0,0,0,.22);
+    --elev:#272a44; --textura:none;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#110b2e; --panel:#1b1446; --panel2:#251d5c; --rail:#0c0824; --text:#ffffff; --muted:#c4c0ec; --line:#342b74;
-  --accent:#4d8dff; --accent2:#8b6bff; --accent-soft:#22357a; --navy:#2a2170;
-  --ok:#3fd18c; --ok-soft:#123a2e; --bad:#ff6b7c; --bad-soft:#47203a; --warn:#ffc35a; --warn-soft:#3d3018; --shadow:0 4px 18px rgba(0,0,0,.25);
-  --elev:#1b1446; --textura:none;
+  --bg:#1d1f33; --panel:#272a44; --panel2:#313552; --rail:#191a2c; --text:#ecebf6; --muted:#b6b8d2; --line:#3b3f60;
+  --accent:#5b97ff; --accent2:#9479ff; --accent-soft:#2b3c6e; --navy:#363a78;
+  --ok:#4cd295; --ok-soft:#1d3d36; --bad:#ff7a89; --bad-soft:#4a2c3c; --warn:#ffc867; --warn-soft:#433824; --shadow:0 4px 18px rgba(0,0,0,.22);
+  --elev:#272a44; --textura:none;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);background-image:var(--textura);background-attachment:fixed;color:var(--text);font:15px/1.55 "Nunito","Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
@@ -4142,6 +4142,9 @@ async function iniciarNuvem() {
     });
     window.addEventListener("online", () => { if (NUVEM.user && NUVEM.pendentes.size) enviarPendentes(); });
     window.addEventListener("focus", () => { if (NUVEM.user && Date.now() - NUVEM.ultimaBaixa > 60000) sincronizarTudo(); });
+    // voltou para o app (outra aba, ou o celular desbloqueado): traz as cores mudadas em outro aparelho, sem recarregar
+    const coresDeNovo = () => { if (NUVEM.user && document.visibilityState === "visible" && Date.now() - (S.coresLidas || 0) > 20000) { S.coresLidas = Date.now(); sincronizarCores(); } };
+    window.addEventListener("focus", coresDeNovo); document.addEventListener("visibilitychange", coresDeNovo);
   } catch (e) { console.warn("Nuvem indisponível", e); }
 }
 async function entrarGoogle() {
