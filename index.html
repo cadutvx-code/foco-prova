@@ -2739,7 +2739,7 @@ function viewHome() {
         <button data-act="moverKit" data-id="${c.id}">📂 Mudar de matéria</button>
         <button data-act="renomearKit" data-id="${c.id}">✏️ Renomear</button>
         <button data-act="detectarKit" data-id="${c.id}">✨ Identificar matéria com IA</button>
-        ${c.materiais.length > 1 ? `<button data-act="separarKit" data-id="${c.id}">${iconeSVG("pasta")} ${TT("Separar em cadernos", "Separar en cuadernos")}</button>` : ""}
+        ${c.materiais.length > 1 ? `<button data-act="separarKit" data-id="${c.id}"><span class="ice">${iconeSVG("livros")}</span> ${TT("Separar em cadernos", "Separar en cuadernos")}</button>` : ""}
         <button data-act="excluirKit" data-id="${c.id}" style="color:var(--bad)">🗑 Excluir</button></div>` : ""}
     </div>`;
   };
@@ -6426,7 +6426,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-26-0937";
+const VERSAO_APP = "2026-11-26-0939";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
