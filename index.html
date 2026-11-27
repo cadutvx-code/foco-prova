@@ -156,8 +156,9 @@ section.materia.mat-vaga{opacity:.35}
 .pro-ajuda summary{cursor:pointer;font-weight:700}
 .pro-ajuda>div{margin-top:8px;line-height:1.5}
 .tipos-qtd{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
-.tipo-qtd{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer}
+.tipo-qtd{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .tipo-qtd span{flex:1;font-weight:700;font-size:14px}
+.tipo-qtd .tipo-marca{flex:1;display:flex;flex-direction:row;align-items:center;gap:10px;color:var(--text);cursor:pointer;min-width:0}
 .tipo-qtd input[type=number]{width:64px;padding:6px 8px;text-align:center}
 .tipo-qtd input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .tipo-qtd.off{opacity:.55}
@@ -368,7 +369,7 @@ label.comp-linha{display:flex!important;flex-direction:row!important;justify-con
 .cor-linha input[type=number]{width:62px;flex:none;padding:6px 8px}
 #mmBarra{position:absolute;left:12px;right:64px;bottom:12px;z-index:3;display:flex;flex-wrap:wrap;gap:7px;align-items:center;background:rgba(16,12,44,.94);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:9px 11px;color:#fff;max-width:900px;max-height:45%;overflow-y:auto}
 #mmBarra input:not([type=checkbox]):not([type=color]),#mmBarra select{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:10px;padding:8px 10px;font:inherit;font-size:16px;width:auto;flex:1 1 160px;min-width:120px}#mmBarra select option{color:#111}
-#mmBarra input[type=color]{width:40px;height:38px;padding:2px;border-radius:10px;flex:none;cursor:pointer}#mmBarra input[type=checkbox]{width:auto}
+#mmBarra input[type=color]{width:40px;height:38px;padding:2px;border-radius:10px;flex:none;cursor:pointer}#mmBarra .mml-paleta{display:flex;flex-wrap:wrap;gap:5px;align-items:center;flex:none}#mmBarra .mml-cor{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.35);padding:0;cursor:pointer;flex:none}#mmBarra .mml-cor.on{border-color:#fff;box-shadow:0 0 0 2px #2f6bff}#mmSvg .mml-mais{cursor:pointer}#mmBarra input[type=checkbox]{width:auto}
 #mmBarra .btn{color:#fff;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}#mmBarra .btn.primary{background:#2f6bff}#mmBarra .btn.danger{color:#ff9aa8}
 .mml-tit{font-size:14px;flex-basis:100%}.mml-dica{font-size:12.5px;color:rgba(255,255,255,.65)}.mml-chk{display:flex!important;flex-direction:row!important;gap:6px;align-items:center;font-size:12.5px;color:rgba(255,255,255,.8)}
 #mmSvg [data-n]{cursor:grab}#mmSvg [data-l]{cursor:pointer}#mmSvg text{user-select:none;-webkit-user-select:none;pointer-events:none}#mmSvg{-webkit-touch-callout:none}
@@ -2891,7 +2892,7 @@ function formGerar(tipo, label, { qtd = true, extra = "", dif = qtd } = {}) {
       <label class="grow">Foco (opcional)<input type="text" id="g-foco" value="${esc(S.form.foco)}" placeholder="ex.: capítulo 3, ciclo de Krebs, só as fórmulas"></label>
     </div>
     ${extra}
-    <div><button class="btn primary" data-act="gerar" data-id="${tipo}" ${S.ocupado ? "disabled" : ""}>${busy ? `<span class="spin"></span> Gerando… isso pode levar até alguns minutos` : "✨ Gerar " + label}</button></div>
+    <div><button type="button" class="btn primary" data-act="gerar" data-id="${tipo}" ${S.ocupado ? "disabled" : ""}>${busy ? `<span class="spin"></span> Gerando… isso pode levar até alguns minutos` : "✨ Gerar " + label}</button></div>
   </div>`;
 }
 
@@ -3315,7 +3316,7 @@ function viewProva(c) {
   const sem = semMateriais(c); if (sem) return sem;
   const cont = { multipla: 6, vf: 2, dissertativa: 2, ...(S.form.contagem || {}) }, tot = Object.values(cont).reduce((x, y) => x + y, 0);
   const extra = `<div class="stack" style="gap:8px"><div class="muted" style="font-size:13px;font-weight:700">Quantas questões de cada tipo</div>
-    <div id="g-tipos" class="tipos-qtd">${[["multipla", "Múltipla escolha"], ["vf", "Verdadeiro ou falso"], ["dissertativa", "Dissertativas"]].map(([v, n]) => `<label class="tipo-qtd ${cont[v] ? "" : "off"}"><input type="checkbox" value="${v}" data-tipo="${v}" ${cont[v] ? "checked" : ""}><span>${n}</span><input type="number" id="g-n-${v}" min="0" max="60" value="${cont[v]}" ${cont[v] ? "" : "disabled"}></label>`).join("")}</div>
+    <div id="g-tipos" class="tipos-qtd">${[["multipla", "Múltipla escolha"], ["vf", "Verdadeiro ou falso"], ["dissertativa", "Dissertativas"]].map(([v, n]) => `<div class="tipo-qtd ${cont[v] ? "" : "off"}"><label class="tipo-marca"><input type="checkbox" value="${v}" data-tipo="${v}" ${cont[v] ? "checked" : ""}><span>${n}</span></label><input type="number" id="g-n-${v}" min="0" max="60" inputmode="numeric" enterkeyhint="done" aria-label="${n}" value="${cont[v]}" ${cont[v] ? "" : "disabled"}></div>`).join("")}</div>
     <div class="muted" style="font-size:12.5px" id="g-total">Total: <b>${tot}</b> de 60 questões no máximo</div></div>`;
   return `<div class="stack">${formGerar("prova", "prova", { extra, qtd: false, dif: true })}
   ${c.provas.length ? "" : `<div class="empty">Nenhuma prova ainda.</div>`}
@@ -3358,7 +3359,9 @@ function atualizarTotalProva() {
   const tot = ["multipla", "vf", "dissertativa"].reduce((x, t) => x + (document.querySelector(`#g-tipos input[data-tipo="${t}"]`)?.checked ? (parseInt($("#g-n-" + t)?.value, 10) || 0) : 0), 0);
   const el = $("#g-total"); if (el) el.innerHTML = tot > 60 ? `<b style="color:var(--bad)">Total: ${tot}. O máximo é 60 questões; o que passar será cortado.</b>` : `Total: <b>${tot}</b> de 60 questões no máximo`;
 }
-document.addEventListener("input", e => { if (e.target.id?.startsWith("g-n-")) atualizarTotalProva(); });
+document.addEventListener("input", e => { if (/^g-(qtd|dif|foco|tempo|n-)/.test(e.target.id || "")) { lerForm(); if (e.target.id.startsWith("g-n-")) atualizarTotalProva(); } });
+// Enter / "OK" do teclado do celular num campo do formulário só fecha o teclado: gerar é só pelo botão
+document.addEventListener("keydown", e => { if (e.key === "Enter" && /^g-(qtd|tempo|foco|n-)/.test(e.target.id || "")) { e.preventDefault(); e.target.blur(); } });
 // Antes de começar: escolher o tempo limite (o cronômetro conta a partir do início da prova)
 function escolherTempoProva(id) {
   const pv = atual()?.provas.find(x => x.id === id); if (!pv) return;
@@ -3879,18 +3882,27 @@ let PIPER = null, PIPER_FILA = Promise.resolve();
 const motorPiper = () => PIPER ||= import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm").catch(e => { PIPER = null; throw e; });
 // A voz é gerada num TRABALHADOR separado (Web Worker): gerar voz pesa e, no mesmo fio da tela, travava os botões
 // por até 2,5 s. Se o navegador não aceitar o trabalhador, volta a gerar no fio da tela, como antes.
+// "umFio": no Android a voz roda em 1 fio só (com vários fios o ONNX reserva muito mais memória e falha ao alocar)
 const VOZ_WORKER_SRC = `let tts;
 self.onmessage = async e => {
-  const { id, text, voiceId } = e.data;
+  const { id, text, voiceId, umFio } = e.data;
   try {
+    if (umFio && !self.__umFio) { self.__umFio = true; try { Object.defineProperty(self.navigator, "hardwareConcurrency", { get: () => 1, configurable: true }); } catch {} }
     tts ||= await import("https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/+esm");
     let avisou = false;
     const wav = await tts.predict({ text, voiceId }, p => { if (p && p.total && p.loaded < p.total && !avisou) { avisou = true; self.postMessage({ id, baixando: true }); } });
     self.postMessage({ id, wav });
   } catch (err) { self.postMessage({ id, erro: String((err && err.message) || err) }); }
 };`;
-let VOZ_W = null, VOZ_W_FALHOU = false, VOZ_N = 0, VOZ_QUEDAS = 0; const VOZ_PEND = new Map();
+let VOZ_W = null, VOZ_W_FALHOU = false, VOZ_N = 0, VOZ_QUEDAS = 0, VOZ_USOS = 0, VOZ_MEM_FRACA = false; const VOZ_PEND = new Map();
 const CELULAR = matchMedia("(pointer: coarse)").matches || /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+// A biblioteca da voz cria um motor ONNX novo a cada fala e não solta o anterior: a memória do trabalhador só cresce
+// até dar "allocate buffer". Por isso o trabalhador é trocado por um novo de tempos em tempos (isso libera toda a memória).
+const VOZ_USOS_MAX = () => CELULAR || VOZ_MEM_FRACA ? 2 : 6;
+const ERRO_MEMORIA_VOZ = /alloc|buffer|memory|mem[oó]ria|session|OOM|out of bounds|RangeError/i;
+// vozes mais leves, usadas se faltar memória (do mesmo idioma)
+const VOZES_LEVES = { es: ["es_MX-ald-medium", "es_ES-carlfm-x_low"], pt: ["pt_BR-edresson-low"] };
+function reciclarVozWorker() { if (!VOZ_W || VOZ_PEND.size) return; try { VOZ_W.terminate(); } catch {} VOZ_W = null; VOZ_USOS = 0; }
 function vozWorker() {
   if (VOZ_W || VOZ_W_FALHOU || typeof Worker === "undefined") return VOZ_W;
   try {
@@ -3900,7 +3912,10 @@ function vozWorker() {
       if (d.baixando) { p.aoBaixar?.(); return; }
       VOZ_PEND.delete(d.id); clearTimeout(p.t);
       if (d.erro && /import|module|dynamically|Worker|not supported/i.test(d.erro)) { VOZ_W_FALHOU = true; try { VOZ_W.terminate(); } catch {} VOZ_W = null; } // o navegador não roda a voz no trabalhador: usa o modo antigo
+      else if (d.erro && ERRO_MEMORIA_VOZ.test(d.erro)) { VOZ_MEM_FRACA = true; VOZ_USOS = 99; } // faltou memória: o próximo pedido já usa um trabalhador novo
+      else if (!d.erro) VOZ_USOS++;
       if (d.erro) p.erro(new Error(d.erro)); else p.ok(d.wav);
+      if (VOZ_USOS >= VOZ_USOS_MAX()) reciclarVozWorker();
     };
     VOZ_W.onerror = ev => { // caiu (no celular costuma ser falta de memória): joga fora e cria outro no próximo pedido
       console.warn("trabalhador da voz caiu:", ev?.message); VOZ_QUEDAS++; relatarErroVoz(new Error("trabalhador caiu: " + (ev?.message || "sem mensagem")), "trabalhador"); if (VOZ_QUEDAS >= 4) VOZ_W_FALHOU = true;
@@ -3912,7 +3927,7 @@ function vozWorker() {
 function vozNoWorker(text, voiceId, aoBaixar) {
   return new Promise((ok, erro) => {
     const id = ++VOZ_N, t = setTimeout(() => { VOZ_PEND.delete(id); erro(new Error("a voz demorou demais")); }, 180000);
-    VOZ_PEND.set(id, { ok, erro, aoBaixar, t }); VOZ_W.postMessage({ id, text, voiceId });
+    VOZ_PEND.set(id, { ok, erro, aoBaixar, t }); VOZ_W.postMessage({ id, text, voiceId, umFio: /Android/i.test(navigator.userAgent) || VOZ_MEM_FRACA });
   });
 }
 // ---------- tocador único ----------
@@ -3942,7 +3957,7 @@ function tocarNoTocador(url, { taxa = 1, semTom = false, aoComecar } = {}) {
   });
 }
 function audioPiper(texto, lang) {
-  const voz = vozPiper(idiomaVoz(lang)), chave = "piper|" + voz + "|" + texto;
+  const idi = idiomaVoz(lang), voz = vozPiper(idi), chave = "piper|" + voz + "|" + texto;
   if (AUDIO_CACHE.has(chave)) return AUDIO_CACHE.get(chave);
   // uma fala de cada vez (assim a voz é baixada uma vez só, mesmo se várias falas forem pedidas juntas)
   const pr = PIPER_FILA = PIPER_FILA.catch(() => {}).then(async () => {
@@ -3953,12 +3968,15 @@ function audioPiper(texto, lang) {
         let avisou = false;
         const aviso = () => { if (!avisou && !VOZ_FUNDO.baixando) { avisou = true; toast("Baixando a voz (só na primeira vez)…"); } };
         let wav;
-        if (vozWorker()) wav = await vozNoWorker(texto, voz, aviso);
+        // faltou memória: a partir da 2ª tentativa usa uma voz mais leve do mesmo idioma
+        const leves = VOZES_LEVES[idi].filter(v => v !== voz), vozAgora = VOZ_MEM_FRACA && vez && leves.length ? leves[Math.min(vez, leves.length) - 1] : voz;
+        if (VOZ_USOS >= VOZ_USOS_MAX()) reciclarVozWorker();
+        if (vozWorker()) wav = await vozNoWorker(texto, vozAgora, aviso);
         else if (!CELULAR) { const tts = await motorPiper(); wav = await tts.predict({ text: texto, voiceId: voz }, p => { if (p?.total && p.loaded < p.total) aviso(); }); }
         else throw new Error("este celular não conseguiu gerar a voz"); // no celular, gerar na tela trava tudo
         VOZ_FUNDO.ok = true;
         return URL.createObjectURL(wav);
-      } catch (e) { erro = e; console.warn("Piper, tentativa " + (vez + 1) + ":", e); PIPER = null; }
+      } catch (e) { erro = e; console.warn("Piper, tentativa " + (vez + 1) + ":", e); PIPER = null; if (ERRO_MEMORIA_VOZ.test(String(e?.message || e))) { VOZ_MEM_FRACA = true; VOZ_USOS = 99; reciclarVozWorker(); } }
     }
     throw erro;
   });
@@ -3992,7 +4010,7 @@ async function relatarErroVoz(e, onde) {
   try {
     if (!ACESSO.admin || !NUVEM.F || !NUVEM.db || Date.now() - (S.ultErroVoz || 0) < 60000) return; S.ultErroVoz = Date.now();
     const u = NUVEM.user, F = NUVEM.F, mem = navigator.deviceMemory ? ` · memória ${navigator.deviceMemory} GB` : "";
-    const texto = `[automático] Voz falhou (${onde}): ${String(e?.message || e).slice(0, 300)} · trabalhador: ${VOZ_W_FALHOU ? "desligado" : VOZ_W ? "ativo" : "sem"} · quedas ${VOZ_QUEDAS}${mem} · ${navigator.userAgent.slice(0, 160)}`;
+    const texto = `[automático] Voz falhou (${onde}): ${String(e?.message || e).slice(0, 300)} · trabalhador: ${VOZ_W_FALHOU ? "desligado" : VOZ_W ? "ativo" : "sem"} · quedas ${VOZ_QUEDAS}${VOZ_MEM_FRACA ? " · pouca memória (voz leve)" : ""}${mem} · ${navigator.userAgent.slice(0, 160)}`;
     await F.addDoc(F.collection(NUVEM.db, "feedback"), { tipo: "problema", texto, uid: u?.uid || "", email: (u?.email || "").toLowerCase(), nome: u ? nomeUser().slice(0, 80) : "", contato: "", data: Date.now(), pagina: "voz", idioma: lsGet("fp-ui", "pt"), lido: false });
   } catch {}
 }
@@ -4729,7 +4747,7 @@ async function iniciarNuvem() {
     const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
     const [app, A, F] = await Promise.all([appFirebase(), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
     Object.assign(NUVEM, { A, F, auth: A.getAuth(app), db: F.getFirestore(app) });
-    A.getRedirectResult(NUVEM.auth).catch(() => {});
+    A.getRedirectResult(NUVEM.auth).catch(e => { const cod = e?.code || ""; console.warn("login (redirecionamento):", cod, e?.message); if (cod && !/no-auth-event|redirect-cancelled|popup-closed|cancelled-popup/.test(cod)) avisoLogin(cod, e); });
     carregarPagamento(); registrarVisita();
     A.onAuthStateChanged(NUVEM.auth, async u => {
       if (S.excluindo) return; // a conta está sendo apagada: excluirConta cuida do resto
@@ -4749,16 +4767,31 @@ async function iniciarNuvem() {
     window.addEventListener("focus", coresDeNovo); document.addEventListener("visibilitychange", coresDeNovo);
   } catch (e) { console.warn("Nuvem indisponível", e); }
 }
+// Android: no app instalado (tela cheia) a janelinha do Google abre fora do app e o resultado não volta;
+// em alguns Androids ela fecha sozinha. Como o login usa o próprio endereço do site (authDomain), lá vai por redirecionamento.
+const ANDROID = /Android/i.test(navigator.userAgent);
+const NAVEGADOR_EMBUTIDO = /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Line\/|TikTok|musical_ly|Snapchat|; ?WebView/i.test(navigator.userAgent); // Instagram, Facebook, TikTok…: o Google bloqueia o login
+const loginNoProprioSite = () => FB_CONFIG.authDomain === location.hostname;
+function avisoLogin(cod, e) {
+  if (/unauthorized-domain/.test(cod)) toast(TT("Este endereço não está autorizado no Firebase (Authentication → Settings → Authorized domains).", "Esta dirección no está autorizada en Firebase (Authentication → Settings → Authorized domains)."), true);
+  else if (/network-request-failed/.test(cod)) toast(TT("Sem internet para entrar agora. Tente de novo.", "Sin internet para iniciar sesión ahora. Inténtalo de nuevo."), true);
+  else if (/app-check|firebase-app-check/.test(cod)) toast(TT("A verificação de segurança do site falhou. Atualize a página e tente de novo.", "La verificación de seguridad del sitio falló. Actualiza la página e inténtalo de nuevo."), true);
+  else toast(TT("Não consegui entrar: ", "No pude iniciar sesión: ") + (e?.message || cod || e), true);
+}
 async function entrarGoogle() {
-  if (!NUVEM.auth) return toast("O login ainda está carregando. Tente de novo em instantes.", true);
+  if (!NUVEM.auth) return toast(TT("O login ainda está carregando. Tente de novo em instantes.", "El inicio de sesión aún está cargando. Inténtalo de nuevo en un momento."), true);
+  if (NAVEGADOR_EMBUTIDO) return toast(TT("O Google não deixa entrar por este navegador do aplicativo. Abra o site no Chrome (menu ⋮ → Abrir no navegador) e entre por lá.", "Google no permite iniciar sesión en este navegador de la aplicación. Abre el sitio en Chrome (menú ⋮ → Abrir en el navegador) e inicia sesión allí."), true);
   const prov = new NUVEM.A.GoogleAuthProvider();
   prov.setCustomParameters({ prompt: "select_account" });
+  const redirecionar = () => NUVEM.A.signInWithRedirect(NUVEM.auth, prov).catch(e => avisoLogin(e?.code || "", e));
+  if (ANDROID && loginNoProprioSite()) return redirecionar();
+  const t0 = Date.now();
   try { await NUVEM.A.signInWithPopup(NUVEM.auth, prov); }
   catch (e) {
-    const cod = e?.code || "";
-    if (/popup-blocked|operation-not-supported|web-storage/i.test(cod)) await NUVEM.A.signInWithRedirect(NUVEM.auth, prov);
-    else if (/unauthorized-domain/.test(cod)) toast("Este endereço não está autorizado no Firebase (Authentication → Settings → Authorized domains).", true);
-    else if (!/popup-closed|cancelled-popup/.test(cod)) toast("Não consegui entrar: " + (e?.message || e), true);
+    const cod = e?.code || ""; console.warn("login (janela):", cod, e?.message);
+    if (/popup-blocked|operation-not-supported|web-storage/i.test(cod)) await redirecionar();
+    else if (ANDROID && /popup-closed/.test(cod) && Date.now() - t0 < 2500) await redirecionar(); // fechou sozinha (Android): tenta pelo redirecionamento
+    else if (!/popup-closed|cancelled-popup/.test(cod)) avisoLogin(cod, e);
   }
 }
 async function sairConta() {
@@ -6153,7 +6186,7 @@ document.addEventListener("click", async e => {
     case "mmAbrir": abrirMapa(id); break;
     case "mmApagar": if (confirm("Excluir este mapa mental?")) { c.mapas = c.mapas.filter(x => x.id !== id); await salvar(c); render(); } break;
     case "mmTrocar": if (S.mapaAberto) { const { c: cm, m } = mapaAtual(); if (id === "livre" && m) { const e = S.mapaAberto.estilo === "ia" ? m.estiloIA : null; if (!m.livre) { garantirLivre(m, (e ? e.layout : S.mapaAberto.estilo) === "arvore" ? "arvore" : "radial", e); await salvar(cm); } S.mmEditando = true; } else if (S.mapaAberto.estilo === "livre") S.mmEditando = false; S.mmL = null; S.mapaAberto.estilo = id; desenharTelaMapa(); } break;
-    case "mmlNovo": case "mmlSub": case "mmlConectar": case "mmlLigarSobre": case "mmlCancelar": case "mmlApagar": case "mmlApagarTudo": case "mmlApagarLig": case "mmlMaior": case "mmlMenor": case "mmlDesfazer": case "mmlReorg": case "mmlTitulo": case "mmlOriginal": livreAcao(el.dataset.act); break;
+    case "mmlNovo": case "mmlSub": case "mmlConectar": case "mmlLigarSobre": case "mmlCancelar": case "mmlApagar": case "mmlApagarTudo": case "mmlApagarLig": case "mmlMaior": case "mmlMenor": case "mmlDesfazer": case "mmlReorg": case "mmlTitulo": case "mmlOriginal": case "mmlCorUsar": livreAcao(el.dataset.act, id); break;
     case "mmFechar": fecharMapa(); break;
     case "mmEditar": { const { c: cm, m } = mapaAtual(), st = S.mapaAberto, e = st?.estilo === "ia" ? m?.estiloIA : null, lay = e ? e.layout : st?.estilo;
       if (m && (st.estilo === "livre" || m.livre || ["classico", "arvore", "radial"].includes(lay))) { // 2D e mapas já personalizados: edita direto no mapa
@@ -6284,7 +6317,7 @@ document.addEventListener("click", async e => {
     case "transcrever": transcrever(id); break;
     case "ocr": lerComOCR(id); break;
     case "lerRapido": lerRapido(id); break;
-    case "gerar": gerar(id); break;
+    case "gerar": if (!e.isTrusted || el.tagName !== "BUTTON" || S.ocupado) break; gerar(id); break; // só um toque de verdade no botão gera
     case "excluir": if (confirm("Excluir este item?")) { c[el.dataset.tipo] = c[el.dataset.tipo].filter(x => x.id !== id); await salvar(c); render(); } break;
     case "sair": fecharVoz(); if (S.player?.tipo === "flashseq") { S.player = null; S.aba = "materiais"; render(); break; } if (S.player?.tipo === "louco") { labParar(); S.lab = null; S.aba = "quiz"; } if (S.player?.tipo === "prova" && !S.player.resultado && !confirm("Desistir desta prova?")) return; clearInterval(S.timer); guardarRestantes(c, S.player); S.player = null; render(); prepararBanco(c); break;
     case "estudarDeck": iniciarFlash(id, false); break;
@@ -6381,7 +6414,7 @@ document.addEventListener("change", e => {
     toast(c.idioma === "es" ? "Las preguntas ahora serán en español." : "As perguntas agora serão em português.");
     return;
   }
-  if (e.target.matches?.('#g-tipos input[type="checkbox"]')) { const n = $("#g-n-" + e.target.dataset.tipo); n.disabled = !e.target.checked; if (e.target.checked && !(+n.value > 0)) n.value = 2; e.target.closest(".tipo-qtd").classList.toggle("off", !e.target.checked); atualizarTotalProva(); return; }
+  if (e.target.matches?.('#g-tipos input[type="checkbox"]')) { const n = $("#g-n-" + e.target.dataset.tipo); n.disabled = !e.target.checked; if (e.target.checked && !(+n.value > 0)) n.value = 2; e.target.closest(".tipo-qtd").classList.toggle("off", !e.target.checked); lerForm(); atualizarTotalProva(); return; }
   if (e.target.id === "smartEstilo") { const c = atual(); c.estiloProf = e.target.value.trim().slice(0, 4000); salvar(c); toast(c.estiloProf ? "Perguntas do(a) professor(a) salvas." : "Perguntas do(a) professor(a) removidas."); if (S.dlgProvas && $("#dlgPerfil").open) abrirProvasAntigas(); return; }
   if (e.target.id === "smartPrefs") { const c = atual(); garantirSmart(c); c.inteligente.prefs = e.target.value.trim(); salvar(c); toast("Preferências salvas."); return; }
   const q = e.target.dataset?.q; if (q === undefined || S.player?.tipo !== "prova") return;
@@ -8674,7 +8707,10 @@ function desenharLivre() {
     s += `<g data-l="${i}"><path class="mml-toque" d="${k.d}" stroke="transparent" stroke-width="18" fill="none"/><path class="mml-l" d="${k.d}" stroke="${sel ? "#fff" : cor}" stroke-width="${sel ? lw + 2 : lw}" fill="none" stroke-linecap="round" ${traco}/>${l.t ? `<text class="mml-t" x="${f1(k.x)}" y="${f1(k.y - 4)}" text-anchor="middle" font-size="11" font-weight="700" fill="${txt}" stroke="rgba(0,0,0,.55)" stroke-width="3" paint-order="stroke" ${fam}>${esc(l.t)}</text>` : ""}</g>`; });
   for (const n of [...por.values()].sort((a, b) => b.n - a.n)) { const q = n.m, cor = hex6(n.cor), sel = st.sel === n.id, de = st.modo === "conectar" && st.de === n.id, cheio = n.n < 2, rx = n.n === 0 ? Math.min(q.h / 2, 40) : cheio ? 16 : 9, ya = -(q.sub.length ? q.sub.length * 16 + 4 : 0) / 2;
     t += `<g data-n="${n.id}" transform="translate(${f1(n.x)} ${f1(n.y)})"><rect x="${f1(-q.w / 2)}" y="${f1(-q.h / 2)}" width="${f1(q.w)}" height="${f1(q.h)}" rx="${rx}" fill="${cor}" fill-opacity="${cheio ? 1 : .18}" stroke="${sel || de ? (e ? "#2f7bff" : "#ffffff") : cor}" stroke-width="${sel || de ? 3 : cheio ? 0 : 1}" ${de ? 'stroke-dasharray="6 4"' : ""}/>${ls(0, q.linhas, ya, q.lh, q.px, q.peso, cheio ? contraste(cor) : txt)}${q.sub.length ? ls(0, q.sub, ya + q.linhas.length * q.lh / 2 + 4 + q.sub.length * 8, 16, 12, 700, contraste(cor) === "#ffffff" ? "#ffd76a" : "#1b1d3a") : ""}</g>`; }
-  svgEl.innerHTML = `<g id="mmlL">${s}</g><g id="mmlN">${t}</g>`; svgEl._por = por;
+  const ns = S.mmEditando && !st.modo && st.sel && por.get(st.sel); let mais = "";
+  if (ns && L.nos.length < LIVRE_MAX) { const c0 = por.get(L.centro), lado = ns.id === L.centro ? 1 : Math.sign(ns.x - (c0?.x || 0)) || 1, mx = ns.x + lado * (ns.m.w / 2 + 20);
+    mais = `<g class="mml-mais" data-sub="${esc(ns.id)}" transform="translate(${f1(mx)} ${f1(ns.y)})" role="button" aria-label="${TT("Criar subtópico", "Crear subtema")}"><title>${TT("Criar subtópico", "Crear subtema")}</title><circle r="20" fill="transparent"/><circle r="13" fill="#2f6bff" stroke="#ffffff" stroke-width="2"/><path d="M-6 0H6M0 -6V6" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/></g>`; }
+  svgEl.innerHTML = `<g id="mmlL">${s}</g><g id="mmlN">${t}</g>${mais}`; svgEl._por = por;
   const v = [...por.values()], M = 60, x0 = Math.min(...v.map(n => n.x - n.m.w / 2)) - M, y0 = Math.min(...v.map(n => n.y - n.m.h / 2)) - M, M0 = { x: x0, y: y0, w: Math.max(...v.map(n => n.x + n.m.w / 2)) + M - x0, h: Math.max(...v.map(n => n.y + n.m.h / 2)) + M - y0 };
   svgEl._mapa = M0; navegar2D(svgEl, "livre"); ligarLivre(svgEl); const ed = livreEstado(); if (!(ed.campo && ed.campoDe === ed.sel + "|" + ed.lig && $("#" + ed.campo))) livreBarra();
 }
@@ -8690,7 +8726,9 @@ function ligarLivre(svgEl) {
   svgEl._pegar = (id, ev) => { g = { id, pid: ev.pointerId, x: ev.clientX, y: ev.clientY, u: ev, moveu: false }; dedos = 1; comecar(); }; // vem do Clássico/Árvore (segurou o tópico)
   const limpar = () => { clearTimeout(g?.t); g = null; };
   svgEl.onpointerdown = ev => {
-    dedos++; const el = ev.target.closest?.("[data-n]"), lin = ev.target.closest?.("[data-l]");
+    dedos++; const sub = ev.target.closest?.("[data-sub]");
+    if (sub && dedos === 1) { g = { sub: sub.dataset.sub, pid: ev.pointerId, x: ev.clientX, y: ev.clientY, moveu: false }; return base.d(ev); } // "+" do tópico: cria subtópico ao soltar
+    const el = ev.target.closest?.("[data-n]"), lin = ev.target.closest?.("[data-l]");
     if (dedos > 1 && g) { if (g.pronto && g.moveu) { livreMudou(); } limpar(); }
     if (dedos === 1) { g = { id: el?.dataset.n || null, l: lin ? +lin.dataset.l : null, pid: ev.pointerId, x: ev.clientX, y: ev.clientY, u: ev, moveu: false };
       if (g.id && livreEstado().modo !== "conectar") { if (S.mmEditando) comecar(); else { const meu = g; g.t = setTimeout(() => { if (g === meu && !g.moveu) { navigator.vibrate?.(15); S.mmEditando = true; livreEstado().sel = g.id; comecar(); svgEl.querySelector(`[data-n="${g.id}"] rect`)?.setAttribute("stroke-width", "3"); livreBarra(); } }, 350); } } }
@@ -8708,6 +8746,7 @@ function ligarLivre(svgEl) {
   };
   svgEl.onpointerup = svgEl.onpointercancel = ev => {
     dedos = Math.max(0, dedos - 1); base.u(ev); if (!g || ev.pointerId !== g.pid) return; const a = g, st = livreEstado(); limpar();
+    if (a.sub) { if (!a.moveu && ev.type !== "pointercancel" && noLivre(a.sub)) novoTopicoLivre(null, a.sub); return; }
     if (a.pronto && a.moveu) { // soltou: pergunta se quer conectar
       const { m } = mapaAtual(), n = svgEl._por.get(a.id), sobre = [...svgEl._por.values()].find(k => !a.ids.has(k.id) && Math.abs(k.x - n.x) < (k.m.w + n.m.w) / 2 - 4 && Math.abs(k.y - n.y) < (k.m.h + n.m.h) / 2 - 4);
       Object.assign(st, { sel: a.id, lig: null, modo: "soltou", de: a.id, sobre: sobre?.id || null }); S.mmEditando = true; livreMudou(); if (!document.querySelector('#mapaTela [data-act="mmEditar"].primary')) desenharTelaMapa(); return; }
@@ -8744,6 +8783,11 @@ function novoTopicoLivre(p, paiId) {
   L.nos.push(n); if (pai) L.lig.push({ a: pai.id, b: n.id }); Object.assign(st, { sel: n.id, lig: null, modo: "" }); livreMudou();
   const i = $("#mmlNome"); if (i) { i.focus(); i.select(); }
 }
+// muda a cor de um tópico; os subtópicos que tinham a mesma cor vão junto
+function corNoLivre(L, n, cor) { const antes = n.cor; n.cor = cor; if (n.id === L.centro) return; for (const k of filhosLivre(L, arvoreLivre(L), n.id)) { const f = noLivre(k); if (f && f.cor === antes) f.cor = cor; } }
+// cores que já aparecem no mapa (tópicos e linhas), para repetir com um toque
+function coresUsadasLivre(L) { const v = []; for (const x of [...L.nos.map(n => n.cor), ...L.lig.map(l => l.cor)]) { if (!x) continue; const h = hex6(x).toLowerCase(); if (!v.includes(h)) v.push(h); } return v.slice(0, 14); }
+function paletaLivre(L, atualCor, alvo) { const a = hex6(atualCor || "").toLowerCase(), cs = coresUsadasLivre(L); if (cs.length < 2) return ""; return `<span class="mml-paleta" role="group" aria-label="${TT("Cores já usadas no mapa", "Colores ya usados en el mapa")}">${cs.map(c => `<button type="button" class="mml-cor ${c === a ? "on" : ""}" data-act="mmlCorUsar" data-id="${alvo}|${c}" style="background:${c}" title="${TT("Usar esta cor", "Usar este color")}" aria-label="${TT("Usar esta cor", "Usar este color")} ${c}"></button>`).join("")}</span>`; }
 function livreBarra() {
   const { m } = mapaAtual(), palco = $("#mmPalco"); if (!palco || !m?.livre) return; let el = $("#mmBarra"); if (!el) { el = document.createElement("div"); el.id = "mmBarra"; palco.append(el); }
   const L = m.livre, st = livreEstado(), q = t => esc(String(t || "").slice(0, 40)), n = st.sel && L.nos.find(x => x.id === st.sel), l = st.lig !== null ? L.lig[st.lig] : null, bt = (a, t, x = "") => `<button class="btn small ${x}" data-act="${a}">${t}</button>`;
@@ -8756,16 +8800,18 @@ function livreBarra() {
     const s = st.sobre && noLivre(st.sobre);
     el.innerHTML = `<b class="mml-tit">${TT("Quer conectar", "¿Quieres conectar")} “${q(n.t)}” ${TT("a algum tópico?", "a algún tema?")}</b>${s ? bt("mmlLigarSobre", `${TT("Ligar a", "Unir a")} “${q(s.t)}”`, "primary") : ""}${bt("mmlConectar", TT("Escolher tópico", "Elegir tema"), s ? "" : "primary")}${bt("mmlCancelar", TT("Deixar assim", "Dejar así"))}${desfazer}`;
   } else if (n) {
-    el.innerHTML = `<input id="mmlNome" maxlength="90" value="${esc(n.t)}" aria-label="${TT("Nome do tópico", "Nombre del tema")}"><input type="color" id="mmlCor" value="${hex6(n.cor)}" title="${TT("Cor", "Color")}">${bt("mmlConectar", TT("Conectar", "Conectar"))}${bt("mmlSub", "+ " + TT("Subtópico", "Subtema"))}${n.id === L.centro ? "" : `${bt("mmlMaior", "A+")}${bt("mmlMenor", "A−")}${bt("mmlApagar", TT("Apagar", "Borrar"), "danger")}${filhosLivre(L, arvoreLivre(L), n.id).length ? bt("mmlApagarTudo", TT("Apagar com subtópicos", "Borrar con subtemas"), "danger") : ""}`}${desfazer}`;
+    el.innerHTML = `<input id="mmlNome" maxlength="90" value="${esc(n.t)}" aria-label="${TT("Nome do tópico", "Nombre del tema")}"><input type="color" id="mmlCor" value="${hex6(n.cor)}" title="${TT("Cor", "Color")}">${paletaLivre(L, n.cor, "no")}${bt("mmlConectar", TT("Conectar", "Conectar"))}${bt("mmlSub", "+ " + TT("Subtópico", "Subtema"))}${n.id === L.centro ? "" : `${bt("mmlMaior", "A+")}${bt("mmlMenor", "A−")}${bt("mmlApagar", TT("Apagar", "Borrar"), "danger")}${filhosLivre(L, arvoreLivre(L), n.id).length ? bt("mmlApagarTudo", TT("Apagar com subtópicos", "Borrar con subtemas"), "danger") : ""}`}${desfazer}`;
   } else if (l) {
-    el.innerHTML = `<b class="mml-tit">${TT("Linha", "Línea")}: “${q(noLivre(l.a)?.t)}” ↔ “${q(noLivre(l.b)?.t)}”</b><input id="mmlLigT" maxlength="40" value="${esc(l.t || "")}" placeholder="${TT("Escrever na linha (opcional)", "Escribir en la línea (opcional)")}"><input type="color" id="mmlLigCor" value="${hex6(l.cor || "#8fa3ff")}" title="${TT("Cor da linha", "Color de la línea")}">${bt("mmlApagarLig", TT("Apagar linha", "Borrar línea"), "danger")}${desfazer}`;
+    el.innerHTML = `<b class="mml-tit">${TT("Linha", "Línea")}: “${q(noLivre(l.a)?.t)}” ↔ “${q(noLivre(l.b)?.t)}”</b><input id="mmlLigT" maxlength="40" value="${esc(l.t || "")}" placeholder="${TT("Escrever na linha (opcional)", "Escribir en la línea (opcional)")}"><input type="color" id="mmlLigCor" value="${hex6(l.cor || "#8fa3ff")}" title="${TT("Cor da linha", "Color de la línea")}">${paletaLivre(L, l.cor, "lig")}${bt("mmlApagarLig", TT("Apagar linha", "Borrar línea"), "danger")}${desfazer}`;
   } else el.innerHTML = `${bt("mmlNovo", "+ " + TT("Tópico", "Tema"), "primary")}${desfazer}${bt("mmlReorg", TT("Reorganizar", "Reorganizar"))}${bt("mmlTitulo", TT("Nome do mapa", "Nombre del mapa"))}${bt("mmlOriginal", TT("Voltar ao original", "Volver al original"))}<label class="mml-chk"><input type="checkbox" id="mmlJunto" ${S.mmJunto === false ? "" : "checked"}> ${TT("mover os subtópicos junto", "mover los subtemas juntos")}</label><span class="mml-dica">${TT("Arraste um tópico, toque nele ou numa linha para editar. Dois toques no vazio criam um tópico.", "Arrastra un tema, tócalo o toca una línea para editar. Dos toques en el vacío crean un tema.")}</span>`;
 }
-async function livreAcao(a) {
+async function livreAcao(a, arg) {
   const { m, c } = mapaAtual(), L = m?.livre, st = livreEstado(); if (!L) return; const n = noLivre(st.sel);
   const tirar = ids => { livreAntes(); L.nos = L.nos.filter(x => !ids.has(x.id)); L.lig = L.lig.filter(l => !ids.has(l.a) && !ids.has(l.b)); Object.assign(st, { sel: null, lig: null, modo: "" }); livreMudou(); };
   if (a === "mmlNovo") { const r = $("#mmSvg").getBoundingClientRect(), v = S.mmVista2D; let p = { x: v.x + r.width / v.e / 2, y: v.y + r.height / v.e / 2 }; for (let k = 0; k < 20 && L.nos.some(x => Math.abs(x.x - p.x) < 130 && Math.abs(x.y - p.y) < 40); k++) p.y += 46; novoTopicoLivre(p); }
   else if (a === "mmlSub" && n) novoTopicoLivre(null, n.id);
+  else if (a === "mmlCorUsar" && arg) { const [alvo, cor] = arg.split("|"), lg = L.lig[st.lig]; if (!/^#[0-9a-f]{6}$/i.test(cor || "")) return; livreAntes(); st.campo = "";
+    if (alvo === "no" && n) corNoLivre(L, n, cor); else if (alvo === "lig" && lg) lg.cor = cor; else { st.hist.pop(); return; } livreMudou(); }
   else if (a === "mmlConectar" && n) { Object.assign(st, { modo: "conectar", de: n.id, trocar: false }); desenharLivre(); }
   else if (a === "mmlLigarSobre" && st.sobre) { st.trocar = false; conectarLivre(st.de, st.sobre); }
   else if (a === "mmlCancelar") { Object.assign(st, { modo: "", de: null, sobre: null }); desenharLivre(); }
@@ -8787,7 +8833,7 @@ document.addEventListener("input", e => {
   const id = e.target.id; if (!/^mml(Nome|Cor|LigT|LigCor)$/.test(id)) return; const { m } = mapaAtual(), st = livreEstado(), n = noLivre(st.sel), l = m?.livre?.lig[st.lig]; if (!m?.livre) return;
   if (st.campo !== id || st.campoDe !== st.sel + "|" + st.lig) { livreAntes(); st.campo = id; st.campoDe = st.sel + "|" + st.lig; } // um "desfazer" por campo editado
   const v = semEmojiTexto(e.target.value).replace(/[*_#`]/g, "");
-  if (id === "mmlNome" && n) n.t = v; else if (id === "mmlCor" && n) { const antes = n.cor; n.cor = e.target.value; for (const k of filhosLivre(m.livre, arvoreLivre(m.livre), n.id)) { const f = noLivre(k); if (n.id !== m.livre.centro && f.cor === antes) f.cor = n.cor; } } else if (id === "mmlLigT" && l) l.t = v; else if (id === "mmlLigCor" && l) l.cor = e.target.value; else return;
+  if (id === "mmlNome" && n) n.t = v; else if (id === "mmlCor" && n) corNoLivre(m.livre, n, e.target.value); else if (id === "mmlLigT" && l) l.t = v; else if (id === "mmlLigCor" && l) l.cor = e.target.value; else return;
   desenharLivre(); livreMudou(false);
 });
 document.addEventListener("change", e => { const st = S.mmL; if (!st) return;
@@ -9815,16 +9861,23 @@ const hashRP = t => { let a = 5381, b = 52711; for (let i = 0; i < t.length; i++
 /* ================= Ficha visual: 1 página por tema, colunas coloridas, quadro comparativo e pontos-chave =================
    1 pedido à IA (só o conteúdo, em JSON); o próprio app desenha a ficha no PDF. */
 const estiloPDF = () => lsGet("fp-pdf-estilo", "guia");
-const NAO_APLICA = /^(n[aã]o|no)\s+(se\s+)?(aplica|consta|corresponde|hay|h[aá])\b|^n\/?a$|^-+$/i;
+const NAO_APLICA = /^(n[aã]o|no)\s+(se\s+)?(aplica|aplicable|aplic[aá]vel|consta|corresponde)\b|^(n[aã]o|no)\s+((foi|fue|[eé]|es|est[aá]|se)\s+)?(mencionad|informad|descrit|descript|abordad|citad|especificad)[oa]s?\b|^(n[aã]o|no)\s+(se\s+)?menciona\b|^(n[aã]o|no)\s+(h[aá]|hay)\s+(dados|datos|informa)|^(sem|sin)\s+(dados|datos|informa[çc][aã]o|informaci[oó]n)\b|^n\/?[ad]\.?$|^[-–—?]+$/i;
 const FICHA_CORES = [{ b: "#2f6fdc", f: "#eaf2fd" }, { b: "#2e9b57", f: "#e9f7ee" }, { b: "#e07b1a", f: "#fff2e4" }, { b: "#7b5cf0", f: "#f1ecfd" }];
 const SCH_FICHA = obj({ fichas: arr(obj({ titulo: str, subtitulo: str, colunas: arr(obj({ nome: str, sub: str, topicos: arr(obj({ titulo: str, itens: arr(str) })) })), tabela: obj({ cabecalho: arr(str), linhas: arr(arr(str)) }), pontos: arr(str) })) });
-const REGRAS_FICHA = `Você monta FICHAS VISUAIS de revisão para prova (como um cartaz-resumo de uma página por tema), só com o que está no material.
-- De 1 a 3 fichas: uma por grande tema do material (ex.: "Enterobacteriaceae", "Mycoplasma"). Se houver guia do estudante, siga só o que ela pede.
-- Em cada ficha, "colunas" = de 1 a 4 itens do mesmo grupo para COMPARAR lado a lado (bactérias, doenças, hormônios, fármacos, estruturas). Se o tema não tem itens para comparar, use 1 a 3 colunas como blocos (ex.: "Características gerais", uma espécie, outra espécie).
-- "nome" = nome do item; "sub" = 1 linha curta que o define (pode ficar vazio).
-- Tópicos: de 4 a 7, com os MESMOS títulos e na MESMA ordem em todas as colunas da ficha. Escolha títulos que façam sentido para ESTE assunto e que o material realmente cobre (ex.: microbiologia → Características, Transmissão, Fatores de virulência, Clínica, Diagnóstico, Tratamento; fisiologia → Onde ocorre, Função, Mecanismo, Regulação, Valores normais, Alterações; farmacologia → Mecanismo, Indicações, Efeitos adversos, Contraindicações). NUNCA use tópico que não se aplica ao assunto e NUNCA escreva "não se aplica", "no aplica" ou "não consta": se não há o que dizer, não crie o tópico.
+const REGRAS_FICHA = `Você monta FICHAS VISUAIS de revisão para prova (como um cartaz-resumo de uma página por tema), só com o que está no material. Serve para QUALQUER matéria (fisiologia, anatomia, bioquímica, farmacologia, microbiologia, história, direito, física…): não existe um molde fixo.
+PRIMEIRO descubra qual é a matéria e o tipo de conteúdo; DEPOIS escolha a organização que melhor resume ESTE material.
+- De 1 a 3 fichas: uma por grande tema do material. Se houver guia do estudante, siga só o que ela pede.
+- "colunas" = de 1 a 4 blocos lado a lado. Escolha o que faz sentido para o assunto:
+  • itens do mesmo tipo para COMPARAR (bactérias, doenças, hormônios, fármacos, músculos, períodos históricos, leis);
+  • ou as ETAPAS / FASES de um processo (ex.: fisiologia → fases do potencial de ação, etapas da coagulação, fases do ciclo cardíaco);
+  • ou os ÓRGÃOS / ESTRUTURAS / SISTEMAS envolvidos;
+  • ou blocos temáticos ("Visão geral", "Mecanismo", "Regulação") quando o tema não tem itens para comparar.
+- "nome" = nome do bloco; "sub" = 1 linha curta que o define (pode ficar vazio).
+- Tópicos: de 3 a 7 por coluna, com títulos que façam sentido para ESTE assunto e que o material realmente cobre. Exemplos (só inspiração, não copie): microbiologia → Características, Transmissão, Virulência, Clínica, Diagnóstico, Tratamento; fisiologia → Onde ocorre, Função, Mecanismo, Regulação, Valores normais, Alterações; anatomia → Localização, Relações, Irrigação, Inervação, Função; farmacologia → Mecanismo, Indicações, Efeitos adversos, Contraindicações; história → Contexto, Causas, Acontecimentos, Consequências.
+- Quando as colunas são comparáveis, use os MESMOS títulos de tópico na MESMA ordem; quando não são (etapas, blocos diferentes), cada coluna tem os tópicos que fazem sentido para ela.
+- PROIBIDO: tópico, item, célula ou ponto que não se aplica ao assunto. NUNCA escreva "não se aplica", "no aplica", "não consta", "não mencionado", "N/A", "—" ou parecido. Se não há o que dizer, simplesmente NÃO crie aquele tópico, linha ou coluna. Nunca use um tópico de outra matéria (ex.: "Transmissão" ou "Fatores de virulência" em fisiologia).
 - Cada tópico: de 1 a 3 itens, telegráficos (no máximo 9 palavras cada, sem frase longa, sem ponto final). Nada de repetir a mesma informação.
-- "tabela": quadro comparativo das colunas: "cabecalho" = ["Característica", nome de cada coluna] e de 3 a 6 linhas com valores de 1 a 4 palavras. Só faça se houver 2 ou mais colunas; senão deixe cabecalho e linhas vazios.
+- "tabela": quadro comparativo das colunas: "cabecalho" = ["Aspecto" (ou outro nome melhor para o assunto), nome de cada coluna] e de 3 a 6 linhas com valores de 1 a 4 palavras, escolhendo só aspectos que valem para TODAS as colunas. Só faça se houver 2 ou mais colunas comparáveis; senão não escreva a seção @@TABELA.
 - "pontos": de 4 a 6 pontos-chave para a prova, cada um com no máximo 14 palavras, no formato "Nome: fato que mais cai".
 - Seja fiel ao material: nunca invente valores, doses ou classificações. Escreva com acentuação correta (tildes, ñ, ç, ã). Sem emojis, sem negrito, sem LaTeX.
 Responda SOMENTE neste formato de texto (cada marca no começo da linha):
@@ -9838,12 +9891,21 @@ Responda SOMENTE neste formato de texto (cada marca no começo da linha):
 @@COLUNA outro item | ...
 (mesmos tópicos, mesma ordem)
 @@TABELA
-Característica | nome da coluna 1 | nome da coluna 2
+Aspecto | nome da coluna 1 | nome da coluna 2
 linha | valor | valor
 @@PONTOS
 - Nome: fato que mais cai
 @@FICHA próxima ficha | ...
 @@FIM`;
+const semNA = t => NAO_APLICA.test(t || "") ? "" : t;
+// quadro comparativo: some a linha em que metade ou mais das células "não se aplica"; o resto vira "—"
+function tabelaSemNA(tb) {
+  const limpa = t => textoIA(String(t || "")).replace(/\s+/g, " ").trim(), cab = (tb?.cabecalho || []).map(limpa), n = cab.length - 1;
+  if (n < 2) return { cabecalho: [], linhas: [] };
+  const linhas = (tb?.linhas || []).map(l => (l || []).map(limpa)).filter(l => { const v = l.slice(1, n + 1), ruins = v.filter(x => !x || NAO_APLICA.test(x)).length; return l[0] && !NAO_APLICA.test(l[0]) && ruins * 2 < n; })
+    .map(l => l.map((x, j) => j && NAO_APLICA.test(x || "") ? "—" : x)).slice(0, 7);
+  return linhas.length >= 2 ? { cabecalho: cab, linhas } : { cabecalho: [], linhas: [] };
+}
 // lê o texto com marcas; aproveita o que veio inteiro se a IA parar no meio
 function lerFicha(t) {
   const fichas = []; let f = null, k = null, tp = null, onde = "", fim = false;
@@ -9889,7 +9951,7 @@ async function gerarFicha(c) {
     try {
       texto = await chamarGemini(cfg(), {
         system: [{ type: "text", text: SYS_BASE + linhaIdioma(c) + "\n" + REGRAS_FICHA }, { type: "text", text: `<materiais>\n${material}\n</materiais>` }],
-        messages: [{ role: "user", content: `Monte as fichas visuais deste material, no formato com marcas @@.${guia ? `\nGuia do estudante (siga só isto):\n<guia>\n${guia}\n</guia>` : ""}` }],
+        messages: [{ role: "user", content: `Monte as fichas visuais deste material, no formato com marcas @@.${c.materia ? `\nMatéria do caderno: ${c.materia} (escolha colunas e tópicos próprios desta matéria).` : ""}${guia ? `\nGuia do estudante (siga só isto):\n<guia>\n${guia}\n</guia>` : ""}` }],
         maxTokens: 9000, fundo: true, ferr: "pdf", modelos: MODELOS_GEMINI.slice(0, 1), aoParcial: t => texto = t
       });
     } catch (e) { if (!texto) throw e; } // caiu no meio: aproveita o que chegou
@@ -9897,8 +9959,8 @@ async function gerarFicha(c) {
     const limpa = t => textoIA(String(t || "")).replace(/\s+/g, " ").trim();
     const fichas = (r?.fichas || []).map(f => ({
       titulo: limpa(f.titulo), subtitulo: limpa(f.subtitulo),
-      colunas: (f.colunas || []).slice(0, 4).map(k => ({ nome: limpa(k.nome), sub: limpa(k.sub), topicos: (k.topicos || []).slice(0, 9).map(t => ({ titulo: limpa(t.titulo), itens: (t.itens || []).map(limpa).filter(x => x && !NAO_APLICA.test(x)).slice(0, 4) })).filter(t => t.titulo && t.itens.length) })).filter(k => k.nome && k.topicos.length),
-      tabela: { cabecalho: (f.tabela?.cabecalho || []).map(limpa), linhas: (f.tabela?.linhas || []).slice(0, 7).map(l => (l || []).map(limpa)) },
+      colunas: (f.colunas || []).slice(0, 4).map(k => ({ nome: limpa(k.nome), sub: semNA(limpa(k.sub)), topicos: (k.topicos || []).slice(0, 9).map(t => ({ titulo: limpa(t.titulo), itens: (t.itens || []).map(limpa).filter(x => x && !NAO_APLICA.test(x) && !NAO_APLICA.test(x.replace(/^[^:]{1,40}:\s*/, ""))).slice(0, 4) })).filter(t => t.titulo && !NAO_APLICA.test(t.titulo) && t.itens.length) })).filter(k => k.nome && k.topicos.length),
+      tabela: tabelaSemNA(f.tabela),
       pontos: (f.pontos || []).map(limpa).filter(x => x && !NAO_APLICA.test(x)).slice(0, 6)
     })).filter(f => f.titulo && f.colunas.length).slice(0, 3);
     if (!fichas.length) throw new Error(TT("A IA está ocupada agora. Tente de novo em alguns minutos.", "La IA está ocupada ahora. Intenta de nuevo en unos minutos."));
