@@ -6186,7 +6186,7 @@ document.addEventListener("click", async e => {
     case "mmAbrir": abrirMapa(id); break;
     case "mmApagar": if (confirm("Excluir este mapa mental?")) { c.mapas = c.mapas.filter(x => x.id !== id); await salvar(c); render(); } break;
     case "mmTrocar": if (S.mapaAberto) { const { c: cm, m } = mapaAtual(); if (id === "livre" && m) { const e = S.mapaAberto.estilo === "ia" ? m.estiloIA : null; if (!m.livre) { garantirLivre(m, (e ? e.layout : S.mapaAberto.estilo) === "arvore" ? "arvore" : "radial", e); await salvar(cm); } S.mmEditando = true; } else if (S.mapaAberto.estilo === "livre") S.mmEditando = false; S.mmL = null; S.mapaAberto.estilo = id; desenharTelaMapa(); } break;
-    case "mmlNovo": case "mmlSub": case "mmlConectar": case "mmlLigarSobre": case "mmlCancelar": case "mmlApagar": case "mmlApagarTudo": case "mmlApagarLig": case "mmlMaior": case "mmlMenor": case "mmlDesfazer": case "mmlReorg": case "mmlTitulo": case "mmlOriginal": case "mmlCorUsar": livreAcao(el.dataset.act, id); break;
+    case "mmlNovo": case "mmlSub": case "mmlConectar": case "mmlLigarSobre": case "mmlCancelar": case "mmlApagar": case "mmlApagarTudo": case "mmlApagarLig": case "mmlMaior": case "mmlMenor": case "mmlDesfazer": case "mmlReorg": case "mmlTitulo": case "mmlOriginal": case "mmlCorUsar": case "mmlNovoSub": livreAcao(el.dataset.act, id); break;
     case "mmFechar": fecharMapa(); break;
     case "mmEditar": { const { c: cm, m } = mapaAtual(), st = S.mapaAberto, e = st?.estilo === "ia" ? m?.estiloIA : null, lay = e ? e.layout : st?.estilo;
       if (m && (st.estilo === "livre" || m.livre || ["classico", "arvore", "radial"].includes(lay))) { // 2D e mapas já personalizados: edita direto no mapa
@@ -8709,7 +8709,7 @@ function desenharLivre() {
     t += `<g data-n="${n.id}" transform="translate(${f1(n.x)} ${f1(n.y)})"><rect x="${f1(-q.w / 2)}" y="${f1(-q.h / 2)}" width="${f1(q.w)}" height="${f1(q.h)}" rx="${rx}" fill="${cor}" fill-opacity="${cheio ? 1 : .18}" stroke="${sel || de ? (e ? "#2f7bff" : "#ffffff") : cor}" stroke-width="${sel || de ? 3 : cheio ? 0 : 1}" ${de ? 'stroke-dasharray="6 4"' : ""}/>${ls(0, q.linhas, ya, q.lh, q.px, q.peso, cheio ? contraste(cor) : txt)}${q.sub.length ? ls(0, q.sub, ya + q.linhas.length * q.lh / 2 + 4 + q.sub.length * 8, 16, 12, 700, contraste(cor) === "#ffffff" ? "#ffd76a" : "#1b1d3a") : ""}</g>`; }
   const ns = S.mmEditando && !st.modo && st.sel && por.get(st.sel); let mais = "";
   if (ns && L.nos.length < LIVRE_MAX) { const c0 = por.get(L.centro), lado = ns.id === L.centro ? 1 : Math.sign(ns.x - (c0?.x || 0)) || 1, mx = ns.x + lado * (ns.m.w / 2 + 20);
-    mais = `<g class="mml-mais" data-sub="${esc(ns.id)}" transform="translate(${f1(mx)} ${f1(ns.y)})" role="button" aria-label="${TT("Criar subtópico", "Crear subtema")}"><title>${TT("Criar subtópico", "Crear subtema")}</title><circle r="20" fill="transparent"/><circle r="13" fill="#2f6bff" stroke="#ffffff" stroke-width="2"/><path d="M-6 0H6M0 -6V6" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/></g>`; }
+    mais = `<g class="mml-mais" data-sub="${esc(ns.id)}" transform="translate(${f1(mx)} ${f1(ns.y)})" role="button" aria-label="${ns.id === L.centro ? TT("Criar tópico", "Crear tema") : TT("Criar subtópico", "Crear subtema")}"><title>${ns.id === L.centro ? TT("Criar tópico", "Crear tema") : TT("Criar subtópico", "Crear subtema")}</title><circle r="20" fill="transparent"/><circle r="13" fill="#2f6bff" stroke="#ffffff" stroke-width="2"/><path d="M-6 0H6M0 -6V6" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/></g>`; }
   svgEl.innerHTML = `<g id="mmlL">${s}</g><g id="mmlN">${t}</g>${mais}`; svgEl._por = por;
   const v = [...por.values()], M = 60, x0 = Math.min(...v.map(n => n.x - n.m.w / 2)) - M, y0 = Math.min(...v.map(n => n.y - n.m.h / 2)) - M, M0 = { x: x0, y: y0, w: Math.max(...v.map(n => n.x + n.m.w / 2)) + M - x0, h: Math.max(...v.map(n => n.y + n.m.h / 2)) + M - y0 };
   svgEl._mapa = M0; navegar2D(svgEl, "livre"); ligarLivre(svgEl); const ed = livreEstado(); if (!(ed.campo && ed.campoDe === ed.sel + "|" + ed.lig && $("#" + ed.campo))) livreBarra();
@@ -8731,7 +8731,7 @@ function ligarLivre(svgEl) {
     const el = ev.target.closest?.("[data-n]"), lin = ev.target.closest?.("[data-l]");
     if (dedos > 1 && g) { if (g.pronto && g.moveu) { livreMudou(); } limpar(); }
     if (dedos === 1) { g = { id: el?.dataset.n || null, l: lin ? +lin.dataset.l : null, pid: ev.pointerId, x: ev.clientX, y: ev.clientY, u: ev, moveu: false };
-      if (g.id && livreEstado().modo !== "conectar") { if (S.mmEditando) comecar(); else { const meu = g; g.t = setTimeout(() => { if (g === meu && !g.moveu) { navigator.vibrate?.(15); S.mmEditando = true; livreEstado().sel = g.id; comecar(); svgEl.querySelector(`[data-n="${g.id}"] rect`)?.setAttribute("stroke-width", "3"); livreBarra(); } }, 350); } } }
+      if (g.id && livreEstado().modo !== "conectar" && livreEstado().modo !== "sub") { if (S.mmEditando) comecar(); else { const meu = g; g.t = setTimeout(() => { if (g === meu && !g.moveu) { navigator.vibrate?.(15); S.mmEditando = true; livreEstado().sel = g.id; comecar(); svgEl.querySelector(`[data-n="${g.id}"] rect`)?.setAttribute("stroke-width", "3"); livreBarra(); } }, 350); } } }
     base.d(ev);
   };
   svgEl.onpointermove = ev => {
@@ -8746,12 +8746,13 @@ function ligarLivre(svgEl) {
   };
   svgEl.onpointerup = svgEl.onpointercancel = ev => {
     dedos = Math.max(0, dedos - 1); base.u(ev); if (!g || ev.pointerId !== g.pid) return; const a = g, st = livreEstado(); limpar();
-    if (a.sub) { if (!a.moveu && ev.type !== "pointercancel" && noLivre(a.sub)) novoTopicoLivre(null, a.sub); return; }
+    if (a.sub) { if (!a.moveu && ev.type !== "pointercancel" && noLivre(a.sub)) novoTopicoLivre(null, a.sub, a.sub !== mapaAtual().m.livre.centro); return; }
     if (a.pronto && a.moveu) { // soltou: pergunta se quer conectar
       const { m } = mapaAtual(), n = svgEl._por.get(a.id), sobre = [...svgEl._por.values()].find(k => !a.ids.has(k.id) && Math.abs(k.x - n.x) < (k.m.w + n.m.w) / 2 - 4 && Math.abs(k.y - n.y) < (k.m.h + n.m.h) / 2 - 4);
       Object.assign(st, { sel: a.id, lig: null, modo: "soltou", de: a.id, sobre: sobre?.id || null }); S.mmEditando = true; livreMudou(); if (!document.querySelector('#mapaTela [data-act="mmEditar"].primary')) desenharTelaMapa(); return; }
     if (a.pronto) { st.hist.pop(); if (!document.querySelector('#mapaTela [data-act="mmEditar"].primary')) { Object.assign(st, { sel: a.id, lig: null, modo: "" }); desenharTelaMapa(); return; } } // só tocou: nada mudou
     if (a.moveu || ev.type === "pointercancel") { if (a.pronto) livreBarra(); return; }
+    if (st.modo === "sub") { if (a.id && a.id !== mapaAtual().m.livre.centro) novoTopicoLivre(null, a.id, true); else if (a.id) toast(TT("Escolha um tópico (não o centro).", "Elige un tema (no el centro).")); return; }
     if (st.modo === "conectar") { if (a.id && a.id !== st.de) conectarLivre(st.de, a.id); return; }
     if (!S.mmEditando) return;
     if (a.id) Object.assign(st, { sel: a.id, lig: null, modo: "" }); else if (a.l !== null) Object.assign(st, { sel: null, lig: a.l, modo: "" });
@@ -8775,12 +8776,15 @@ function conectarLivre(de, para) {
   if (L.lig.some(l => (l.a === de && l.b === para) || (l.a === para && l.b === de))) toast(TT("Eles já estão conectados.", "Ya están conectados.")); else L.lig.push({ a: para, b: de });
   Object.assign(st, { sel: de, lig: null, modo: "", de: null, sobre: null }); livreMudou();
 }
-function novoTopicoLivre(p, paiId) {
+function novoTopicoLivre(p, paiId, sub = false) {
   const { m } = mapaAtual(), L = m.livre, st = livreEstado(); if (L.nos.length >= LIVRE_MAX) return toast(TT(`O mapa já tem ${LIVRE_MAX} tópicos.`, `El mapa ya tiene ${LIVRE_MAX} temas.`));
   livreAntes(); const pai = paiId ? noLivre(paiId) : null; let x = p?.x, y = p?.y;
   if (pai) { const c = L.nos.find(n => n.id === L.centro), s = pai.id === L.centro ? 1 : Math.sign(pai.x - c.x) || 1; x = pai.x + s * 190; y = pai.y; for (let k = 0; k < 30 && L.nos.some(n => Math.abs(n.x - x) < 130 && Math.abs(n.y - y) < 34); k++) y = pai.y + Math.ceil((k + 1) / 2) * 40 * (k % 2 ? -1 : 1); }
-  const n = { id: uid(), t: TT("Novo tópico", "Nuevo tema"), n: pai ? Math.min(3, pai.n + 1) : 1, cor: pai && pai.id !== L.centro ? pai.cor : PALETA_MAPA[L.nos.length % PALETA_MAPA.length], x: Math.round(x), y: Math.round(y) };
-  L.nos.push(n); if (pai) L.lig.push({ a: pai.id, b: n.id }); Object.assign(st, { sel: n.id, lig: null, modo: "" }); livreMudou();
+  const nivel = pai ? (sub ? Math.max(2, Math.min(3, pai.n + 1)) : Math.min(3, pai.n + 1)) : 1;
+  const n = { id: uid(), t: nivel >= 2 ? TT("Novo subtópico", "Nuevo subtema") : TT("Novo tópico", "Nuevo tema"), n: nivel, cor: pai && pai.id !== L.centro ? pai.cor : PALETA_MAPA[L.nos.length % PALETA_MAPA.length], x: Math.round(x), y: Math.round(y) };
+  L.nos.push(n); if (pai) L.lig.push({ a: pai.id, b: n.id }); Object.assign(st, { sel: n.id, lig: null, modo: "", de: null });
+  { const v = S.mmVista2D, r = $("#mmSvg")?.getBoundingClientRect(); if (v && r?.width) { const W = r.width / v.e, H = r.height / v.e, M = 90; if (n.x < v.x + M || n.x > v.x + W - M || n.y < v.y + M || n.y > v.y + H - M) { v.x = n.x - W / 2; v.y = n.y - H / 2; } } } // o novo fica à vista
+  livreMudou();
   const i = $("#mmlNome"); if (i) { i.focus(); i.select(); }
 }
 // muda a cor de um tópico; os subtópicos que tinham a mesma cor vão junto
@@ -8793,7 +8797,10 @@ function livreBarra() {
   const L = m.livre, st = livreEstado(), q = t => esc(String(t || "").slice(0, 40)), n = st.sel && L.nos.find(x => x.id === st.sel), l = st.lig !== null ? L.lig[st.lig] : null, bt = (a, t, x = "") => `<button class="btn small ${x}" data-act="${a}">${t}</button>`;
   const desfazer = st.hist.length ? bt("mmlDesfazer", TT("Desfazer", "Deshacer")) : "";
   if (!S.mmEditando) { el.innerHTML = `<span class="mml-dica">${TT("Segure um tópico para mover, ou toque em Editar.", "Mantén presionado un tema para moverlo, o toca Editar.")}</span>`; return; }
-  if (st.modo === "conectar" && noLivre(st.de)) {
+  if (st.modo === "sub") {
+    const tops = L.nos.filter(x => x.id !== L.centro).sort((a, b) => a.n - b.n || a.t.localeCompare(b.t));
+    el.innerHTML = `<b class="mml-tit">${TT("Em qual tópico colocar o subtópico? Toque nele no mapa ou escolha:", "¿En qué tema poner el subtema? Tócalo en el mapa o elígelo:")}</b><select id="mmlSubAlvo"><option value="">${TT("Escolher tópico…", "Elegir tema…")}</option>${tops.map(x => `<option value="${esc(x.id)}">${q(x.t)}</option>`).join("")}</select>${bt("mmlCancelar", TT("Cancelar", "Cancelar"))}`;
+  } else if (st.modo === "conectar" && noLivre(st.de)) {
     const outros = L.nos.filter(x => x.id !== st.de).sort((a, b) => a.n - b.n || a.t.localeCompare(b.t)), tem = arvoreLivre(L).pai.get(st.de);
     el.innerHTML = `<b class="mml-tit">${TT("Conectar", "Conectar")} “${q(noLivre(st.de).t)}” ${TT("com qual tópico? Toque nele no mapa ou escolha:", "¿con qué tema? Tócalo en el mapa o elígelo:")}</b><select id="mmlAlvo"><option value="">${TT("Escolher tópico…", "Elegir tema…")}</option>${outros.map(x => `<option value="${esc(x.id)}">${q(x.t)}</option>`).join("")}</select>${tem ? `<label class="mml-chk"><input type="checkbox" id="mmlTrocar" ${st.trocar ? "checked" : ""}> ${TT("tirar a ligação de agora", "quitar la conexión de ahora")} (${q(noLivre(tem)?.t)})</label>` : ""}${bt("mmlCancelar", TT("Cancelar", "Cancelar"))}`;
   } else if (st.modo === "soltou" && n) {
@@ -8803,13 +8810,14 @@ function livreBarra() {
     el.innerHTML = `<input id="mmlNome" maxlength="90" value="${esc(n.t)}" aria-label="${TT("Nome do tópico", "Nombre del tema")}"><input type="color" id="mmlCor" value="${hex6(n.cor)}" title="${TT("Cor", "Color")}">${paletaLivre(L, n.cor, "no")}${bt("mmlConectar", TT("Conectar", "Conectar"))}${bt("mmlSub", "+ " + TT("Subtópico", "Subtema"))}${n.id === L.centro ? "" : `${bt("mmlMaior", "A+")}${bt("mmlMenor", "A−")}${bt("mmlApagar", TT("Apagar", "Borrar"), "danger")}${filhosLivre(L, arvoreLivre(L), n.id).length ? bt("mmlApagarTudo", TT("Apagar com subtópicos", "Borrar con subtemas"), "danger") : ""}`}${desfazer}`;
   } else if (l) {
     el.innerHTML = `<b class="mml-tit">${TT("Linha", "Línea")}: “${q(noLivre(l.a)?.t)}” ↔ “${q(noLivre(l.b)?.t)}”</b><input id="mmlLigT" maxlength="40" value="${esc(l.t || "")}" placeholder="${TT("Escrever na linha (opcional)", "Escribir en la línea (opcional)")}"><input type="color" id="mmlLigCor" value="${hex6(l.cor || "#8fa3ff")}" title="${TT("Cor da linha", "Color de la línea")}">${paletaLivre(L, l.cor, "lig")}${bt("mmlApagarLig", TT("Apagar linha", "Borrar línea"), "danger")}${desfazer}`;
-  } else el.innerHTML = `${bt("mmlNovo", "+ " + TT("Tópico", "Tema"), "primary")}${desfazer}${bt("mmlReorg", TT("Reorganizar", "Reorganizar"))}${bt("mmlTitulo", TT("Nome do mapa", "Nombre del mapa"))}${bt("mmlOriginal", TT("Voltar ao original", "Volver al original"))}<label class="mml-chk"><input type="checkbox" id="mmlJunto" ${S.mmJunto === false ? "" : "checked"}> ${TT("mover os subtópicos junto", "mover los subtemas juntos")}</label><span class="mml-dica">${TT("Arraste um tópico, toque nele ou numa linha para editar. Dois toques no vazio criam um tópico.", "Arrastra un tema, tócalo o toca una línea para editar. Dos toques en el vacío crean un tema.")}</span>`;
+  } else el.innerHTML = `${bt("mmlNovo", "+ " + TT("Tópico", "Tema"), "primary")}${L.nos.some(x => x.id !== L.centro) ? bt("mmlNovoSub", "+ " + TT("Subtópico", "Subtema"), "primary") : ""}${desfazer}${bt("mmlReorg", TT("Reorganizar", "Reorganizar"))}${bt("mmlTitulo", TT("Nome do mapa", "Nombre del mapa"))}${bt("mmlOriginal", TT("Voltar ao original", "Volver al original"))}<label class="mml-chk"><input type="checkbox" id="mmlJunto" ${S.mmJunto === false ? "" : "checked"}> ${TT("mover os subtópicos junto", "mover los subtemas juntos")}</label><span class="mml-dica">${TT("Arraste um tópico, toque nele ou numa linha para editar. Dois toques no vazio criam um tópico.", "Arrastra un tema, tócalo o toca una línea para editar. Dos toques en el vacío crean un tema.")}</span>`;
 }
 async function livreAcao(a, arg) {
   const { m, c } = mapaAtual(), L = m?.livre, st = livreEstado(); if (!L) return; const n = noLivre(st.sel);
   const tirar = ids => { livreAntes(); L.nos = L.nos.filter(x => !ids.has(x.id)); L.lig = L.lig.filter(l => !ids.has(l.a) && !ids.has(l.b)); Object.assign(st, { sel: null, lig: null, modo: "" }); livreMudou(); };
   if (a === "mmlNovo") { const r = $("#mmSvg").getBoundingClientRect(), v = S.mmVista2D; let p = { x: v.x + r.width / v.e / 2, y: v.y + r.height / v.e / 2 }; for (let k = 0; k < 20 && L.nos.some(x => Math.abs(x.x - p.x) < 130 && Math.abs(x.y - p.y) < 40); k++) p.y += 46; novoTopicoLivre(p); }
-  else if (a === "mmlSub" && n) novoTopicoLivre(null, n.id);
+  else if (a === "mmlSub" && n) novoTopicoLivre(null, n.id, n.id !== L.centro);
+  else if (a === "mmlNovoSub") { if (n && n.id !== L.centro) return novoTopicoLivre(null, n.id, true); Object.assign(st, { modo: "sub", sel: null, lig: null, de: null }); desenharLivre(); }
   else if (a === "mmlCorUsar" && arg) { const [alvo, cor] = arg.split("|"), lg = L.lig[st.lig]; if (!/^#[0-9a-f]{6}$/i.test(cor || "")) return; livreAntes(); st.campo = "";
     if (alvo === "no" && n) corNoLivre(L, n, cor); else if (alvo === "lig" && lg) lg.cor = cor; else { st.hist.pop(); return; } livreMudou(); }
   else if (a === "mmlConectar" && n) { Object.assign(st, { modo: "conectar", de: n.id, trocar: false }); desenharLivre(); }
@@ -8837,7 +8845,7 @@ document.addEventListener("input", e => {
   desenharLivre(); livreMudou(false);
 });
 document.addEventListener("change", e => { const st = S.mmL; if (!st) return;
-  if (e.target.id === "mmlAlvo" && e.target.value) conectarLivre(st.de, e.target.value); else if (e.target.id === "mmlTrocar") st.trocar = e.target.checked; else if (e.target.id === "mmlJunto") S.mmJunto = e.target.checked;
+  if (e.target.id === "mmlSubAlvo" && e.target.value) novoTopicoLivre(null, e.target.value, true); else if (e.target.id === "mmlAlvo" && e.target.value) conectarLivre(st.de, e.target.value); else if (e.target.id === "mmlTrocar") st.trocar = e.target.checked; else if (e.target.id === "mmlJunto") S.mmJunto = e.target.checked;
   else if (e.target.id === "mmlNome") { const n = noLivre(st.sel); st.campo = ""; if (n && !n.t.trim()) { n.t = TT("Sem nome", "Sin nombre"); livreMudou(); } } else if (/^mml(Cor|LigT|LigCor)$/.test(e.target.id)) st.campo = ""; });
 document.addEventListener("keydown", e => { if (S.mapaAberto?.estilo !== "livre" || !S.mmEditando || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || document.querySelector("dialog[open]")) return;
   if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey)) { e.preventDefault(); livreAcao("mmlDesfazer"); } else if (e.key === "Delete") livreAcao(S.mmL?.lig !== null && S.mmL?.lig !== undefined ? "mmlApagarLig" : "mmlApagar"); });
