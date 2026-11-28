@@ -1,0 +1,51 @@
+# Publica o site em hipocampo.web.app (Firebase Hosting) sempre que chega mudança.
+# Precisa do segredo FIREBASE_CONTA_SERVICO no GitHub (Settings → Secrets and variables → Actions):
+# o conteúdo do arquivo .json da conta de serviço com o papel "Firebase Hosting Admin".
+name: Publicar no Firebase
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths-ignore: ["README.md", "ferramentas/**", ".gitignore"]
+  workflow_dispatch:
+
+concurrency:
+  group: publicar-firebase
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Conferir a sintaxe do app
+        run: |
+          python - <<'PY'
+          import re
+          h = open("index.html", encoding="utf-8").read()
+          open("/tmp/app.mjs", "w").write("\n".join(re.findall(r'<script type="module"[^>]*>(.*?)</script>', h, re.S)))
+          PY
+          node --check /tmp/app.mjs
+      - name: Publicar
+        env:
+          CONTA: ${{ secrets.FIREBASE_CONTA_SERVICO }}
+        run: |
+          if [ -z "$CONTA" ]; then echo "Falta o segredo FIREBASE_CONTA_SERVICO no GitHub."; exit 1; fi
+          pip install --quiet google-auth requests
+          TOKEN=$(python - <<'PY'
+          import json, os
+          from google.oauth2 import service_account
+          from google.auth.transport.requests import Request
+          c = service_account.Credentials.from_service_account_info(json.loads(os.environ["CONTA"]), scopes=["https://www.googleapis.com/auth/firebase", "https://www.googleapis.com/auth/cloud-platform"])
+          c.refresh(Request())
+          print(c.token)
+          PY
+          )
+          echo "::add-mask::$TOKEN"
+          python ferramentas/publicar_firebase.py . hipocampo foco-prova-b2c5c "$TOKEN"
