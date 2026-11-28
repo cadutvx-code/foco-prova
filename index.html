@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hipocampo Study</title>
-<link rel="icon" href="favicon.svg?v=hipo1" type="image/svg+xml">
-<link rel="icon" href="favicon-32.png?v=hipo1" sizes="32x32" type="image/png">
-<link rel="shortcut icon" href="favicon.ico?v=hipo1">
+<link rel="icon" href="favicon.svg?v=hipo2" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png?v=hipo2" sizes="32x32" type="image/png">
+<link rel="shortcut icon" href="favicon.ico?v=hipo2">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icone-180.png">
 <meta name="theme-color" content="#6246ea">
@@ -434,9 +434,9 @@ label.comp-linha{display:flex!important;flex-direction:row!important;justify-con
 .hipo-fala{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:10px 14px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.22);margin-bottom:28px}
 @media (max-width:760px){#hipoBalao{bottom:calc(92px + env(safe-area-inset-bottom))}}
 /* Hipo preto e branco em todo o app (pedido de 28/11/2026) */
-.hipo-svg [fill="#ffd76a"]{fill:#f3f4f8}.hipo-svg [fill="#f5b83a"]{fill:#b9bdc9}.hipo-svg [stroke="#ffc94a"],.hipo-svg [stroke="#ffd76a"]{stroke:#f3f4f8}.hipo-svg [stroke="#f5b83a"]{stroke:#b9bdc9}
-.hipo-svg [fill="#ff9fb2"]{display:none}.hipo-svg [stroke="#b9741c"]{stroke:#1b1c24}.hipo-svg [fill="#2d2a3e"]{fill:#1b1c24}
-.hipo-svg{filter:drop-shadow(0 0 .6px #1b1c24) drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+.hipo-svg:not(.hipo-cor) [fill="#ffd76a"]{fill:#f3f4f8}.hipo-svg:not(.hipo-cor) [fill="#f5b83a"]{fill:#b9bdc9}.hipo-svg:not(.hipo-cor) [stroke="#ffc94a"],.hipo-svg:not(.hipo-cor) [stroke="#ffd76a"]{stroke:#f3f4f8}.hipo-svg:not(.hipo-cor) [stroke="#f5b83a"]{stroke:#b9bdc9}
+.hipo-svg:not(.hipo-cor) [fill="#ff9fb2"]{display:none}.hipo-svg:not(.hipo-cor) [stroke="#b9741c"]{stroke:#1b1c24}.hipo-svg:not(.hipo-cor) [fill="#2d2a3e"]{fill:#1b1c24}
+.hipo-svg:not(.hipo-cor){filter:drop-shadow(0 0 .6px #1b1c24) drop-shadow(0 1px 1px rgba(0,0,0,.25))}
 #hipoAjuda{position:fixed;right:16px;bottom:22px;z-index:40;width:58px;height:58px;border-radius:50%;border:1.5px solid rgba(255,255,255,.22);background:#17181f;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:0;transition:transform .15s}
 #hipoAjuda:hover{transform:scale(1.06)}#hipoAjuda[hidden]{display:none}
 #hipoAjuda .hipo-svg{margin-top:4px}
@@ -6465,7 +6465,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-28-1802";
+const VERSAO_APP = "2026-11-28-1806";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
@@ -9206,7 +9206,7 @@ function labHipoHTML() {
   const L = S.lab, resp = L.escolha != null;
   const status = L.pensando ? `<span class="spin"></span> Hipo está pensando…` : L.falando ? "Hipo está falando…" : L.erroFala ? esc(L.erroFala) : resp ? "" : "Responda que eu comento…";
   return `<div class="lab-hipo ${L.falando ? "falando" : ""} ${resp ? "" : "espera"}">
-      <div class="lab-hipo-fig">${hipoSVG("falando", 120)}</div>
+      <div class="lab-hipo-fig">${hipoSVG("falando", 120).replace('class="hipo-svg"', 'class="hipo-svg hipo-cor"')}</div>
       <div class="lab-hipo-txt"><div class="lab-status">${status}</div>
         ${L.fala ? `<div class="lab-fala" id="labFala">${L.mostrando != null ? esc(String(L.fala).slice(0, L.mostrando)) : esc(L.fala)}</div>` : ""}
         ${L.fala && !L.falando ? `<div class="lab-botoes"><button class="btn small" data-act="labOuvir">${iconeSVG("play")} Ouvir de novo</button></div>` : ""}</div>
