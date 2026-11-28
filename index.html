@@ -433,9 +433,10 @@ label.comp-linha{display:flex!important;flex-direction:row!important;justify-con
 #hipoBalao .hipo-svg{flex:none;animation:hipoBoia 2.4s ease-in-out infinite}
 .hipo-fala{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:10px 14px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.22);margin-bottom:28px}
 @media (max-width:760px){#hipoBalao{bottom:calc(92px + env(safe-area-inset-bottom))}}
-/* Central de ajuda: Hipo preto e branco no canto (só na tela inicial) */
-.hipo-mono [fill="#ffd76a"]{fill:#f3f4f8}.hipo-mono [fill="#f5b83a"]{fill:#b9bdc9}.hipo-mono [stroke="#ffc94a"],.hipo-mono [stroke="#ffd76a"]{stroke:#f3f4f8}.hipo-mono [stroke="#f5b83a"]{stroke:#b9bdc9}
-.hipo-mono [fill="#ff9fb2"]{display:none}.hipo-mono [stroke="#b9741c"]{stroke:#1b1c24}.hipo-mono [fill="#2d2a3e"]{fill:#1b1c24}
+/* Hipo preto e branco em todo o app (pedido de 28/11/2026) */
+.hipo-svg [fill="#ffd76a"]{fill:#f3f4f8}.hipo-svg [fill="#f5b83a"]{fill:#b9bdc9}.hipo-svg [stroke="#ffc94a"],.hipo-svg [stroke="#ffd76a"]{stroke:#f3f4f8}.hipo-svg [stroke="#f5b83a"]{stroke:#b9bdc9}
+.hipo-svg [fill="#ff9fb2"]{display:none}.hipo-svg [stroke="#b9741c"]{stroke:#1b1c24}.hipo-svg [fill="#2d2a3e"]{fill:#1b1c24}
+.hipo-svg{filter:drop-shadow(0 0 .6px #1b1c24) drop-shadow(0 1px 1px rgba(0,0,0,.25))}
 #hipoAjuda{position:fixed;right:16px;bottom:22px;z-index:40;width:58px;height:58px;border-radius:50%;border:1.5px solid rgba(255,255,255,.22);background:#17181f;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:0;transition:transform .15s}
 #hipoAjuda:hover{transform:scale(1.06)}#hipoAjuda[hidden]{display:none}
 #hipoAjuda .hipo-svg{margin-top:4px}
@@ -4936,14 +4937,14 @@ const AVATARES_DESENHO = {
     <circle cx="40" cy="34" r="3" fill="#ffb3cd"/><circle cx="62" cy="30" r="2.2" fill="#ffb3cd"/>
     ${AV_OLHOS(50, 10, 4)}<path d="M44 58 Q 50 63 56 58" stroke="#8a2b52" stroke-width="2" fill="none" stroke-linecap="round"/>${AV_BOCHECHAS(57, 17, "#ff3d7f")}` },
   hipocampo: { nome: "Hipocampo", cor: "#6c4dff", nivel: 12, svg: `
-    <path d="M60 64 C 60 76 50 80 52 88 C 54 95 64 95 66 89 C 67 84 62 82 59 85" fill="none" stroke="#ffd76a" stroke-width="7" stroke-linecap="round"/>
-    <path d="M60 34 C 72 34 76 46 70 56 C 66 64 60 68 54 68 C 44 68 40 58 44 48 C 46 42 50 36 60 34 Z" fill="#ffd76a"/>
-    <path d="M70 42 C 78 42 80 50 75 55 C 73 51 71 49 68 49 Z" fill="#f5b83a"/>
-    <path d="M48 26 L 30 30" stroke="#ffd76a" stroke-width="7" stroke-linecap="round"/>
-    <circle cx="56" cy="27" r="11" fill="#ffd76a"/>
-    <path d="M52 17 L54 10 L57 16 L61 11 L62 18 Z" fill="#f5b83a"/>
+    <path d="M60 64 C 60 76 50 80 52 88 C 54 95 64 95 66 89 C 67 84 62 82 59 85" fill="none" stroke="#f3f4f8" stroke-width="7" stroke-linecap="round"/>
+    <path d="M60 34 C 72 34 76 46 70 56 C 66 64 60 68 54 68 C 44 68 40 58 44 48 C 46 42 50 36 60 34 Z" fill="#f3f4f8"/>
+    <path d="M70 42 C 78 42 80 50 75 55 C 73 51 71 49 68 49 Z" fill="#b9bdc9"/>
+    <path d="M48 26 L 30 30" stroke="#f3f4f8" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="56" cy="27" r="11" fill="#f3f4f8"/>
+    <path d="M52 17 L54 10 L57 16 L61 11 L62 18 Z" fill="#b9bdc9"/>
     <circle cx="58" cy="25" r="3.2" fill="#2d2a3e"/><circle cx="59.2" cy="23.8" r="1.1" fill="#fff"/>
-    <path d="M48 50 C 52 52 58 52 62 50 M47 57 C 51 59 57 59 61 57" stroke="#f5b83a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M48 50 C 52 52 58 52 62 50 M47 57 C 51 59 57 59 61 57" stroke="#b9bdc9" stroke-width="2.2" fill="none" stroke-linecap="round"/>
     <path d="M24 46 C 26 40 28 38 34 36 C 28 34 26 32 24 26 C 22 32 20 34 14 36 C 20 38 22 40 24 46 Z" fill="#fff" opacity=".9"/>` }
 };
 function svgAvatar(id) {
@@ -6464,7 +6465,7 @@ $("#cfgProvider").addEventListener("change", mostrarProvedor);
 $("#provaAntigaIn").addEventListener("change", e => { const fs = [...e.target.files]; e.target.value = ""; lerProvasAntigas(fs); });
 $("#novoArquivo").addEventListener("change", e => { S.novo.arquivos.push(...e.target.files); e.target.value = ""; desenharNovo(); });
 // Atualização automática: abas abertas por muito tempo (comum no celular) pegam a versão nova do site
-const VERSAO_APP = "2026-11-27-0059";
+const VERSAO_APP = "2026-11-28-1802";
 let ultimaChecagem = Date.now();
 async function checarVersao() {
   if (Date.now() - ultimaChecagem < 60000 || !/^https?:/.test(location.protocol)) return;
